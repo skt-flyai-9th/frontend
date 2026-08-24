@@ -46,11 +46,29 @@ export default function TargetSelectScreen({ navigation, route }: Props) {
 
   const hasLowConfidence = targets?.some((t) => t.aiConfidence === '낮음');
 
+  /**
+   * 손님 정보가 하나도 없는 경우 (2026-08-26 실서버에서 실제로 발생).
+   *
+   * 가게 등록 후 외부데이터 가져오기가 끝나야 타깃이 생기는데, 그게 아직
+   * 안 끝났거나 실패하면 이 화면이 **텅 빈 채로 '다음'도 비활성**이 됩니다.
+   * 사장님은 아무 설명 없이 갇힙니다 — 막다른 길입니다.
+   *
+   * 타깃은 명세상 필수가 아니므로(4.2 store_target_customer_id 는 선택),
+   * 없을 때는 이유를 말하고 그냥 넘어갈 수 있게 합니다.
+   */
+  const noTargets = !isLoading && !isError && (targets?.length ?? 0) === 0;
+
   return (
     <Screen
       footer={
         <BottomAction>
-          <Button label="다음" onPress={next} disabled={!selected} loading={updateProject.isPending} />
+          <Button
+            label={noTargets ? '손님 정하지 않고 계속' : '다음'}
+            onPress={next}
+            // 목록이 비었을 때는 고를 게 없으므로 막지 않습니다.
+            disabled={!noTargets && !selected}
+            loading={updateProject.isPending}
+          />
         </BottomAction>
       }
     >
@@ -70,7 +88,14 @@ export default function TargetSelectScreen({ navigation, route }: Props) {
         />
       )}
 
-      {isLoading && !targets && <Loading label="손님 정보을 불러오는 중" />}
+      {isLoading && !targets && <Loading label="손님 정보를 불러오는 중" />}
+
+      {noTargets && (
+        <EmptyState
+          title="아직 손님 정보가 없습니다"
+          description="가게 정보를 가져오는 중이거나 아직 분석되지 않았습니다. 손님을 정하지 않고 그냥 만드셔도 됩니다."
+        />
+      )}
 
       {isError && (
         <EmptyState

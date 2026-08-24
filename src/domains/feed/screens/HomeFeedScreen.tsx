@@ -139,9 +139,18 @@ export default function HomeFeedScreen() {
           // 시안: 카드 사이는 빈 여백이 아니라 surface 색 8px 띠입니다.
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
+            /*
+             * ⚠️ 예전 문구는 "가게 정보를 채우면 골라 드려요" 였습니다.
+             *    그런데 이 목록이 비는 주된 이유는 **서버에 포맷이 아직 없어서**입니다
+             *    (2026-08-26 실서버 확인: /video-formats 가 0건).
+             *    그 상태에서 가게 정보를 채우라고 하면, 해도 소용없는 일을 시키는 겁니다.
+             *    막을 거면 맞는 이유를 써야 합니다.
+             */
             <EmptyState
-              title="아직 보여드릴 추천이 없습니다"
-              description="가게 정보를 채우면 딱 맞는 숏폼을 골라 드려요."
+              title="아직 추천할 숏폼이 없습니다"
+              description="준비되는 대로 여기에 채워집니다. 조금 뒤에 다시 열어 보세요."
+              actionLabel="다시 불러오기"
+              onAction={() => formats.refetch()}
             />
           }
         />

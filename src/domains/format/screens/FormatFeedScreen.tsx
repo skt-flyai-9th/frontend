@@ -192,7 +192,8 @@ export default function FormatFeedScreen({ navigation, route }: Props) {
           description={
             activeCount > 0
               ? '조건을 지우면 더 많이 보입니다.'
-              : '질문으로 찾으면 맞는 방법을 골라 드립니다.'
+              : // 조건이 없는데도 0건이면 목록 자체가 비어 있는 것입니다.
+                '지금은 목록이 비어 있습니다. 조금 뒤에 다시 열어 보세요.'
           }
           actionLabel={activeCount > 0 ? '조건 지우기' : '질문으로 찾기'}
           onAction={() => {
