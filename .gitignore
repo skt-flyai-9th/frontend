@@ -141,3 +141,26 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+
+# ── Expo / React Native (앱 전용 추가분) ──
+.expo/
+web-build/
+.metro-health-check*
+expo-env.d.ts
+
+# 네이티브 프로젝트 (expo prebuild / run 시 생성됨 — CNG 방식이라 커밋 안 함)
+android/
+ios/
+
+# 서명 키·인증서 — 절대 커밋 금지
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-play-service-account.json
+
+# 기타
+.DS_Store
+*.orig.*

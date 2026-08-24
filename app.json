@@ -1,0 +1,96 @@
+{
+  "expo": {
+    "name": "Reals",
+    "slug": "reals",
+    "scheme": "reals",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yeoljeong2.reals",
+      "infoPlist": {
+        "NSCameraUsageDescription": "가게 홍보 영상을 촬영하기 위해 카메라를 사용합니다.",
+        "NSMicrophoneUsageDescription": "영상에 소리를 담기 위해 마이크를 사용합니다.",
+        "NSPhotoLibraryAddUsageDescription": "완성한 영상을 사진첩에 저장하기 위해 사용합니다.",
+        "NSPhotoLibraryUsageDescription": "가게 사진을 불러오기 위해 사용합니다.",
+        "LSApplicationQueriesSchemes": [
+          "instagram",
+          "instagram-stories",
+          "youtube",
+          "naversearchapp"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.yeoljeong2.reals",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "가게 홍보 영상을 촬영하기 위해 카메라를 사용합니다.",
+          "microphonePermission": "영상에 소리를 담기 위해 마이크를 사용합니다.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "가게 사진을 불러오기 위해 사용합니다.",
+          "savePhotosPermission": "완성한 영상을 사진첩에 저장하기 위해 사용합니다."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      "expo-video",
+      "expo-font",
+      "expo-secure-store",
+      "expo-file-system",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "http://192.168.68.57:8080",
+      "mockDomains": [
+        "auth",
+        "store",
+        "project",
+        "format",
+        "quiz",
+        "plan",
+        "shoot",
+        "edit",
+        "publish",
+        "analytics"
+      ]
+    }
+  }
+}
