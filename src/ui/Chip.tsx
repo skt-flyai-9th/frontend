@@ -1,6 +1,19 @@
+/**
+ * Chip / Badge — 시안 `ui/reals.tsx` 대조 이식.
+ *
+ * 시안 사양
+ *   Chip   h-8(32) · rounded-full · px-3.5(14) · 13·semibold
+ *          활성 bg-brand + 흰 글자 / 비활성 border-hairline + bg-canvas + text-ink-3
+ *          active:scale-95
+ *   Badge  rounded-full · px-2.5(10) py-1(4) · 11·semibold
+ *
+ * 접근성: 시각 높이는 32 지만 hitSlop 으로 터치 영역 44 를 보전합니다
+ * (눈에는 시안, 손끝에는 접근성).
+ */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import theme, { color, radius, sizing, space, text } from '../design/theme';
+import { pressTap } from './press';
 
 type Tone = 'neutral' | 'brand' | 'done' | 'warn' | 'danger';
 
@@ -16,7 +29,8 @@ export function Badge({ label, tone = 'neutral' }: { label: string; tone?: Tone 
   const t = TONE[tone];
   return (
     <View style={[styles.badge, { backgroundColor: t.bg }]}>
-      <Text style={[text.micro, { color: t.fg }]}>{label}</Text>
+      {/* 시안 배지는 11·semibold 입니다. micro 는 medium 이라 굵기만 올립니다. */}
+      <Text style={[text.micro, styles.badgeText, { color: t.fg }]}>{label}</Text>
     </View>
   );
 }
@@ -39,15 +53,10 @@ export function Chip({
       style={({ pressed }) => [
         styles.chip,
         selected ? styles.chipOn : styles.chipOff,
-        pressed && { opacity: theme.opacity.pressed },
+        pressTap(pressed, 'chip'),
       ]}
     >
-      <Text
-        style={[
-          text.bodySmall,
-          { color: selected ? color.paper : color.ink[700], fontFamily: theme.text.bodyStrong.fontFamily },
-        ]}
-      >
+      <Text style={[text.chipLabel, { color: selected ? color.paper : color.ink[700] }]}>
         {label}
       </Text>
     </Pressable>
@@ -66,25 +75,21 @@ export function Confidence({ level }: { level: 'high' | 'medium' | 'low' }) {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: space[2],
-    paddingVertical: 3,
-    // 가이드라인 §3.1·§5.5: 배지는 완전 pill
+    // 시안: px-2.5 py-1
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     alignSelf: 'flex-start',
   },
+  badgeText: { fontFamily: theme.text.chipLabel.fontFamily },
   chip: {
-    /**
-     * 디자인 1차수정 (2026-08-24, "시안 우선" 지시): 칩 높이 32 · 글자 13.
-     * 접근성: 시각 높이는 32 지만 hitSlop 으로 터치 영역 44 를 보전합니다
-     * (기능명세 하한 44 — 눈에는 시안, 손끝에는 접근성).
-     */
     minHeight: sizing.chipHeight,
-    paddingHorizontal: space[4],
+    // 시안: px-3.5
+    paddingHorizontal: 14,
     justifyContent: 'center',
     borderRadius: radius.pill,
     borderWidth: theme.border.hairline,
   },
-  // 가이드라인 §5.3: 활성 칩은 브랜드색 배경 + 흰 글자
   chipOn: { backgroundColor: color.brand[600], borderColor: color.brand[600] },
-  chipOff: { backgroundColor: color.paper, borderColor: color.ink[200] },
+  chipOff: { backgroundColor: color.canvas, borderColor: color.ink[200] },
 });

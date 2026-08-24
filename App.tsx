@@ -8,6 +8,7 @@ import { Text, View } from 'react-native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAppFonts } from './src/design/fonts';
 import { ApiError } from './src/api/http';
+import { PlayTri } from './src/ui/RealsLogo';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -35,12 +36,23 @@ export default function App() {
   }, [fontsReady]);
 
   if (!fontsReady) {
-    // 시안 splash — 폰트 로딩 공백을 빈 화면 대신 로고(Reals▶)로 채웁니다.
+    /**
+     * 시안 splash — 폰트 로딩 공백을 빈 화면 대신 로고(Reals▶)로 채웁니다.
+     *
+     * ⚠️ 여기서는 ui/RealsLogo 를 쓰지 않습니다.
+     *    그 컴포넌트는 Pretendard 패밀리를 지정하는데, 이 화면이 그려지는 시점은
+     *    폰트가 **아직 로딩되기 전**입니다. 없는 패밀리를 지정하면 기기에 따라
+     *    글자가 잠깐 깨져 보입니다. 그래서 글자는 시스템 폰트로 두고,
+     *    삼각형만 시안과 같은 도형(PlayTri)을 씁니다.
+     *    시안 비율: 삼각형 = 글자 크기 × 0.31 → 34 × 0.31 ≈ 11
+     */
     return (
       <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-          <Text style={{ fontSize: 34, fontWeight: '600', letterSpacing: -0.7, color: '#0F172A' }}>Reals</Text>
-          <View style={{ width: 0, height: 0, marginLeft: 3, marginBottom: 7, borderTopWidth: 5.5, borderBottomWidth: 5.5, borderLeftWidth: 9.5, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#EF4444' }} />
+          <Text style={{ fontSize: 34, fontWeight: '600', letterSpacing: -0.68, color: '#0F172A' }}>Reals</Text>
+          <View style={{ marginLeft: 34 * 0.06, marginBottom: 34 * 0.1 }}>
+            <PlayTri size={11} />
+          </View>
         </View>
       </View>
     );

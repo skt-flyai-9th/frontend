@@ -7,7 +7,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Clock, EyeOff, Mic, User } from 'lucide-react-native';
-import { color, radius, space } from '../design/theme';
+import theme, { color, radius, space } from '../design/theme';
 
 const ICONS = { clock: Clock, user: User, eyeOff: EyeOff, mic: Mic } as const;
 export type FeasibilityTag = { icon: keyof typeof ICONS; label: string };
@@ -30,7 +30,8 @@ export function FeasibilityBadges({ tags, onDark = false }: { tags: FeasibilityT
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  dark: { backgroundColor: 'rgba(15,23,42,0.65)' },
+  dark: { backgroundColor: color.overlay.badge },
   light: { backgroundColor: color.surface },
-  label: { fontSize: 11, lineHeight: 15, fontWeight: '600' },
+  // 시안: 11·semibold — 토큰의 micro(11) + chipLabel 굵기와 정확히 같습니다.
+  label: { ...theme.text.micro, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight },
 });

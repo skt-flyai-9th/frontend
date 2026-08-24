@@ -1,32 +1,74 @@
 /**
- * AppBar — 시안 TopHeader 사양 (디자인 1차수정, components/shell/TopHeader.jsx 대조 이식)
+ * AppBar — 시안 TopHeader / HomeHeader 대조 이식.
  *
  * 시안 사양 → 구현 대응
  *   배경  rgba(255,255,255,.95) + backdrop blur(12)  →  BlurView(intensity 24) + 흰 0.95 오버레이
- *   하단  1px rgba(226,232,240,.6)                    →  동일 rgba
+ *   하단  1px rgba(226,232,240,.6)                    →  color.hairlineSoft
  *   행    44px, 좌우 16                                →  sizing.appBarHeight(44), space[4]
  *   타이틀 18·700, **절대 중앙**(뒤로가기 유무와 무관)  →  absolute center
- *   back  36 원형, chevron 24                          →  36 + hitSlop 으로 터치 44 보전
- *   logo  variant: RealsLogo 22 (+빨간 ▶)              →  logo prop
+ *   back  36 원형, chevron 24                          →  sizing.iconButton + hitSlop 으로 터치 44 보전
+ *
+ * 세 가지 모양이 있습니다 (시안과 동일).
+ *   variant=back   뒤로가기 + 중앙 타이틀      → onBack
+ *   variant=title  타이틀만                     → title
+ *   variant=logo   좌측 워드마크                → logo
+ *   HomeHeader     알림(좌) · 중앙 로고 · 메뉴(우) → home
  *
  * step(온보딩 진행바)은 시안에 없지만 기능 요구라 유지합니다 — 스타일만 시안 토큰.
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { ChevronLeft } from 'lucide-react-native';
-import theme, { color, radius, sizing, space, text } from '../design/theme';
+import { Bell, ChevronLeft, Menu } from 'lucide-react-native';
+import theme, { color, radius, sizing, space } from '../design/theme';
+import { RealsLogo } from './RealsLogo';
+import { pressTap } from './press';
 
 interface AppBarProps {
   title?: string;
   onBack?: () => void;
   right?: React.ReactNode;
-  /** 홈 전용: "Reals▶" 워드마크를 좌측에 (title 대신) */
+  /** 좌측 "Reals▶" 워드마크 (title 대신) */
   logo?: boolean;
+  /**
+   * 시안 HomeHeader — 알림 벨(좌) · 중앙 로고 22 · 메뉴(우).
+   * 지정하면 logo·title 대신 이 배치를 씁니다.
+   */
+  home?: { onBell?: () => void; onMenu?: () => void; unread?: boolean };
   step?: { current: number; total: number };
 }
 
-export function AppBar({ title, onBack, right, logo, step }: AppBarProps) {
+/** 시안 HeaderIconBtn — 36 원형, active:scale-90 */
+function IconBtn({
+  icon: Icon,
+  label,
+  onPress,
+  edge,
+}: {
+  icon: typeof Bell;
+  label: string;
+  onPress?: () => void;
+  edge?: 'left' | 'right';
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.iconBtn,
+        edge === 'left' && { marginLeft: -6 },
+        edge === 'right' && { marginRight: -6 },
+        pressTap(pressed, 'icon'),
+      ]}
+    >
+      <Icon size={22} strokeWidth={2} color={color.ink[900]} />
+    </Pressable>
+  );
+}
+
+export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) {
   return (
     <View style={styles.wrap}>
       {/* 시안의 backdrop-blur. 흰 0.95 가 위에 얹혀 은은하게만 비칩니다. */}
@@ -35,35 +77,44 @@ export function AppBar({ title, onBack, right, logo, step }: AppBarProps) {
 
       <View style={styles.row}>
         <View style={styles.side}>
-          {onBack ? (
+          {home ? (
+            // 점을 버튼 기준으로 찍기 위해 바깥 상자가 -6 을 먹습니다.
+            <View style={styles.backBtn}>
+              <IconBtn icon={Bell} label="알림" onPress={home.onBell} />
+              {/* 시안: 읽지 않은 알림 점 — 7px 빨강 + 흰 링 2px */}
+              {home.unread ? <View pointerEvents="none" style={styles.unreadDot} /> : null}
+            </View>
+          ) : onBack ? (
             <Pressable
               accessibilityRole="button"
               hitSlop={6}
               accessibilityLabel="뒤로가기"
               onPress={onBack}
-              style={({ pressed }) => [styles.iconBtn, pressed && { transform: [{ scale: 0.9 }], opacity: theme.opacity.pressed }]}
+              style={({ pressed }) => [styles.iconBtn, styles.backBtn, pressTap(pressed, 'icon')]}
             >
               <ChevronLeft size={24} strokeWidth={2} color={color.ink[900]} />
             </Pressable>
           ) : logo ? (
-            <View style={styles.logoRow}>
-              <Text style={styles.logoText}>Reals</Text>
-              {/* RealsLogo.jsx: 's' 뒤 베이스라인의 하트색 재생 ▶ (size×0.31) */}
-              <View style={styles.logoPlay} />
-            </View>
+            <RealsLogo size={22} />
           ) : null}
         </View>
 
-        {/* 시안: 타이틀은 절대 중앙 — 좌우 요소 폭에 밀리지 않습니다 */}
-        {title ? (
-          <View pointerEvents="none" style={styles.titleWrap}>
+        {/* 시안: 중앙 요소는 절대 배치 — 좌우 요소 폭에 밀리지 않습니다 */}
+        {home ? (
+          <View pointerEvents="none" style={styles.centerWrap}>
+            <RealsLogo size={22} />
+          </View>
+        ) : title ? (
+          <View pointerEvents="none" style={styles.centerWrap}>
             <Text style={styles.title} numberOfLines={1}>
               {title}
             </Text>
           </View>
         ) : null}
 
-        <View style={[styles.side, styles.sideRight]}>{right}</View>
+        <View style={[styles.side, styles.sideRight]}>
+          {home ? <IconBtn icon={Menu} label="설정" onPress={home.onMenu} edge="right" /> : right}
+        </View>
       </View>
 
       {step && <StepBar current={step.current} total={step.total} />}
@@ -95,8 +146,7 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
     borderBottomWidth: theme.border.hairline,
-    // 시안: rgba(226,232,240,.6)
-    borderBottomColor: 'rgba(226,232,240,0.6)',
+    borderBottomColor: color.hairlineSoft,
   },
   whiteGlass: { backgroundColor: 'rgba(255,255,255,0.95)' },
   row: {
@@ -106,51 +156,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: space[4],
   },
-  side: { minWidth: 36, flexDirection: 'row', alignItems: 'center' },
+  side: { minWidth: sizing.iconButton, flexDirection: 'row', alignItems: 'center' },
   sideRight: { justifyContent: 'flex-end', gap: space[1] },
   iconBtn: {
-    width: 36,
-    height: 36,
-    marginLeft: -6,
+    width: sizing.iconButton,
+    height: sizing.iconButton,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  titleWrap: {
+  backBtn: { marginLeft: -6 },
+  unreadDot: {
+    // 시안: right-2 top-2 (36 버튼 기준 8px)
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 7,
+    height: 7,
+    borderRadius: radius.pill,
+    backgroundColor: color.danger[500],
+    borderWidth: 2,
+    borderColor: color.paper,
+  },
+  centerWrap: {
     position: 'absolute',
     left: 0,
     right: 0,
     alignItems: 'center',
   },
-  // 시안: 18·700
+  // 시안: 18·700 · tracking-tighter-title
   title: {
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: '700',
-    fontFamily: theme.text.title.fontFamily,
-    color: color.ink[900],
+    ...theme.text.heading,
     maxWidth: '62%',
-  },
-  logoRow: { flexDirection: 'row', alignItems: 'flex-end' },
-  logoText: {
-    fontSize: 22,
-    lineHeight: 26,
-    fontWeight: '600',
-    fontFamily: theme.text.bodyStrong.fontFamily,
-    letterSpacing: -0.44,
-    color: color.ink[900],
-  },
-  logoPlay: {
-    width: 0,
-    height: 0,
-    marginLeft: 2,
-    marginBottom: 4,
-    borderTopWidth: 3.5,
-    borderBottomWidth: 3.5,
-    borderLeftWidth: 6,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: color.danger[500],
   },
   stepBar: { flexDirection: 'row', gap: 3, paddingHorizontal: space[5], paddingBottom: space[3] },
   stepSeg: { flex: 1, height: 4, borderRadius: radius.pill },

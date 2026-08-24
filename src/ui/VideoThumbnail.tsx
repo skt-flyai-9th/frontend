@@ -22,7 +22,7 @@
  */
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { Play } from 'lucide-react-native';
+import { PlayTri } from './RealsLogo';
 import theme, { color, radius, space, text } from '../design/theme';
 
 /** YouTube URL 에서 videoId 만 뽑습니다. */
@@ -102,7 +102,8 @@ export function VideoThumbnail({
       {/* 썸네일 위 오버레이는 약관 제약이 없습니다. 플레이어가 아니기 때문입니다. */}
       <View style={styles.playMark}>
         <View style={styles.playCircle}>
-          <Play size={24} strokeWidth={2} color={color.paper} fill={color.paper} />
+          {/* 시안: 흰 재생 삼각형 24 (아이콘이 아니라 도형) */}
+          <PlayTri size={24} fill={color.paper} />
         </View>
       </View>
 
@@ -133,7 +134,8 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: radius.pill,
-    backgroundColor: color.overlay.scrim,
+    // 시안 ReelCard: bg-ink/25 + blur. RN 은 부분 blur 가 없어 농도만 맞춥니다.
+    backgroundColor: color.overlay.media,
     alignItems: 'center',
     justifyContent: 'center',
   },
