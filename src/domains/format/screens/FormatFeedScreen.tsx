@@ -10,7 +10,7 @@
  * 명세 S05.2.2 "선택값 세션 유지" — 필터를 화면 밖(appState)에 둡니다.
  * 매번 처음부터 다시 고르게 하면 사장님이 탐색을 포기합니다.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, Check } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -32,12 +32,23 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'FormatFeed'>;
 
 const TYPES = ['밈', '잔잔한 소개', '정보형', '챌린지'] as const;
 
-/** 명세 5.1 sort·period 조합. 사장님 말로 바꿔 보여줍니다. */
-const SORTS: { key: string; period: string; label: string }[] = [
+/**
+ * 명세 5.1 sort·period 조합. 사장님 말로 바꿔 보여줍니다.
+ *
+ * ⚠️ 서버 FormatSort enum 은 trending / views / latest 뿐입니다 (2026-08-26 실서버 대조).
+ *    '쉬운 순' 은 서버에 없는 값이라 예전처럼 sort=easy 로 보내면 422 입니다.
+ *    사장님에게 가장 쓸모 있는 정렬이라 없애지 않고, **서버에는 trending 을 보내고
+ *    받은 목록을 화면에서 난이도순으로 정렬**합니다. clientSort 가 그 표시입니다.
+ */
+const SORTS: { key: string; period: string; label: string; clientSort?: 'easy' }[] = [
   { key: 'trending', period: '7d', label: '요즘 뜨는' },
   { key: 'views', period: '30d', label: '많이 본' },
-  { key: 'easy', period: '30d', label: '쉬운 순' },
+  { key: 'latest', period: '30d', label: '최신순' },
+  { key: 'easy', period: '7d', label: '쉬운 순', clientSort: 'easy' },
 ];
+
+/** 촬영 난이도 하 → 상 순. 서버가 정렬해 주지 않는 값이라 여기서 정렬합니다. */
+const DIFFICULTY_ORDER: Record<string, number> = { 하: 0, 중: 1, 상: 2 };
 
 export default function FormatFeedScreen({ navigation, route }: Props) {
   const { projectId } = route.params;
@@ -53,14 +64,28 @@ export default function FormatFeedScreen({ navigation, route }: Props) {
     return () => clearTimeout(t);
   }, [input, setFilters]);
 
+  /** 화면에서만 쓰는 정렬('쉬운 순')이면 서버에는 서버가 아는 값을 보냅니다. */
+  const activeSort = SORTS.find((s) => s.key === filters.sort);
+  const serverSort = activeSort?.clientSort ? 'trending' : filters.sort;
+
   const { data, isLoading, isError, refetch } = useVideoFormats({
     projectId,
     formatType: filters.formatType,
     faceExposureLevel: filters.faceExposureLevel,
-    sort: filters.sort,
+    sort: serverSort,
     period: filters.period,
     keyword: filters.keyword || undefined,
   });
+
+  /** '쉬운 순'일 때만 화면에서 한 번 더 정렬합니다. 그 외에는 서버 순서를 그대로 씁니다. */
+  const formats = useMemo(() => {
+    if (!data || activeSort?.clientSort !== 'easy') return data;
+    return [...data].sort(
+      (a, b) =>
+        (DIFFICULTY_ORDER[a.shootingDifficulty] ?? 9) -
+        (DIFFICULTY_ORDER[b.shootingDifficulty] ?? 9)
+    );
+  }, [data, activeSort?.clientSort]);
 
   const activeCount =
     (filters.formatType ? 1 : 0) +
@@ -161,7 +186,7 @@ export default function FormatFeedScreen({ navigation, route }: Props) {
       )}
 
       {/* 명세 S05.2.1 "결과 0건 시 조건 완화 제안" */}
-      {!isLoading && !isError && data?.length === 0 && (
+      {!isLoading && !isError && formats?.length === 0 && (
         <EmptyState
           title="조건에 맞는 방식이 없습니다"
           description={
@@ -181,7 +206,7 @@ export default function FormatFeedScreen({ navigation, route }: Props) {
         />
       )}
 
-      {data?.map((f, i) => (
+      {formats?.map((f, i) => (
         <Card
           key={f.id}
           onPress={() => navigation.navigate('FormatDetail', { projectId, formatId: f.id })}

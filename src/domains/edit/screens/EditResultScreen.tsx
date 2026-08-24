@@ -62,7 +62,8 @@ export default function EditResultScreen({ navigation, route }: Props) {
     revise.mutate(
       {
         outputId: result.videoOutputId,
-        requestType: useFree ? 'free_text' : 'quick_button',
+        // ⚠️ 자연어 값은 'natural_language' 입니다. 'free_text' 로 보내면 422 (2026-08-26 실서버 대조).
+        requestType: useFree ? 'natural_language' : 'quick_button',
         action: useFree ? freeText.trim() : picked.join(', '),
       },
       {

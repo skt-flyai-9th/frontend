@@ -50,9 +50,12 @@ export default function HomeScreen() {
   // 둘러보기용. 아직 프로젝트가 없어도 볼 수 있습니다.
   const { data: formats, isLoading: formatsLoading, isError: formatsError } = useVideoFormats({ sort: 'trending', period: '7d' });
 
-  const inProgress = projects?.find(
-    (p) => p.shortsStatus !== 'PUBLISHED' && p.shortsStatus !== 'READY'
-  );
+  /**
+   * 아직 만들고 있는 프로젝트.
+   * 서버 ShortsStatus 는 DRAFT / IN_PROGRESS / COMPLETED 셋입니다 (2026-08-26 대조).
+   * 끝난 것만 빼면 되므로 COMPLETED 하나만 거릅니다.
+   */
+  const inProgress = projects?.find((p) => p.shortsStatus !== 'COMPLETED');
 
   // 어디까지 했는지 서버에서 받아옵니다 (명세 9.3).
   const { data: draft } = useDraft(inProgress?.id);

@@ -29,18 +29,36 @@ import theme, { color, radius, space, text } from '../../../design/theme';
 import { useAddPhoto, useDeletePhoto, usePhotos } from '../../../api/queries/store';
 import { useCurrentStore } from '../../../lib/appState';
 import type { StorePhoto } from '../../../api/schema/types';
+import { PHOTO_CATEGORIES, type PhotoCategory } from '../../../api/schema/types';
 import type { StoreStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<StoreStackParamList, 'PhotoManage'>;
 
-/** 명세 3.3 category. 영상에서 쓰이는 자리가 다릅니다. */
-const CATEGORIES = ['간판', '내부', '음식', '외관', '기타'] as const;
-type Category = (typeof CATEGORIES)[number];
+/**
+ * 명세 3.3 category. 영상에서 쓰이는 자리가 다릅니다.
+ *
+ * ⚠️ 값은 schema/types 의 PHOTO_CATEGORIES 를 그대로 씁니다 — 실서버 enum 입니다.
+ *    예전에는 '음식' 을 보냈는데 서버 값은 '메뉴' 라 422 가 났습니다 (2026-08-26 대조).
+ *    목록을 화면에서 따로 적어두면 또 어긋나므로 한 곳에서만 정의합니다.
+ */
+const CATEGORIES = PHOTO_CATEGORIES;
+type Category = PhotoCategory;
+
+/** 분류별로 영상 어디에 쓰이는지. 서버 enum 7종을 전부 덮습니다. */
+const CATEGORY_USE: Record<Category, string> = {
+  간판: '영상 첫 장면에 씁니다.',
+  외관: '찾아오는 길을 보여줄 때 씁니다.',
+  내부: '가게 분위기를 보여줄 때 씁니다.',
+  메뉴: '메뉴를 보여주는 구간에 씁니다.',
+  '제조·시술': '만드는 과정을 보여줄 때 씁니다.',
+  인물: '사장님·직원이 나오는 장면에 씁니다.',
+  기타: '참고용으로 보관합니다.',
+};
 
 export default function PhotoManageScreen({ navigation }: Props) {
   const storeId = useCurrentStore();
   const [filter, setFilter] = useState<Category | null>(null);
-  const [pickedCategory, setPickedCategory] = useState<Category>('음식');
+  const [pickedCategory, setPickedCategory] = useState<Category>('메뉴');
 
   const { data: photos, isLoading, isError, refetch } = usePhotos(storeId, filter ?? undefined);
   const addPhoto = useAddPhoto(storeId ?? 0);
@@ -154,15 +172,8 @@ export default function PhotoManageScreen({ navigation }: Props) {
             />
           ))}
         </View>
-        <Text style={text.caption}>
-          {pickedCategory === '간판'
-            ? '영상 첫 장면에 씁니다.'
-            : pickedCategory === '음식'
-              ? '메뉴를 보여주는 구간에 씁니다.'
-              : pickedCategory === '내부'
-                ? '가게 분위기를 보여줄 때 씁니다.'
-                : '참고용으로 보관합니다.'}
-        </Text>
+        {/* 어디에 쓰이는지 알려줘야 사장님이 맞는 사진을 올립니다. */}
+        <Text style={text.caption}>{CATEGORY_USE[pickedCategory] ?? '참고용으로 보관합니다.'}</Text>
       </View>
 
       {/* 목록 필터 */}

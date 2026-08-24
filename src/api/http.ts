@@ -68,8 +68,37 @@ export function domainOf(path: string): Domain {
   return 'project';
 }
 
+/**
+ * 실서버에 **아직 구현되지 않은** 엔드포인트.
+ *
+ * 2026-08-26 https://sarils.p-e.kr/openapi.json 실측 결과, 명세에는 있지만
+ * 서버에는 없는 경로가 다섯 개입니다. 그대로 부르면 404 라서 화면이 죽습니다.
+ *
+ *   R06 질문형 : /quiz-questions · /quiz-answers · /quiz-alternatives
+ *   R13 AI평가 : /tasks/{id}/evaluate · /tasks/{id}/evaluation
+ *
+ * 도메인 스위치(mockDomains)로는 이걸 정확히 못 가릅니다 — 평가는 'shoot' 도메인인데
+ * 같은 도메인의 태스크·촬영본 업로드는 서버에 **있기 때문**입니다. 도메인째 mock 으로
+ * 돌리면 실제 업로드까지 가짜가 됩니다. 그래서 경로 단위로 따로 둡니다.
+ *
+ * ⚠️ 서버에 생기면 여기서 그 줄만 지우면 됩니다. 다른 곳은 손댈 필요가 없습니다.
+ */
+const SERVER_MISSING_SUFFIXES = [
+  '/quiz-questions',
+  '/quiz-answers',
+  '/quiz-alternatives',
+  '/evaluate',
+  '/evaluation',
+];
+
+/** 서버에 없는 경로인지. 쿼리스트링을 떼고 끝부분으로 판별합니다. */
+export function isServerMissing(path: string): boolean {
+  const clean = path.split('?')[0];
+  return SERVER_MISSING_SUFFIXES.some((suffix) => clean.endsWith(suffix));
+}
+
 export function isMocked(path: string): boolean {
-  return mockDomains.has(domainOf(path));
+  return mockDomains.has(domainOf(path)) || isServerMissing(path);
 }
 
 export class ApiError extends Error {
@@ -166,6 +195,19 @@ async function rawRequest<T>(
     // 명세 공통 에러 형식: { error_code, message }
     // 그 외 필드는 detail 로 넘겨 화면이 쓸 수 있게 합니다.
     const { error_code, message, ...rest } = json ?? {};
+
+    /**
+     * FastAPI 검증 오류(422)만 형식이 다릅니다: { detail: [ {loc, msg, type}, ... ] }
+     * error_code 가 없어 그대로 두면 전부 '잠시 후 다시 시도해 주세요' 로 뭉개집니다.
+     * 사장님 화면 문구는 VALIDATION_ERROR 로 통일하되, **어느 필드가 틀렸는지는
+     * 로그에 남깁니다** — 이게 없으면 enum 하나 어긋났을 때 원인을 못 찾습니다.
+     * (2026-08-26 실서버 확인: 업무 오류는 error_code 로 오고, 422 만 이 모양입니다)
+     */
+    if (!error_code && Array.isArray((json as { detail?: unknown })?.detail)) {
+      const where = JSON.stringify((json as { detail: unknown }).detail).slice(0, 300);
+      console.warn(`[api] 422 ${method} ${path} — ${where}`);
+      throw new ApiError(res.status, 'VALIDATION_ERROR', where);
+    }
     throw new ApiError(
       res.status,
       error_code ?? 'UNKNOWN',

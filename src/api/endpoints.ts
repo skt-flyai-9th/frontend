@@ -159,6 +159,8 @@ export const ERROR_TEXT: Record<string, string> = {
   EMAIL_ALREADY_EXISTS: '이미 가입된 이메일입니다.',
   TOKEN_EXPIRED: '로그인이 만료됐습니다. 다시 로그인해 주세요.',
   UNAUTHORIZED: '로그인이 필요합니다.',
+  // 2026-08-26 실서버 확인: 토큰 없이 보호 자원을 부르면 이 코드가 옵니다.
+  AUTHENTICATION_REQUIRED: '로그인이 필요합니다.',
   TERMS_NOT_AGREED: '필수 항목에 동의해야 계속할 수 있습니다.',
 
   // 가게
@@ -184,12 +186,17 @@ export const ERROR_TEXT: Record<string, string> = {
 
   // 게시·성과
   SNS_NOT_CONNECTED: 'SNS 계정을 먼저 연결해 주세요.',
+  // 명세 16.2 (2026-08-26): DIRECT 게시는 플랫폼 검수 전이라 아직 닫혀 있습니다.
+  // 화면에서 DIRECT 를 노출하지 않으므로 정상 흐름에서는 나오지 않아야 합니다.
+  DIRECT_PUBLISH_UNAVAILABLE: '지금은 앱이 대신 올릴 수 없습니다. 직접 올리기로 진행해 주세요.',
   REAUTH_REQUIRED: '계정 연결이 만료됐습니다. 다시 연결해 주세요.',
   INVALID_POST_URL: '게시물 주소를 다시 확인해 주세요.',
   INSUFFICIENT_DATA: '아직 판단할 만한 자료가 모이지 않았습니다.',
 
   // 공통
   VALIDATION_ERROR: '입력값을 확인해 주세요.',
+  // 2026-08-26 실서버 확인: 없는 경로·없는 자원 모두 이 코드로 옵니다.
+  NOT_FOUND: '요청하신 정보를 찾을 수 없습니다.',
   RATE_LIMITED: '요청이 많습니다. 잠시 후 다시 시도해 주세요.',
   NETWORK_ERROR: '연결이 끊겼습니다. 신호를 확인해 주세요.',
   UNKNOWN: '잠시 후 다시 시도해 주세요.',

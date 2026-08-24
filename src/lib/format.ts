@@ -1,5 +1,22 @@
 /** 화면 표시용 포매터 모음. */
 
+/**
+ * 프로젝트를 화면에 뭐라고 부를지 (명세 4.1·4.3·15.2, 2026-08-26).
+ *
+ * project_title 은 AI 가 7.1 기획 때 지어줍니다. 그 전에는 null 이므로
+ * promotion_purpose 로 대신합니다 — BE 공지가 지시한 폴백입니다.
+ *
+ * 폴백을 화면마다 각자 쓰면 한 곳은 반드시 빠뜨립니다. 그래서 여기 한 곳에 둡니다.
+ */
+export function projectLabel(p?: {
+  projectTitle?: string | null;
+  promotionPurpose?: string | null;
+}): string {
+  const t = p?.projectTitle?.trim();
+  if (t) return t;
+  return p?.promotionPurpose ?? '만들던 영상';
+}
+
 export function won(value?: number | null): string {
   if (value === null || value === undefined) return '';
   return `${value.toLocaleString('ko-KR')}원`;

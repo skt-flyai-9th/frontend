@@ -39,6 +39,15 @@ export default function StoreSearchScreen({ navigation }: Props) {
         infoSource: place.source,
         // 명세 2.1 → 2.2 로 그대로 전달합니다.
         externalChannelUrl: place.externalChannelUrl,
+        // 2.2 (2026-08-23): 검색이 준 좌표를 버리지 않고 그대로 저장시킵니다.
+        latitude: place.latitude,
+        longitude: place.longitude,
+        /**
+         * 2.2 (2026-08-25): 카카오 후보면 값이 있고 네이버면 null 입니다.
+         * 우리가 만들거나 고르는 값이 아니라 2.1 이 준 걸 되돌려주는 것뿐입니다.
+         * BE 가 이걸로 대표메뉴 자동 수집을 겁니다(저장은 안 됨).
+         */
+        kakaoPlaceId: place.kakaoPlaceId,
       },
       { onSuccess: (res) => navigation.replace('StoreConfirm', { storeId: res.id }) }
     );
