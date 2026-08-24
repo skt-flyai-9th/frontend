@@ -36,6 +36,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
+import { AppBar } from '../../../ui/AppBar';
 import { Banner, Loading } from '../../../ui/Feedback';
 import { useAppState } from '../../../lib/appState';
 import {
@@ -223,10 +224,8 @@ export default function AiChatScreen() {
     : [];
 
   return (
-    <Screen padded={false} scroll={false} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={text.title}>AI 숏폼 추천</Text>
-      </View>
+    <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
+      <AppBar title="AI 숏폼 추천" />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -376,35 +375,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // 가이드라인 §5.6: 최대 78%, 꼬리쪽 모서리만 8, AI 말풍선에만 그림자
-  bubble: { maxWidth: '78%', paddingHorizontal: space[4], paddingVertical: space[3], borderRadius: radius.lg },
+  bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.lg },
   ai: {
     backgroundColor: color.paper,
-    borderTopLeftRadius: radius.sm,
+    borderTopLeftRadius: radius.xs,
     ...theme.elevation('bubble'),
   },
-  me: { backgroundColor: color.brand[600], borderTopRightRadius: radius.sm },
+  me: { backgroundColor: color.brand[600], borderTopRightRadius: radius.xs },
   options: { gap: space[2], marginTop: space[2] },
+  /**
+   * 시안 answerChip — rounded-full · border-brand-border · bg-canvas · px-4 py-2.5.
+   * 사각 카드가 아니라 알약입니다. 대화 안에서 "고르는 말" 로 읽히게 하는 형태라
+   * 카드로 그리면 대화가 아니라 목록처럼 보입니다.
+   */
   option: {
     minHeight: sizing.touchTargetMin,
     justifyContent: 'center',
     paddingHorizontal: space[4],
-    paddingVertical: space[3],
-    // 가이드라인 §3.1: 버튼류는 12
-    borderRadius: radius.md,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
     borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    backgroundColor: color.paper,
-    ...theme.elevation('bubble'),
+    borderColor: color.brand[300],
+    backgroundColor: color.canvas,
   },
-  optionOn: { borderColor: color.brand[300], backgroundColor: color.brand[50] },
+  optionOn: { borderColor: color.brand[600], backgroundColor: color.brand[50] },
   confirm: { backgroundColor: color.brand[600], borderColor: color.brand[600], alignItems: 'center' },
   inputRow: {
     flexDirection: 'row',
     gap: space[2],
     padding: space[4],
     borderTopWidth: theme.border.hairline,
-    borderTopColor: color.ink[200],
-    backgroundColor: color.paper,
+    borderTopColor: color.hairlineSoft,
+    backgroundColor: color.canvas,
   },
   input: {
     flex: 1,

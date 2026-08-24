@@ -23,7 +23,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Heart, Play, Send } from 'lucide-react-native';
 
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
-import theme, { color, space, radius } from '../../design/theme';
+import theme, { color, space, radius, sizing } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
 type Props = {
@@ -126,22 +126,17 @@ const styles = StyleSheet.create({
     paddingVertical: space[1],
     ...theme.elevation('card'),
   },
-  platformText: { ...theme.text.micro, color: color.ink[900], letterSpacing: 1 },
-  title: {
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: '600',
-    fontFamily: theme.text.bodyStrong.fontFamily,
+  // 시안: text-[11px] font-bold tracking-tight (자간을 벌리지 않습니다)
+  platformText: {
+    ...theme.text.micro,
+    fontFamily: theme.text.heading.fontFamily,
+    fontWeight: theme.text.heading.fontWeight,
     color: color.ink[900],
+    letterSpacing: -0.22,
   },
-  tagLine: {
-    marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '500',
-    fontFamily: theme.text.body.fontFamily,
-    color: color.ink[500],
-  },
+  // 시안: 제목 15·600 / 해시태그 12·500 slate-muted
+  title: { ...theme.text.bodyStrong },
+  tagLine: { ...theme.text.label, marginTop: 2, fontFamily: theme.text.body.fontFamily, fontWeight: theme.text.body.fontWeight },
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -152,8 +147,8 @@ const styles = StyleSheet.create({
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   iconBtn: {
-    width: 36,
-    height: 36,
+    width: sizing.iconButton,
+    height: sizing.iconButton,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

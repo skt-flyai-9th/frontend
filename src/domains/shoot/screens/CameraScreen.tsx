@@ -17,6 +17,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../../../ui/Button';
 import { CameraGuideOverlay, type GuideShape } from '../../../ui/CameraGuideOverlay';
 import { SpineStrip } from '../../../ui/ProgressSpine';
+import { Shutter } from '../../../ui/Shutter';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
 import { useTaskGuide, useTasks } from '../../../api/queries/shoot';
 import { useAppState } from '../../../lib/appState';
@@ -247,9 +248,9 @@ export default function CameraScreen({ navigation, route }: Props) {
             <Text style={styles.sideLabel}>가이드</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={recording ? '녹화 멈추기' : '녹화 시작'}
+          <Shutter
+            recording={recording}
+            disabled={!ready || countdown !== null}
             onPress={
               recording
                 ? () => {
@@ -258,16 +259,7 @@ export default function CameraScreen({ navigation, route }: Props) {
                   }
                 : () => setCountdown(COUNTDOWN_FROM)
             }
-            disabled={!ready || countdown !== null}
-            style={({ pressed }) => [
-              styles.shutterOuter,
-              // 시안 camera.tsx: 녹화 중엔 바깥 링이 빨강으로
-              recording && { borderColor: color.danger[500] },
-              pressed && { transform: [{ scale: 0.94 }] },
-            ]}
-          >
-            <View style={[styles.shutterInner, recording && styles.shutterStop]} />
-          </Pressable>
+          />
 
           <Pressable
             accessibilityRole="button"
@@ -358,22 +350,6 @@ const styles = StyleSheet.create({
   sideButton: { width: 64, alignItems: 'center', gap: 2 },
   sideLabel: { ...text.micro, color: 'rgba(255,255,255,0.8)' },
 
-  shutterOuter: {
-    width: sizing.shutterOuter,
-    height: sizing.shutterOuter,
-    borderRadius: radius.pill,
-    borderWidth: 4,
-    borderColor: color.paper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterInner: {
-    width: sizing.shutterInner,
-    height: sizing.shutterInner,
-    borderRadius: radius.pill,
-    backgroundColor: color.brand[500],
-  },
-  shutterStop: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: color.paper },
 
   torchRow: { alignSelf: 'center', paddingVertical: space[2], paddingHorizontal: space[4] },
   torchText: { ...text.bodySmall, color: 'rgba(255,255,255,0.85)' },

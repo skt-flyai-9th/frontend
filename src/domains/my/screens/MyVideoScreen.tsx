@@ -8,11 +8,10 @@
  * API 15.2 `GET /stores/{storeId}/shorts` 의 항목을 그대로 받아 재생합니다.
  * 위아래로 넘겨 다음 영상으로 이동합니다.
  *
- * ⚠️ 하단 제목 자리
- *    시안에는 "이 치즈김밥 단면 실화?" 같은 제목이 있는데 **15.2 에 제목 필드가
- *    없습니다.** 명세도 "프로젝트에는 제목 개념이 없다" 고 적고 있어서,
- *    지금은 `promotion_purpose` 를 라벨로 씁니다. BE 에 제목 컬럼을 문의해 뒀고
- *    답이 오면 이 한 줄만 바꾸면 됩니다.
+ * ✅ 하단 제목 (2026-08-26 해결)
+ *    문의해 두었던 제목 컬럼이 15.2 응답에 `project_title` 로 추가됐습니다.
+ *    AI 가 7.1 기획 때 지어주는 값이라 기획 전에는 null 이고, 그때는
+ *    `promotion_purpose` 로 대체합니다 — 그 분기는 lib/format 의 projectLabel 이 담당합니다.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -35,6 +34,7 @@ import { EmptyState } from '../../../ui/Feedback';
 import { useAppState } from '../../../lib/appState';
 import { useStore } from '../../../api/queries/store';
 import { useStoreShorts } from '../../../api/queries/store';
+import { projectLabel } from '../../../lib/format';
 import { color, radius, space, text } from '../../../design/theme';
 import type { RootStackParamList } from '../../../navigation/types';
 import type { StoreShort } from '../../../api/schema/types';
@@ -195,9 +195,9 @@ function Reel({
             {storeName}
           </Text>
         </View>
-        {/* 제목 필드가 없어 목적을 라벨로 씁니다 (BE 문의 중) */}
+        {/* 명세 15.2 project_title (2026-08-26). 7.1 전이면 null 이라 목적으로 대체됩니다. */}
         <Text style={[text.subheading, { color: color.paper }]} numberOfLines={2}>
-          {short.promotionPurpose}
+          {projectLabel(short)}
         </Text>
       </View>
     </View>

@@ -9,7 +9,8 @@
  *    in front of any part of a YouTube embedded player."
  *   - 플레이어 위에 카메라 프리뷰·버튼·카운트다운을 **절대 겹치지 않습니다.**
  *     그래서 화면을 위(플레이어)/아래(카메라)로 물리적으로 나눴습니다.
- *   - 배속·구간반복 컨트롤은 GuidePlayer 가 이미 플레이어 바깥에 둡니다.
+ *   - 재생·배속은 유튜브 자체 컨트롤입니다(플레이어 안). 우리가 위에 얹는 것은 없습니다.
+ *     compact 모드에서는 전체화면 버튼만 끕니다 — 촬영 중에 카메라가 가려지면 안 됩니다.
  *   - Instagram·TikTok 참고 영상은 재생 제어 API 가 없어 이 화면을 못 씁니다.
  *     그 경우 TaskGuide 가 이 화면으로 보내지 않습니다 (YouTube 전용).
  *
@@ -26,6 +27,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button } from '../../../ui/Button';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { Loading } from '../../../ui/Feedback';
+import { Shutter } from '../../../ui/Shutter';
 import { useTaskGuide } from '../../../api/queries/shoot';
 import { color, space, radius, text, sizing } from '../../../design/theme';
 import type { CreateStackParamList } from '../../../navigation/types';
@@ -159,17 +161,13 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
           </View>
         )}
         <View style={[styles.shutterRow, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={recording ? '촬영 끝내기' : '촬영 시작'}
+          <Shutter
+            recording={recording}
             onPress={() => {
               if (recording) cameraRef.current?.stopRecording();
               else void beginRecording();
             }}
-            style={({ pressed }) => [styles.shutterOuter, pressed && { opacity: 0.8 }]}
-          >
-            <View style={[styles.shutterInner, recording && styles.shutterStop]} />
-          </Pressable>
+          />
         </View>
       </View>
     </View>
@@ -207,20 +205,4 @@ const styles = StyleSheet.create({
   },
   recDot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: color.danger[500] },
   shutterRow: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
-  shutterOuter: {
-    width: sizing.shutterOuter,
-    height: sizing.shutterOuter,
-    borderRadius: sizing.shutterOuter / 2,
-    borderWidth: 4,
-    borderColor: color.paper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterInner: {
-    width: sizing.shutterInner,
-    height: sizing.shutterInner,
-    borderRadius: sizing.shutterInner / 2,
-    backgroundColor: color.danger[500],
-  },
-  shutterStop: { borderRadius: radius.sm, width: 34, height: 34 },
 });
