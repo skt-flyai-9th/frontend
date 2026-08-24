@@ -31,6 +31,13 @@ export const loginResponse = {
   user: { id: 1, email: 'boss01@example.com', name: '김사장' },
 };
 
+/**
+ * 2.1 검색 후보.
+ *
+ * ⚠️ kakao_place_id 는 **카카오 후보에만** 값이 있고 네이버는 null 입니다
+ *    (명세 2026-08-25). 세 후보 중 하나만 값이 있는 이 구성이 곧 표본입니다 —
+ *    전부 채워두면 "네이버일 때 null" 경로를 한 번도 안 타게 됩니다.
+ */
 const PLACES = [
   {
     source: 'NAVER',
@@ -42,6 +49,7 @@ const PLACES = [
     category: '한식',
     distance_m: 120,
     external_channel_url: 'https://map.naver.com/p/entry/place/11111',
+    kakao_place_id: null,
   },
   {
     source: 'KAKAO',
@@ -53,6 +61,8 @@ const PLACES = [
     category: '분식',
     distance_m: 140,
     external_channel_url: 'https://place.map.kakao.com/22222',
+    // 명세 예시처럼 external_channel_url 끝자리와 같은 값을 씁니다(문자열입니다).
+    kakao_place_id: '22222',
   },
   {
     source: 'NAVER',
@@ -64,6 +74,7 @@ const PLACES = [
     category: '한식',
     distance_m: 480,
     external_channel_url: 'https://map.naver.com/p/entry/place/33333',
+    kakao_place_id: null,
   },
 ];
 
@@ -215,6 +226,8 @@ export const insights = [
 
 export const project = {
   id: 1001,
+  // 명세 4.3 (2026-08-26): 7.1 기획 전에는 null 입니다. POST /plan 이 채웁니다.
+  project_title: null,
   store_id: 10,
   video_format_id: null,
   store_target_customer_id: null,
@@ -232,6 +245,8 @@ export const project = {
 export const projectList = [
   {
     id: 1000,
+    // 촬영 단계라 기획(7.1)을 이미 지났습니다 → 제목이 있습니다.
+    project_title: '신메뉴 로제떡볶이 가격 맞히기',
     promotion_purpose: '메뉴소개',
     shorts_status: 'SHOOTING',
     updated_at: '2026-08-19T14:20:00Z',
@@ -583,6 +598,8 @@ export const storeShorts = [
   {
     video_output_id: 501,
     shorts_project_id: 300,
+    // 명세 15.2 (2026-08-26)
+    project_title: "이 국물 진짜 30년이래요",
     promotion_purpose: '메뉴소개',
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
     cover_image_url: 'https://picsum.photos/seed/reals501/720/1280',
@@ -593,6 +610,8 @@ export const storeShorts = [
   {
     video_output_id: 502,
     shorts_project_id: 301,
+    // 명세 15.2 (2026-08-26)
+    project_title: "손만두 빚는 아침 5시",
     promotion_purpose: '이벤트알리기',
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     cover_image_url: 'https://picsum.photos/seed/reals502/720/1280',
@@ -603,6 +622,9 @@ export const storeShorts = [
   {
     video_output_id: 503,
     shorts_project_id: 302,
+    // 명세 15.2 (2026-08-26)
+   // 기획 전이라 null — 화면이 목적으로 대체하는 경로를 검증합니다.
+    project_title: null,
     promotion_purpose: '가게소개',
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
     cover_image_url: 'https://picsum.photos/seed/reals503/720/1280',

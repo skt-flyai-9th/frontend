@@ -72,6 +72,17 @@ let logoUrl: string | null = null;
 let meState: Record<string, unknown> = {};
 let nextId = 9000;
 
+/**
+ * 15.2 완성 숏폼 갤러리.
+ *
+ * 🔴 여기가 "만들었는데 숏츠가 없다" 의 원인이었습니다 (2026-08-26).
+ *    예전에는 fx.storeShorts 를 **그대로** 돌려줘서, 앱에서 영상을 끝까지 만들어도
+ *    마이페이지 그리드·내 숏폼 뷰어에는 영영 나타나지 않았습니다.
+ *    15.1 로 출력 파일이 만들어지면 실서버는 그 결과물이 15.2 에 잡힙니다.
+ *    Mock 도 같은 일을 해야 합니다 — 이 프로젝트 제1규칙(저장은 상태를 실제로 바꾼다).
+ */
+let shortsState: Record<string, unknown>[] = fx.storeShorts.map((v) => ({ ...v }));
+
 /** 콘티. 수정하면 반영돼야 하므로 복사본을 들고 있습니다. */
 let sceneState: Record<string, unknown>[] = fx.scenes.map((s) => ({ ...s }));
 /** 자동저장 상태. 이어하기가 정확한 지점으로 가려면 유지돼야 합니다. */
@@ -107,6 +118,7 @@ export function resetMockState() {
   jobStartedAt.clear();
   projectState = {};
   sceneState = fx.scenes.map((s) => ({ ...s }));
+  shortsState = fx.storeShorts.map((v) => ({ ...v }));
   storeState = { ...fx.store };
   menuState = fx.menus.map((m) => ({ ...m }));
   photoState = fx.photos.map((p) => ({ ...p }));
@@ -207,12 +219,34 @@ export async function mockRequest<T>(
   if (p === '/stores' && method === 'POST') {
     jobStartedAt.delete('import');
     const b = (body ?? {}) as Record<string, unknown>;
+
+    /**
+     * 명세 2.2 kakao_place_id (2026-08-25).
+     *
+     * **저장하지 않습니다.** 명세가 "저장되지 않으며 대표메뉴 자동 수집을
+     * 트리거하는 데만 쓰이고 버려진다" 고 못 박았습니다. 그래서 storeState 에
+     * 넣지 않는 게 실서버와 같은 행동입니다 — 여기서만은 "저장은 상태를 실제로
+     * 바꿔야 한다" 규칙의 예외이고, 그 근거가 명세에 있습니다.
+     *
+     * 대신 타입은 봅니다. 실서버가 문자열을 기대하는데 프론트가 숫자를 보내는
+     * 실수는 조용히 지나가면 BE 붙일 때까지 안 드러납니다.
+     */
+    if (b.kakao_place_id != null && typeof b.kakao_place_id !== 'string') {
+      throw new ApiError(
+        400,
+        'VALIDATION_ERROR',
+        `kakao_place_id 는 문자열입니다 (받은 값: ${typeof b.kakao_place_id})`
+      );
+    }
+
     return send({
       id: 10,
       name: b.name ?? fx.store.name,
       category: b.category ?? fx.store.category,
       address: b.address ?? fx.store.address,
-      info_source: b.infoSource ?? 'MANUAL',
+      // body 는 입구에서 toSnake 를 거칩니다. camelCase 로 읽으면 늘 undefined 가
+      // 되어 NAVER·KAKAO 로 등록해도 응답이 MANUAL 로 나갔습니다.
+      info_source: b.info_source ?? 'MANUAL',
       import_status: 'IN_PROGRESS',
       created_at: new Date().toISOString(),
     });
@@ -422,7 +456,10 @@ export async function mockRequest<T>(
   if (match(p, /^\/stores\/(\d+)\/shorts$/)) {
     const page = Number(query(path, 'page') ?? 1);
     const size = Number(query(path, 'size') ?? 20);
-    const all = fx.storeShorts;
+    // 최신순이 위로. 방금 만든 영상이 그리드 첫 칸에 옵니다.
+    const all = [...shortsState].sort(
+      (a, b) => String(b.created_at).localeCompare(String(a.created_at))
+    );
     return send({
       items: all.slice((page - 1) * size, page * size),
       page,
@@ -506,6 +543,12 @@ export async function mockRequest<T>(
      */
     const b = (body ?? {}) as { video_format_id?: number };
     if (b.video_format_id != null) projectState.video_format_id = b.video_format_id;
+    /**
+     * 명세 4.3 (2026-08-26): project_title 은 **AI 가 7.1 기획 때** 지어줍니다.
+     * 그 전에는 null 이라, 여기서 채워야 "기획 전 null → 기획 후 제목" 분기가
+     * Mock 에서 실제로 검증됩니다. 응답만 주고 상태를 안 바꾸면 그 경로가 죽습니다.
+     */
+    projectState.project_title = '우리 가게 손칼국수, 이 국물 실화?';
     return send(fx.plan);
   }
   if (match(p, /^\/shorts-projects\/(\d+)\/scenes$/)) {
@@ -697,6 +740,29 @@ export async function mockRequest<T>(
           outputState.push({ ...base, target_platform: pf, id: 800 + outputState.length + 1 });
         }
       }
+      /**
+       * 만들어진 결과물을 15.2 갤러리에도 올립니다.
+       * 실서버에서 15.2 는 "렌더가 끝난 것" 목록이라, 출력 파일이 생기면 여기에 잡힙니다.
+       * 프로젝트당 한 줄만 둡니다(플랫폼을 추가해도 같은 영상입니다).
+       */
+      // p 는 이미 쿼리스트링이 잘린 `/shorts-projects/{id}/outputs` 입니다.
+      const pid = Number(p.split('/')[2]);
+      const done = outputState.find((o) => o.render_status === 'COMPLETED') ?? outputState[0];
+      if (done && !shortsState.some((v) => v.shorts_project_id === pid)) {
+        shortsState.push({
+          video_output_id: done.id,
+          shorts_project_id: pid,
+          // 7.1 이 지어준 제목. 아직 없으면 null 이고 화면이 목적으로 대체합니다.
+          project_title: projectState.project_title ?? null,
+          promotion_purpose: projectState.promotion_purpose ?? fx.project.promotion_purpose,
+          video_url: done.video_url,
+          cover_image_url: done.cover_image_url,
+          duration_sec: null,
+          is_posted: false,
+          created_at: new Date().toISOString(),
+        });
+      }
+
       // 명세 15.1 (2026-08-21 확정): GET 도 POST 와 동일한 필드 구성입니다.
       return send({ outputs: outputState, publish_kit: fx.publishKit });
     }
