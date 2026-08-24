@@ -25,9 +25,13 @@ import theme, { color, motion, radius, sizing, space } from '../design/theme';
 import { TabGlyph, type TabGlyphName } from './TabGlyph';
 
 /** 라우트 이름 → 시안 글리프·라벨. 라우트가 늘면 여기만 고칩니다. */
-const TAB_META: Record<string, { glyph: TabGlyphName; label: string; accent?: 'heart' }> = {
+const TAB_META: Record<
+  string,
+  { glyph: TabGlyphName; label: string; accent?: 'heart'; size?: number }
+> = {
   HomeFeed: { glyph: 'home', label: '홈' },
-  Favorites: { glyph: 'heart', label: '관심목록', accent: 'heart' },
+  // 시안 2차: 하트만 29. 다른 글리프보다 시각 무게가 가벼워 키워 맞춥니다.
+  Favorites: { glyph: 'heart', label: '관심목록', accent: 'heart', size: 29 },
   AiChat: { glyph: 'chat', label: 'AI 추천' },
   My: { glyph: 'account', label: '마이' },
 };
@@ -36,7 +40,7 @@ const BRAND_RGB = 'rgb(37,99,235)';
 const HEART_RGB = 'rgb(239,68,68)';
 
 /** 활성 아이콘만 1.08 로 커집니다 (시안 spring 420/26). */
-function TabIcon({ glyph, focused, tint, filled }: { glyph: TabGlyphName; focused: boolean; tint: string; filled: boolean }) {
+function TabIcon({ glyph, focused, tint, filled, size }: { glyph: TabGlyphName; focused: boolean; tint: string; filled: boolean; size?: number }) {
   const scale = useRef(new Animated.Value(focused ? 1.08 : 1)).current;
   useEffect(() => {
     Animated.spring(scale, {
@@ -47,7 +51,7 @@ function TabIcon({ glyph, focused, tint, filled }: { glyph: TabGlyphName; focuse
   }, [focused, scale]);
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <TabGlyph name={glyph} size={sizing.tabIconSize} color={tint} filled={filled} />
+      <TabGlyph name={glyph} size={size ?? sizing.tabIconSize} color={tint} filled={filled} />
     </Animated.View>
   );
 }
@@ -195,6 +199,7 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
                 tint={tint}
                 // 시안: 채움은 관심목록 탭이 활성일 때만
                 filled={focused && meta.accent === 'heart'}
+                size={meta.size}
               />
             </Pressable>
           );

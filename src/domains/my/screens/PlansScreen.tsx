@@ -27,7 +27,8 @@ import theme, { color, radius, space, text } from '../../../design/theme';
 type Row = { label: string; free: string | boolean; pro: string | boolean };
 
 const ROWS: Row[] = [
-  { label: '월 숏폼 제작', free: '3개', pro: '무제한' },
+  // 시안 2차: '무제한' 이 아니라 '30편 추가' 입니다.
+  { label: '월 숏폼 제작', free: '3개', pro: '30편 추가' },
   { label: 'AI 숏폼 추천', free: true, pro: true },
   { label: 'AI 자동 편집', free: true, pro: true },
   { label: '워터마크 제거', free: false, pro: true },

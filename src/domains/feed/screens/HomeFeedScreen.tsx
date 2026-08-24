@@ -38,7 +38,7 @@ function Headline() {
     <View style={styles.headline}>
       <Text style={text.heading}>이 숏폼 어때요?</Text>
       <Text style={[text.caption, { color: color.ink[500] }]}>
-        사장님이 입력하신 정보를 바탕으로 AI가 추천하는 숏폼이에요.
+        마음에 드는 숏폼을 찾아 촬영하고 편집할 수 있어요.
       </Text>
     </View>
   );

@@ -58,6 +58,18 @@ if (BASE_URL_SOURCE === 'fallback(localhost)') {
 }
 
 /**
+ * 전부 Mock 으로 돌리는 스위치 (디자인 QA 캡처용).
+ *
+ * 시안과 실제 화면을 나란히 비교하려면 화면에 **내용이 채워져 있어야** 합니다.
+ * 실서버는 지금 포맷·메뉴·타깃이 전부 0건이라, 그대로 캡처하면 빈 화면만 남아
+ * 레이아웃을 비교할 수 없습니다.
+ *
+ * ⚠️ 기본값은 꺼짐입니다. app.json 은 건드리지 않고 환경변수로만 켭니다.
+ *    EXPO_PUBLIC_FORCE_MOCK=1 expo export --platform web
+ */
+const FORCE_MOCK = process.env.EXPO_PUBLIC_FORCE_MOCK === '1';
+
+/**
  * 어떤 도메인을 Mock 으로 돌릴지.
  *
  * BE 가 한 번에 완성되지 않으므로 전부/전무가 아니라 도메인 단위로 끕니다.
@@ -131,6 +143,7 @@ export function isServerMissing(path: string): boolean {
 }
 
 export function isMocked(path: string): boolean {
+  if (FORCE_MOCK) return true;
   return mockDomains.has(domainOf(path)) || isServerMissing(path);
 }
 

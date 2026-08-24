@@ -6,9 +6,11 @@
  *   중앙 Play 원 56 · SHORTS 배지(우하단 흰 rounded-md) · 하단 행: 제목 15·600
  *   + 해시태그 12·500(slate) 1줄 + Heart 36 + Send 36(brand)
  *
- * 시안과 다르게 둔 것 — 지어내지 않기 위해:
- *   아바타 36 + 채널명: 5.1/5.2 응답에 channel·avatar 필드가 **없습니다**.
- *   없는 값을 그리지 않고 생략합니다 (BE 질문 목록에 기록).
+ * 아바타 36 (2026-08-26 시안 2차 대조로 복원)
+ *   시안 카드에는 제목 왼쪽에 아바타가 있습니다. 예전에는 "5.1 응답에 avatar 필드가
+ *   없다" 며 통째로 생략했는데, 그러면 카드 구성이 시안과 완전히 달라집니다.
+ *   **영역은 살리고 값이 없으면 skeleton** 으로 둡니다 — 레이아웃은 시안과 같고,
+ *   없는 데이터를 지어내지도 않습니다. 채널명 필드가 생기면 그때 글자만 채우면 됩니다.
  *
  * 결정 사항 (신규화면_인수인계 §6.1)
  *   - 목록에 YouTube 플레이어를 넣지 않습니다. 약관 위반 + 메모리 문제.
@@ -20,9 +22,10 @@
  */
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Heart, Play, Send } from 'lucide-react-native';
+import { Clapperboard, Heart, Play } from 'lucide-react-native';
 
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
+import { Skeleton } from '../../ui/Feedback';
 import theme, { color, space, radius, sizing } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
@@ -67,6 +70,9 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
       </Pressable>
 
       <View style={styles.meta}>
+        {/* 시안: 아바타 36. 값이 없으면 자리만 유지합니다(가짜 이미지를 넣지 않습니다). */}
+        <Skeleton style={styles.avatar} />
+
         <View style={{ flex: 1, minWidth: 0 }}>
           {/* 시안: 제목 15·600 한 줄 (formatType 배지는 제목 안이 아니라 태그줄 앞으로) */}
           <Text style={styles.title} numberOfLines={1}>
@@ -102,7 +108,8 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
           hitSlop={6}
           style={({ pressed }) => [styles.iconBtn, pressed && { transform: [{ scale: 0.9 }] }]}
         >
-          <Send size={20} strokeWidth={2} color={color.brand[600]} />
+          {/* 시안 2차: 종이비행기 → 클래퍼보드 */}
+          <Clapperboard size={20} strokeWidth={2} color={color.brand[600]} />
         </Pressable>
       </View>
     </View>
@@ -146,6 +153,8 @@ const styles = StyleSheet.create({
     paddingBottom: space[4],
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  // 시안 ReelCard: h-9 w-9 rounded-full
+  avatar: { width: sizing.avatar, height: sizing.avatar, borderRadius: radius.pill },
   iconBtn: {
     width: sizing.iconButton,
     height: sizing.iconButton,

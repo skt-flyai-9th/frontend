@@ -10,6 +10,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createSwipeTabNavigator } from './SwipeTabs';
+import { navRef, exposeQaNav } from './navRef';
 
 import { useAppState } from '../lib/appState';
 import type {
@@ -228,7 +229,8 @@ export default function RootNavigator() {
       : 'Main';
 
   return (
-    <NavigationContainer>
+    // ref 는 항상 붙입니다(비용 없음). 전역 노출만 EXPO_PUBLIC_QA_NAV=1 에서 일어납니다.
+    <NavigationContainer ref={navRef} onReady={exposeQaNav}>
       <Root.Navigator initialRouteName={initial} screenOptions={noHeader}>
         <Root.Screen name="Onboarding" component={OnboardingStack} />
         <Root.Screen name="Auth" component={AuthStack} />
