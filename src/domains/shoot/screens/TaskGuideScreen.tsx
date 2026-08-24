@@ -8,12 +8,12 @@
  *   DANCE   → 참고 영상이 주역. 동작을 눈으로 따라해야 함 (R10)
  *   BROLL   → 샷 정보가 주역. 카메라를 어떻게 잡을지가 핵심
  *
- * ⚠️ 재생 제어는 프론트 몫입니다 (명세 9.1).
- *    서버는 영상 링크·출처만 내려주고, 배속·구간반복은
- *    YouTube IFrame Player API 로 처리합니다.
- *    구간 지정값(start/end)이 없으므로 사장님이 직접 잡습니다.
+ * ⚠️ 재생 제어 (명세 9.1 → 2026-08-26 방침 변경)
+ *    서버는 영상 링크·출처만 내려줍니다. 예전에는 그 위에 우리가 배속·구간반복
+ *    버튼을 만들어 붙였는데 자주 안 먹어서, 지금은 **유튜브 자체 컨트롤**을 씁니다.
+ *    진행바·일시정지·배속 전부 플레이어 안에 있습니다.
  *
- *    Instagram·TikTok 은 재생 제어 API 가 없어 배속·구간반복이 불가능합니다.
+ *    Instagram·TikTok 은 임베드 재생을 지원하지 않아 썸네일로 대체합니다.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -75,7 +75,7 @@ export default function TaskGuideScreen({ navigation, route }: Props) {
       </View>
 
       {playable ? (
-        /* 구간 지정값이 없으므로 사장님이 "여기부터/여기까지"로 직접 잡습니다 */
+        /* 재생·진행바·배속은 유튜브 플레이어 자체 컨트롤로 조작합니다 */
         <GuidePlayer url={video!.referenceUrl} />
       ) : (
         <>

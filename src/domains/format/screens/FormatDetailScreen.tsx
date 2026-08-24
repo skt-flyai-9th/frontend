@@ -2,7 +2,8 @@
  * S07.1.1 공식 임베드 + S07.2.1 핵심 포인트 · 명세 5.2
  *
  * 영상 위에는 아무것도 올리지 않습니다(YouTube 약관).
- * 배속·구간반복은 GuidePlayer 가 플레이어 아래 바깥에 그립니다.
+ * 재생·진행바·배속은 **유튜브 자체 컨트롤**을 씁니다 (2026-08-26 전환) —
+ * 우리가 만든 바깥 버튼은 자주 안 먹어서 걷어냈습니다. ui/GuidePlayer 머리말 참고.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -88,7 +89,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
         참고 영상. 위에 겹치는 요소 없음 (YouTube 약관).
 
         ⚠️ GuidePlayer 는 YouTube 전용입니다.
-           Instagram·TikTok 은 재생 제어 API 가 없어 배속·구간반복이 불가능합니다.
+           Instagram·TikTok 은 임베드 재생 자체를 지원하지 않아 썸네일로 대체합니다.
            명세상 현재 카탈로그는 전부 YouTube 라 실질 이슈는 없지만,
            다른 플랫폼이 오면 썸네일과 원본 링크만 보여줍니다.
       */}
