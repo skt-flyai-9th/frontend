@@ -22,7 +22,40 @@ const extra = (Constants.expoConfig?.extra ?? {}) as {
   mockDomains?: string[];
 };
 
-export const BASE_URL = extra.apiBaseUrl ?? 'http://localhost:8080';
+/**
+ * 서버 주소.
+ *
+ * 🔴 2026-08-26 — 빌드한 앱에서 로그인이 안 되던 원인
+ *   예전에는 app.json 의 extra.apiBaseUrl 하나만 봤습니다. 그런데 그 값은
+ *   **번들에 박히지 않고** 실행 시 expo-constants 가 매니페스트에서 읽어옵니다.
+ *   릴리스 빌드에서 Constants.expoConfig 가 비면 조용히 localhost 로 떨어져
+ *   모든 요청이 실패합니다 — 화면에는 그냥 "로그인이 안 된다" 로만 보입니다.
+ *   (실측: expo export 한 번들에 'sarils.p-e.kr' 문자열이 없습니다)
+ *
+ *   그래서 EXPO_PUBLIC_ 환경변수를 **먼저** 봅니다. 이 값은 Metro 가 번들에
+ *   그대로 박아 넣으므로 런타임 매니페스트와 무관하게 항상 살아 있습니다.
+ *   값은 eas.json 의 각 빌드 프로필 env 에 있습니다.
+ *
+ *   app.json 은 로컬 개발(expo start)용 폴백으로 남깁니다.
+ */
+const ENV_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+export const BASE_URL = ENV_BASE_URL || extra.apiBaseUrl || 'http://localhost:8080';
+
+/** 어느 경로로 주소를 얻었는지. 진단용입니다. */
+export const BASE_URL_SOURCE = ENV_BASE_URL
+  ? 'env(EXPO_PUBLIC_API_BASE_URL)'
+  : extra.apiBaseUrl
+    ? 'app.json(extra.apiBaseUrl)'
+    : 'fallback(localhost)';
+
+if (BASE_URL_SOURCE === 'fallback(localhost)') {
+  // 조용히 넘어가면 "로그인이 안 된다" 로만 보입니다. 로그에는 반드시 남깁니다.
+  console.warn(
+    '[api] 서버 주소를 찾지 못해 localhost 로 떨어졌습니다. ' +
+      'eas.json 의 env.EXPO_PUBLIC_API_BASE_URL 또는 app.json 의 extra.apiBaseUrl 을 확인하세요.'
+  );
+}
 
 /**
  * 어떤 도메인을 Mock 으로 돌릴지.

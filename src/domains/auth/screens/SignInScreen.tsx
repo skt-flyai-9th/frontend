@@ -10,7 +10,7 @@ import { Banner } from '../../../ui/Feedback';
 import { Field } from '../../../ui/Field';
 import theme, { color, radius, space, text } from '../../../design/theme';
 import { useLogin } from '../../../api/queries/auth';
-import { ApiError } from '../../../api/http';
+import { ApiError, BASE_URL } from '../../../api/http';
 import { useAppState } from '../../../lib/appState';
 import type { RootStackParamList } from '../../../navigation/types';
 
@@ -38,7 +38,22 @@ export default function SignInScreen() {
           if (storeId) nav.replace('Main', { screen: 'HomeFeed' });
           else nav.replace('StoreSetup', { screen: 'StoreSearch' });
         },
-        onError: (e) => setError(e instanceof ApiError ? e.message : '로그인하지 못했습니다.'),
+        onError: (e) => {
+          if (!(e instanceof ApiError)) {
+            setError('로그인하지 못했습니다.');
+            return;
+          }
+          /**
+           * 서버에 닿지도 못한 경우에는 **어디로 연결하려 했는지**까지 보여줍니다.
+           *
+           * 주소를 못 읽어 localhost 로 떨어지면 화면에는 그냥 "로그인이 안 된다" 로만
+           * 보입니다(2026-08-26 실제로 그 일이 있었습니다). 비밀번호가 틀린 것인지
+           * 서버에 못 닿은 것인지 한눈에 구분되게 합니다.
+           */
+          setError(
+            e.code === 'NETWORK_ERROR' ? `${e.message}\n(연결 시도: ${BASE_URL})` : e.message
+          );
+        },
       }
     );
   };
