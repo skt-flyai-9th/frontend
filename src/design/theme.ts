@@ -90,7 +90,8 @@ export const text: Record<
   | 'bodySmall'
   | 'caption'
   | 'micro'
-  | 'button',
+  | 'button'
+  | 'chipLabel',
   TextStyle
 > = {
   display: {
@@ -159,6 +160,15 @@ export const text: Record<
     letterSpacing: font.letterSpacing.normal,
     color: color.ink[500],
   },
+  /** 칩 전용 13px (디자인 1차수정) */
+  chipLabel: {
+    fontWeight: weight('600'),
+    fontFamily: family(font.family.semibold),
+    fontSize: font.size.chip,
+    lineHeight: font.lineHeight.chip,
+    letterSpacing: font.letterSpacing.normal,
+    color: color.ink[700],
+  },
   micro: {
     fontWeight: weight('500'),
     fontFamily: family(font.family.medium),
@@ -168,10 +178,11 @@ export const text: Record<
     color: color.ink[500],
   },
   button: {
-    fontWeight: weight('700'),
-    fontFamily: family(font.family.bold),
-    fontSize: font.size.subheading,
-    lineHeight: font.lineHeight.subheading,
+    // 디자인 1차수정: 15 · semibold (시안 PrimaryButton)
+    fontWeight: weight('600'),
+    fontFamily: family(font.family.semibold),
+    fontSize: font.size.button,
+    lineHeight: font.lineHeight.button,
     letterSpacing: font.letterSpacing.normal,
   },
 };

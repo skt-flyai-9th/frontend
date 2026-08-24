@@ -1,8 +1,14 @@
 /**
- * FormatCard — 홈 피드·관심목록 공용 숏폼 카드.
+ * FormatCard — 홈 피드·관심목록 공용. **시안 ReelCard 구조** (2026-08-24 전면 교체).
  *
- * 프로토타입 `01_홈피드.png` 기준:
- *   큰 썸네일 + SHORTS 배지 + 제목 + 태그 + 하트 + 화살표.
+ * 시안 reel-card.tsx 대조 이식:
+ *   풀블리드 섹션(테두리·라운드·그림자 없음, 화면폭) · 4:5 미디어(hairline 회색)
+ *   중앙 Play 원 56 · SHORTS 배지(우하단 흰 rounded-md) · 하단 행: 제목 15·600
+ *   + 해시태그 12·500(slate) 1줄 + Heart 36 + Send 36(brand)
+ *
+ * 시안과 다르게 둔 것 — 지어내지 않기 위해:
+ *   아바타 36 + 채널명: 5.1/5.2 응답에 channel·avatar 필드가 **없습니다**.
+ *   없는 값을 그리지 않고 생략합니다 (BE 질문 목록에 기록).
  *
  * 결정 사항 (신규화면_인수인계 §6.1)
  *   - 목록에 YouTube 플레이어를 넣지 않습니다. 약관 위반 + 메모리 문제.
@@ -16,9 +22,8 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Heart, Play, Send } from 'lucide-react-native';
 
-import { Badge } from '../../ui/Chip';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
-import theme, { color, space, radius, text, sizing } from '../../design/theme';
+import theme, { color, space, radius } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
 type Props = {
@@ -62,14 +67,12 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
       </Pressable>
 
       <View style={styles.meta}>
-        <View style={{ flex: 1, gap: space[1] }}>
-          <View style={styles.titleRow}>
-            <Badge label={format.formatType} />
-            <Text style={[text.subheading, { flexShrink: 1 }]} numberOfLines={1}>
-              {format.formatTitle}
-            </Text>
-          </View>
-          <Text style={[text.caption, { color: color.ink[500] }]} numberOfLines={1}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {/* 시안: 제목 15·600 한 줄 (formatType 배지는 제목 안이 아니라 태그줄 앞으로) */}
+          <Text style={styles.title} numberOfLines={1}>
+            {format.formatTitle}
+          </Text>
+          <Text style={styles.tagLine} numberOfLines={1}>
             {tags.join(' ')}
           </Text>
         </View>
@@ -81,7 +84,7 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
           accessibilityState={{ selected: fav }}
           onPress={() => onToggleFavorite(format)}
           hitSlop={6}
-          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.iconBtn, pressed && { transform: [{ scale: 0.9 }] }]}
         >
           {/* 채움/비움으로 상태를 표현합니다 (가이드라인 §5.10) */}
           <Heart
@@ -97,7 +100,7 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
           accessibilityLabel="이 방법으로 만들기"
           onPress={() => onCreate(format)}
           hitSlop={6}
-          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.iconBtn, pressed && { transform: [{ scale: 0.9 }] }]}
         >
           <Send size={20} strokeWidth={2} color={color.brand[600]} />
         </Pressable>
@@ -107,15 +110,9 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: color.paper,
-    borderRadius: radius.lg,
-    borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    overflow: 'hidden',
-    ...theme.elevation('card'),
-  },
-  thumbWrap: { position: 'relative' },
+  // 시안: 카드가 아니라 풀블리드 섹션 — 테두리·라운드·그림자 없음
+  card: { backgroundColor: color.paper },
+  thumbWrap: { position: 'relative', backgroundColor: color.ink[200] },
   platformBadge: {
     position: 'absolute',
     right: space[3],
@@ -130,19 +127,35 @@ const styles = StyleSheet.create({
     ...theme.elevation('card'),
   },
   platformText: { ...theme.text.micro, color: color.ink[900], letterSpacing: 1 },
+  title: {
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    color: color.ink[900],
+  },
+  tagLine: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+    fontFamily: theme.text.body.fontFamily,
+    color: color.ink[500],
+  },
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space[2],
-    padding: space[3],
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingTop: 14,
+    paddingBottom: space[4],
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   iconBtn: {
-    minWidth: sizing.touchTargetMin,
-    minHeight: sizing.touchTargetMin,
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.pill,
   },
-  pressed: { opacity: 0.6 },
 });

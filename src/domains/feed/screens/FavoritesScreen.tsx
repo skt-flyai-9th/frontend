@@ -78,5 +78,6 @@ export default function FavoritesScreen() {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: space[5], paddingVertical: space[4], gap: space[1] },
-  listContent: { paddingHorizontal: space[5], paddingBottom: space[6] },
+  // 시안: 풀블리드 스택
+  listContent: { paddingBottom: space[6] },
 });

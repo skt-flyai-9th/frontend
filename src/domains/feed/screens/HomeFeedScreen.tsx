@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
+import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState } from '../../../ui/Feedback';
 import { FormatCard } from '../FormatCard';
@@ -43,12 +44,8 @@ export default function HomeFeedScreen() {
 
   return (
     <Screen padded={false} scroll={false} edges={['top']}>
-      {/* 상단 로고. 프로토타입의 햄버거 메뉴는 대응 화면이 없어 두지 않습니다. */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>
-          Reals<Text style={{ color: color.danger[500] }}>.</Text>
-        </Text>
-      </View>
+      {/* 시안 TopHeader variant=logo — Reals▶ 워드마크 (AppBar 로 통일) */}
+      <AppBar logo />
 
       <View style={styles.headline}>
         <Text style={text.title}>이 숏폼 어때요?</Text>
@@ -92,18 +89,15 @@ export default function HomeFeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    alignItems: 'center',
-    paddingVertical: space[3],
-    borderBottomWidth: theme.border.hairline,
-    borderBottomColor: color.ink[200],
-  },
   // 가이드라인 §5.9: 18px bold, 자간 타이트. 점만 heart 색.
-  logo: { ...theme.text.heading, letterSpacing: -0.4 },
+  // 글자 크기의 0.31 배 삼각형 (border 트릭) — heading 21px 기준 ≈ 6.5
   headline: {
     paddingHorizontal: space[5],
     paddingVertical: space[4],
     gap: space[1],
   },
-  listContent: { paddingHorizontal: space[5], paddingBottom: space[6] },
+  listContent: {
+    // 시안: 풀블리드 스택 — 좌우 패딩·카드 간격 없음
+    paddingBottom: space[6],
+  },
 });

@@ -20,8 +20,12 @@
 import { useEffect, useState } from 'react';
 import * as Font from 'expo-font';
 
-/** 👉 진짜 Pretendard 파일을 넣은 뒤에 true 로 바꾸세요. */
-export const USE_CUSTOM_FONTS = false;
+/**
+ * ✅ 2026-08-24 디자인 1차수정: 실제 Pretendard OTF 4종을 assets/fonts 에
+ *    넣었습니다 (디자인 패키지에서 이식, OFL 라이선스 파일 동봉).
+ *    이제 전 화면이 Pretendard 로 렌더링됩니다.
+ */
+export const USE_CUSTOM_FONTS = true;
 
 const FONT_MAP = {
   'Pretendard-Regular': require('../../assets/fonts/Pretendard-Regular.otf'),

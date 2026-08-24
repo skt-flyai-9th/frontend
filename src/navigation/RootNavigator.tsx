@@ -12,7 +12,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Heart, Sparkles, Store } from 'lucide-react-native';
+import { Home, Heart, MessageCircle, Store } from 'lucide-react-native';
 
 import theme, { color, radius, space } from '../design/theme';
 import { useAppState } from '../lib/appState';
@@ -54,6 +54,7 @@ import PermissionsInfoScreen from '../domains/my/screens/PermissionsInfoScreen';
 import EditProfileScreen from '../domains/my/screens/EditProfileScreen';
 import MyVideoScreen from '../domains/my/screens/MyVideoScreen';
 import PlansScreen from '../domains/my/screens/PlansScreen';
+import LegalScreen from '../domains/my/screens/LegalScreen';
 import PerformanceScreen from '../domains/analytics/screens/PerformanceScreen';
 import SettingsScreen from '../domains/settings/screens/SettingsScreen';
 // 구 홈(가게 분석 + 만들기 CTA)은 파일을 지우지 않고 진입만 끊었습니다.
@@ -114,6 +115,7 @@ function MyStack() {
       <My.Screen name="PermissionsInfo" component={PermissionsInfoScreen} />
       <My.Screen name="EditProfile" component={EditProfileScreen} />
       <My.Screen name="Plans" component={PlansScreen} />
+      <My.Screen name="Legal" component={LegalScreen} />
     </My.Navigator>
   );
 }
@@ -268,7 +270,7 @@ function MainTabs() {
           tabBarIcon: ({ focused }) => (
             <>
               <TabIndicator focused={focused} tint={color.brand[600]} />
-              <TabIcon Icon={Sparkles} focused={focused} activeColor={color.brand[600]} />
+              <TabIcon Icon={MessageCircle} focused={focused} activeColor={color.brand[600]} />
             </>
           ),
         }}

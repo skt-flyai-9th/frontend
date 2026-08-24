@@ -84,6 +84,8 @@ export type MyStackParamList = {
   Insight: undefined;
   Faq: undefined;
   PermissionsInfo: undefined;
+  /** 약관·정책 목록 (시안 legal) */
+  Legal: undefined;
   /** 프로필 수정 — 3.1(가게) + 3.6(로고) + 16.1(SNS) + 1.5(계정) 을 한 화면에 */
   EditProfile: undefined;
   /** 플랜 안내 — 정적 화면 (플랜 API 없음) */

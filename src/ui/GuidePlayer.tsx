@@ -12,7 +12,7 @@
  *   2차: ready 전 버튼을 잠금 → 그 기기에선 ready 가 안 오니 "아예 안 눌림"
  * 어느 쪽도 원인이 아니라 증상을 만졌습니다.
  *
- * 이번 구조: 플레이어 페이지를 **앱 안에 내장**(guidePlayerHtml.ts)하고
+ * 이번 구조: 유튜브 embed 를 최상위 문서로 직접 열고 <video> 를 조종합니다 (guidePlayerBridge.ts)
  * WebView 로 직접 띄웁니다. 외부 의존은 유튜브 공식 API 와 영상뿐입니다.
  * 검증(2026-08-23, 실제 크로미움 + 실제 유튜브 API):
  *   ready·지원배속목록 수신 ✅ / setPlaybackRate(0.5→이벤트로 적용 확인) ✅
@@ -40,7 +40,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import theme, { color, radius, space, text } from '../design/theme';
 import { clock } from '../lib/format';
-import { buildGuidePlayerHtml } from './guidePlayerHtml';
+import { GUIDE_PLAYER_BRIDGE, buildEmbedUrl } from './guidePlayerBridge';
 
 const SPEEDS = [0.5, 0.75, 1] as const;
 type Speed = (typeof SPEEDS)[number];
@@ -76,7 +76,7 @@ interface Props {
   compact?: boolean;
 }
 
-/** 페이지 → RN 메시지 (guidePlayerHtml.ts 의 규약) */
+/** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
 type PageMsg =
   | { t: 'boot' }
   | { t: 'ready'; d: number; rates: number[] }
@@ -131,8 +131,8 @@ export function GuidePlayer({ url, startSec, endSec, autoPlay = false, compact =
     ? Math.min(210, Math.round((playerWidth * 9) / 16))
     : Math.max(200, Math.round((playerWidth * 9) / 16));
 
-  const html = useMemo(
-    () => (videoId ? buildGuidePlayerHtml(videoId, startSec ?? 0) : ''),
+  const embedUrl = useMemo(
+    () => (videoId ? buildEmbedUrl(videoId, startSec ?? 0) : ''),
     [videoId, startSec]
   );
 
@@ -229,6 +229,11 @@ export function GuidePlayer({ url, startSec, endSec, autoPlay = false, compact =
           break;
         }
         case 'err': {
+          // 브리지가 유튜브 오류 UI 에서 숫자를 못 찾으면 'embed' 를 보냅니다.
+          if (m.c === 'embed') {
+            setPhase('embedBlocked');
+            break;
+          }
           const code = Number(m.c);
           setErrCode(Number.isFinite(code) ? code : null);
           /*
@@ -395,18 +400,13 @@ export function GuidePlayer({ url, startSec, endSec, autoPlay = false, compact =
         <WebView
           ref={webRef}
           /*
-           * 내장 페이지 + baseUrl.
-           *
-           * 2026-08-24 실기기 오류 152-4 조사 결과:
-           *  - baseUrl 없음(origin null) → 유튜브 API 핸드셰이크 자체가 안 됨
-           *    (크로미움 재현: ready 미도달). 탈락.
-           *  - baseUrl + playerVars.origin 동시 지정 → 실기기 152-4. origin 은
-           *    유튜브가 위장 검증에 쓰는 값이라 **넣지 않습니다**(페이지 쪽 주석).
-           *  - baseUrl 만(origin 파라미터 없음) → 임베드에 정상 referrer 가 실리는,
-           *    RN 커뮤니티에서 널리 검증된 조합. 이걸 씁니다.
-           * 그래도 막히면 이제 화면에 코드가 뜹니다(152/153 → 안내 + 유튜브로).
+           * 3차 구조 (2026-08-24, 실기기 152 재발 후 전환 — guidePlayerBridge.ts 머리말):
+           * embed 페이지를 **최상위 문서로 직접** 엽니다. origin = 진짜 youtube.com.
+           * 위장(baseUrl 트릭)이 아니므로 152 계열 위장 검증에 걸릴 것이 없습니다.
+           * 제어는 주입한 브리지가 문서 안의 <video> 를 직접 만집니다.
            */
-          source={{ html, baseUrl: 'https://www.youtube.com' }}
+          source={{ uri: embedUrl }}
+          injectedJavaScript={GUIDE_PLAYER_BRIDGE}
           originWhitelist={['*']}
           onMessage={onMessage}
           javaScriptEnabled

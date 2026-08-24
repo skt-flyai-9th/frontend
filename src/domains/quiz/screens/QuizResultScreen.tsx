@@ -147,7 +147,7 @@ export default function QuizResultScreen({ navigation, route }: Props) {
         description="아래에서 조건을 바꿔 다른 방법도 볼 수 있습니다."
       />
 
-      <Card>
+      <Card style={styles.brandCard}>
         <Text style={text.subheading}>조건을 바꿔서 다시 찾기</Text>
         <Text style={text.caption}>고른 조건만 바뀝니다. 나머지 답은 그대로 씁니다.</Text>
         <View style={styles.chips}>
@@ -217,6 +217,15 @@ function Spec({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  /** 시안 chat.tsx 추천 카드: brand-tint 배경 + brand-border, rounded-2xl */
+  brandCard: {
+    backgroundColor: color.brand[50],
+    borderWidth: theme.border.hairline,
+    borderColor: color.brand[300], // 시안 brand-border(#BFDBFE)는 팔레트 300 단계
+    borderRadius: radius.lg,
+    padding: 14,
+    gap: space[3],
+  },
   specRow: {
     flexDirection: 'row',
     backgroundColor: color.ink[50],

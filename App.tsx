@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { Text, View } from 'react-native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAppFonts } from './src/design/fonts';
 import { ApiError } from './src/api/http';
@@ -33,7 +34,17 @@ export default function App() {
     if (fontsReady) SplashScreen.hideAsync().catch(() => {});
   }, [fontsReady]);
 
-  if (!fontsReady) return null;
+  if (!fontsReady) {
+    // 시안 splash — 폰트 로딩 공백을 빈 화면 대신 로고(Reals▶)로 채웁니다.
+    return (
+      <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+          <Text style={{ fontSize: 34, fontWeight: '600', letterSpacing: -0.7, color: '#0F172A' }}>Reals</Text>
+          <View style={{ width: 0, height: 0, marginLeft: 3, marginBottom: 7, borderTopWidth: 5.5, borderBottomWidth: 5.5, borderLeftWidth: 9.5, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#EF4444' }} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -16,6 +16,7 @@
 import { File, UploadTask, UploadType } from 'expo-file-system';
 import { API } from './endpoints';
 import { BASE_URL, ApiError, isMocked } from './http';
+import { mockRequest } from './mock/server';
 import { toCamel } from './schema/convert';
 import { getTokens } from '../lib/session';
 import type { FootageResponse } from './schema/types';
@@ -55,13 +56,23 @@ function mockUpload({ taskId, durationSec, onProgress }: UploadInput): UploadHan
       onProgress?.(ratio);
       if (ratio >= 1) {
         if (timer) clearInterval(timer);
-        resolve({
-          taskId,
-          footageUrl: `https://cdn.example.com/footage/${taskId}.mp4`,
-          footageType: 'VIDEO',
-          footageDurationSec: durationSec,
-          taskStatus: 'DONE',
-        });
+        /**
+         * ⚠️ 반드시 mock 서버를 실제로 호출합니다 (2026-08-24 실기기 무한반복의 원인).
+         *
+         * 이전 코드는 여기서 가짜 응답만 만들어 돌려줬습니다. 업로드가 "성공"해도
+         * mock 서버의 태스크 상태는 미완료 그대로라서, 목록을 다시 읽는 순간
+         * 같은 태스크(간판 촬영)가 또 "다음 할 일"로 나왔습니다. 몇 번을 찍어도
+         * 제자리 — 무한반복. "저장은 상태를 실제로 바꿔야 한다"는 이 프로젝트
+         * 제1규칙을 mock 업로드 자신이 어기고 있었던 겁니다.
+         * (컨테이너 검증이 이걸 못 잡은 이유: 테스트가 서버 함수를 직접 불러서
+         *  이 우회 경로를 안 탔습니다. 이제 테스트도 이 함수를 태웁니다.)
+         */
+        mockRequest(API.taskFootage(taskId), 'POST', {
+          footage_type: 'VIDEO',
+          footage_duration_sec: Math.round(durationSec),
+        })
+          .then((res) => resolve(toCamel(res) as unknown as FootageResponse))
+          .catch(reject);
       }
     }, 120);
   });

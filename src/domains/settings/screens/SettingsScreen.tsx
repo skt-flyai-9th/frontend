@@ -104,24 +104,10 @@ export default function SettingsScreen() {
 
       <Section title="안내">
         <Row label="사용법 다시 보기" onPress={() => nav.navigate('Onboarding', { screen: 'Intro' })} />
-        {/* 읽기 모드로 엽니다. 동의를 다시 받지 않고, 닫으면 설정으로 돌아옵니다. */}
+        {/* 시안 legal: 약관은 목록 화면 하나로 모읍니다. 뷰어는 읽기 모드로 열립니다. */}
         <Row
-          label="이용약관"
-          onPress={() =>
-            nav.navigate('Onboarding', {
-              screen: 'Terms',
-              params: { mode: 'read', focus: 'terms' },
-            })
-          }
-        />
-        <Row
-          label="개인정보 처리방침"
-          onPress={() =>
-            nav.navigate('Onboarding', {
-              screen: 'Terms',
-              params: { mode: 'read', focus: 'privacy' },
-            })
-          }
+          label="약관 및 정책"
+          onPress={() => nav.navigate('Main', { screen: 'My', params: { screen: 'Legal' } })}
         />
       </Section>
 

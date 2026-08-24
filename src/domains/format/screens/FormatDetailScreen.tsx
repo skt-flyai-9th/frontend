@@ -13,6 +13,7 @@ import { AppBar } from '../../../ui/AppBar';
 import { Card } from '../../../ui/Card';
 import { Badge } from '../../../ui/Chip';
 import { Banner, EmptyState, Loading } from '../../../ui/Feedback';
+import { FeasibilityBadges } from '../../../ui/FeasibilityBadges';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
 import theme, { space, text } from '../../../design/theme';
@@ -106,6 +107,17 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
           </Text>
         </>
       )}
+
+      {/* 시안 FeasibilityBadges — 약관상 플레이어 "위"가 아니라 바로 아래 행에 */}
+      <FeasibilityBadges
+        tags={[
+          { icon: 'clock', label: `${format.expectedDurationSec}초` },
+          { icon: 'user', label: `난이도 ${format.shootingDifficulty}` },
+          ...(format.faceExposureLevel === '낮음'
+            ? ([{ icon: 'eyeOff' as const, label: '얼굴 노출 없음' }])
+            : []),
+        ]}
+      />
 
       <Banner
         tone="info"

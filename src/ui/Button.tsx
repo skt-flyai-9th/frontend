@@ -49,6 +49,8 @@ export function Button({
 
   return (
     <Pressable
+      // 시안 우선 전환으로 small=36. 터치 44 하한은 hitSlop 으로 보전합니다.
+      hitSlop={size === 'small' ? 6 : 0}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel ?? label}
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}

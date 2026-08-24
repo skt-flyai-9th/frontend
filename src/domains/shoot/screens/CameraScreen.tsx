@@ -259,7 +259,12 @@ export default function CameraScreen({ navigation, route }: Props) {
                 : () => setCountdown(COUNTDOWN_FROM)
             }
             disabled={!ready || countdown !== null}
-            style={({ pressed }) => [styles.shutterOuter, pressed && { opacity: theme.opacity.pressed }]}
+            style={({ pressed }) => [
+              styles.shutterOuter,
+              // 시안 camera.tsx: 녹화 중엔 바깥 링이 빨강으로
+              recording && { borderColor: color.danger[500] },
+              pressed && { transform: [{ scale: 0.94 }] },
+            ]}
           >
             <View style={[styles.shutterInner, recording && styles.shutterStop]} />
           </Pressable>

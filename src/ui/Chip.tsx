@@ -32,6 +32,7 @@ export function Chip({
 }) {
   return (
     <Pressable
+      hitSlop={6}
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
       onPress={onPress}
@@ -72,8 +73,12 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   chip: {
-    // 가이드라인 §5.3: 칩은 보조 컨트롤이라 44 (주 동작 버튼은 58)
-    minHeight: sizing.buttonHeightSmall,
+    /**
+     * 디자인 1차수정 (2026-08-24, "시안 우선" 지시): 칩 높이 32 · 글자 13.
+     * 접근성: 시각 높이는 32 지만 hitSlop 으로 터치 영역 44 를 보전합니다
+     * (기능명세 하한 44 — 눈에는 시안, 손끝에는 접근성).
+     */
+    minHeight: sizing.chipHeight,
     paddingHorizontal: space[4],
     justifyContent: 'center',
     borderRadius: radius.pill,
