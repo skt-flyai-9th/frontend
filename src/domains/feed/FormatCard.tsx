@@ -22,7 +22,8 @@
  */
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Clapperboard, Heart, Play } from 'lucide-react-native';
+import { Heart, Play } from 'lucide-react-native';
+import { LensGlyph } from '../../ui/LensGlyph';
 
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { Skeleton } from '../../ui/Feedback';
@@ -108,8 +109,8 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
           hitSlop={6}
           style={({ pressed }) => [styles.iconBtn, pressed && { transform: [{ scale: 0.9 }] }]}
         >
-          {/* 시안 2차: 종이비행기 → 클래퍼보드 */}
-          <Clapperboard size={20} strokeWidth={2} color={color.brand[600]} />
+          {/* v3: 클래퍼보드 → 카메라 렌즈. 색도 브랜드 파랑이 아니라 slate 입니다. */}
+          <LensGlyph size={22} />
         </Pressable>
       </View>
     </View>

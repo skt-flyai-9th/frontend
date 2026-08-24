@@ -32,17 +32,12 @@ import type { VideoFormat } from '../../../api/schema/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-/** 시안 헤드라인 블록 — 목록 안쪽 첫 카드 위. */
-function Headline() {
-  return (
-    <View style={styles.headline}>
-      <Text style={text.heading}>이 숏폼 어때요?</Text>
-      <Text style={[text.caption, { color: color.ink[500] }]}>
-        마음에 드는 숏폼을 찾아 촬영하고 편집할 수 있어요.
-      </Text>
-    </View>
-  );
-}
+/*
+ * v3: 헤드라인 블록이 제거됐습니다.
+ * 헤더 아래에서 카드가 바로 시작합니다 — 첫 화면에서 미디어가 차지하는 면적을
+ * 최대로 두려는 의도입니다. 안내 문구는 기획서 9.6 에서 홈이 아니라
+ * 빈 상태에서만 말하도록 정리됐습니다.
+ */
 
 /** 시안 FeedSkeleton — 카드 두 장 분량의 자리를 먼저 잡아 둡니다. */
 function FeedSkeleton() {
@@ -119,7 +114,6 @@ export default function HomeFeedScreen() {
           keyExtractor={(f) => String(f.id)}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={Headline}
           refreshControl={
             <RefreshControl
               refreshing={formats.isFetching && !formats.isLoading}

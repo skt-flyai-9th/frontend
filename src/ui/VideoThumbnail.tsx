@@ -37,11 +37,17 @@ export function extractVideoId(url?: string | null): string | null {
 }
 
 /**
- * maxresdefault 는 업로더가 고화질 썸네일을 안 올렸으면 404 입니다.
- * hqdefault 는 항상 있으므로 이걸 기본으로 씁니다.
+ * ⚠️ hqdefault 를 쓰면 안 됩니다.
+ *    480x360(4:3) 캔버스에 16:9 영상을 담은 것이라 **위아래 검은 띠가 이미지에
+ *    구워져** 있습니다. cover 로 채워도 띠까지 같이 확대돼 카드에 검은 줄이 남습니다
+ *    (시안에는 없는 줄입니다).
+ *
+ * hq720 은 1280x720, mqdefault 는 320x180 으로 둘 다 16:9 라 띠가 없습니다.
+ * hq720 이 없는 영상이 있어 실패하면 mqdefault 로 내려갑니다.
  */
-export function thumbnailUrl(videoId: string): string {
-  return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+export function thumbnailUrl(videoId: string, step: 0 | 1 = 0): string {
+  const name = step === 0 ? 'hq720' : 'mqdefault';
+  return `https://img.youtube.com/vi/${videoId}/${name}.jpg`;
 }
 
 interface Props {
@@ -76,6 +82,8 @@ export function VideoThumbnail({
     console.warn(`[VideoThumbnail] source_platform=${platform} — 명세상 YOUTUBE 만 옵니다. BE 확인 필요`);
   }
   const [failed, setFailed] = useState(false);
+  /** 0 = hq720, 1 = mqdefault. 앞의 것이 없으면 한 단계 내려갑니다. */
+  const [step, setStep] = useState<0 | 1>(0);
 
   // platform 이 없으면 URL 로 판단합니다. 서버가 안 줄 수도 있습니다.
   const isYoutube = platform ? platform === 'YOUTUBE' : /youtu\.?be|youtube\.com/.test(url ?? '');
@@ -92,10 +100,10 @@ export function VideoThumbnail({
   return (
     <View style={[styles.wrap, { aspectRatio }, style]}>
       <Image
-        source={{ uri: thumbnailUrl(videoId) }}
+        source={{ uri: thumbnailUrl(videoId, step) }}
         style={StyleSheet.absoluteFill}
         resizeMode="cover"
-        onError={() => setFailed(true)}
+        onError={() => (step === 0 ? setStep(1) : setFailed(true))}
         accessibilityLabel="참고 영상 미리보기"
       />
 

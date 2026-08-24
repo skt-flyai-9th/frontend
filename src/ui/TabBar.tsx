@@ -30,8 +30,8 @@ const TAB_META: Record<
   { glyph: TabGlyphName; label: string; accent?: 'heart'; size?: number }
 > = {
   HomeFeed: { glyph: 'home', label: '홈' },
-  // 시안 2차: 하트만 29. 다른 글리프보다 시각 무게가 가벼워 키워 맞춥니다.
-  Favorites: { glyph: 'heart', label: '관심목록', accent: 'heart', size: 29 },
+  // v3: 하트 path 가 커져 보정이 사라졌습니다. 네 탭 모두 26 입니다.
+  Favorites: { glyph: 'heart', label: '관심목록', accent: 'heart' },
   AiChat: { glyph: 'chat', label: 'AI 추천' },
   My: { glyph: 'account', label: '마이' },
 };
