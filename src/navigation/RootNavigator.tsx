@@ -7,14 +7,10 @@
  *   Onboarding → Auth → StoreSetup → Main ⇄ Create
  */
 import React from 'react';
-import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Heart, MessageCircle, Store } from 'lucide-react-native';
+import { createSwipeTabNavigator } from './SwipeTabs';
 
-import theme, { color, radius, space } from '../design/theme';
 import { useAppState } from '../lib/appState';
 import type {
   AuthStackParamList,
@@ -53,6 +49,7 @@ import FaqScreen from '../domains/my/screens/FaqScreen';
 import PermissionsInfoScreen from '../domains/my/screens/PermissionsInfoScreen';
 import EditProfileScreen from '../domains/my/screens/EditProfileScreen';
 import MyVideoScreen from '../domains/my/screens/MyVideoScreen';
+import NotificationsScreen from '../domains/my/screens/NotificationsScreen';
 import PlansScreen from '../domains/my/screens/PlansScreen';
 import LegalScreen from '../domains/my/screens/LegalScreen';
 import PerformanceScreen from '../domains/analytics/screens/PerformanceScreen';
@@ -90,7 +87,7 @@ const Onboard = createNativeStackNavigator<OnboardingStackParamList>();
 const Auth = createNativeStackNavigator<AuthStackParamList>();
 const StoreSetup = createNativeStackNavigator<StoreSetupStackParamList>();
 const Create = createNativeStackNavigator<CreateStackParamList>();
-const Tab = createBottomTabNavigator<MainTabParamList>();
+const Tab = createSwipeTabNavigator<MainTabParamList>();
 const My = createNativeStackNavigator<MyStackParamList>();
 
 /**
@@ -151,143 +148,18 @@ function StoreSetupStack() {
 }
 
 /**
- * 탭 아이콘 — 가이드라인 §4·§5.8.
+ * 평상시 홈 — 탭 4개.
  *
- * 이모지 글리프는 쓰지 않습니다(기기마다 모양이 달라 브랜드가 안 잡힘).
- * 크기 26 / 비활성 stroke 1.75·slate / 활성 stroke 2 + 옅은 채움.
- * 활성색은 브랜드 파랑이지만 **관심목록 탭만 하트 빨강**입니다.
+ * 탭바는 시안 사양(라벨 없이 아이콘만 + 스프링 캡슐)이라 기본 탭바를 쓰지 않고
+ * ui/TabBar 의 RealsTabBar 로 통째로 갈아 끼웁니다. 화면 구성·라우트 이름은 그대로입니다.
  */
-function TabIcon({
-  Icon,
-  focused,
-  activeColor,
-  fillWhenActive = 0.12,
-}: {
-  Icon: typeof Home;
-  focused: boolean;
-  activeColor: string;
-  fillWhenActive?: number;
-}) {
-  return (
-    <Icon
-      size={26}
-      strokeWidth={focused ? 2 : 1.75}
-      color={focused ? activeColor : color.ink[500]}
-      fill={focused ? activeColor : 'transparent'}
-      fillOpacity={focused ? fillWhenActive : 0}
-    />
-  );
-}
-
-/** 활성 탭 위에 뜨는 인디케이터 바 (폭 32 · 높이 4 · pill) */
-function TabIndicator({ focused, tint }: { focused: boolean; tint: string }) {
-  if (!focused) return null;
-  return (
-    <View
-      style={{
-        position: 'absolute',
-        top: 0,
-        width: 32,
-        height: 4,
-        borderRadius: radius.pill,
-        backgroundColor: tint,
-      }}
-    />
-  );
-}
-
 function MainTabs() {
-  const insets = useSafeAreaInsets();
-
-  /**
-   * 탭바가 기기 제스처 바(홈 인디케이터) 위에 겹치면 터치가 씹힙니다.
-   * 높이를 64 로 고정하면 안 되고, 기기가 알려주는 하단 안전영역만큼
-   * 실제 높이를 늘리고 그만큼 아래 여백을 줘야 합니다.
-   *
-   *   전체 높이 = 콘텐츠 58 + 안전영역
-   *   → 버튼은 안전영역 위쪽에만 그려지고, 아래는 제스처 바가 씁니다.
-   *
-   * insets.bottom 은 제스처 내비게이션 기기에서 20~34, 버튼 방식이면 0 입니다.
-   * 0 일 때도 손가락이 화면 끝에 닿지 않도록 최소 8 은 확보합니다.
-   */
-  const bottomInset = Math.max(insets.bottom, space[2]);
-  const TAB_CONTENT_HEIGHT = 58;
-
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: color.brand[600],
-        tabBarInactiveTintColor: color.ink[500],
-        tabBarLabelStyle: { ...theme.text.micro },
-        tabBarItemStyle: { paddingTop: space[2] },
-        tabBarStyle: {
-          height: TAB_CONTENT_HEIGHT + bottomInset,
-          paddingBottom: bottomInset,
-          borderTopColor: color.ink[200],
-          backgroundColor: color.paper,
-        },
-      }}
-    >
-      <Tab.Screen
-        name="HomeFeed"
-        component={HomeFeedScreen}
-        options={{
-          tabBarLabel: '홈',
-          tabBarIcon: ({ focused }) => (
-            <>
-              <TabIndicator focused={focused} tint={color.brand[600]} />
-              <TabIcon Icon={Home} focused={focused} activeColor={color.brand[600]} />
-            </>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Favorites"
-        component={FavoritesScreen}
-        options={{
-          tabBarLabel: '관심목록',
-          // 가이드라인 §5.8: 관심목록만 활성색이 하트 빨강이고, 채움도 100% 입니다.
-          tabBarActiveTintColor: color.danger[500],
-          tabBarIcon: ({ focused }) => (
-            <>
-              <TabIndicator focused={focused} tint={color.danger[500]} />
-              <TabIcon
-                Icon={Heart}
-                focused={focused}
-                activeColor={color.danger[500]}
-                fillWhenActive={1}
-              />
-            </>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="AiChat"
-        component={AiChatScreen}
-        options={{
-          tabBarLabel: 'AI 추천',
-          tabBarIcon: ({ focused }) => (
-            <>
-              <TabIndicator focused={focused} tint={color.brand[600]} />
-              <TabIcon Icon={MessageCircle} focused={focused} activeColor={color.brand[600]} />
-            </>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="My"
-        component={MyStack}
-        options={{
-          tabBarLabel: '마이',
-          tabBarIcon: ({ focused }) => (
-            <>
-              <TabIndicator focused={focused} tint={color.brand[600]} />
-              <TabIcon Icon={Store} focused={focused} activeColor={color.brand[600]} />
-            </>
-          ),
-        }}
-      />
+    <Tab.Navigator>
+      <Tab.Screen name="HomeFeed" component={HomeFeedScreen} />
+      <Tab.Screen name="Favorites" component={FavoritesScreen} />
+      <Tab.Screen name="AiChat" component={AiChatScreen} />
+      <Tab.Screen name="My" component={MyStack} />
     </Tab.Navigator>
   );
 }
@@ -364,6 +236,8 @@ export default function RootNavigator() {
         <Root.Screen name="Main" component={MainTabs} />
         <Root.Screen name="Create" component={CreateStack} />
       {/* 내 숏폼 뷰어 — 탭바 위를 완전히 덮어야 해서 Root 에 있습니다 (types.ts 참고) */}
+      {/* 알림 — 홈 탭의 벨에서 열립니다. 뒤로가면 홈 그대로 (types.ts 참고) */}
+      <Root.Screen name="Notifications" component={NotificationsScreen} />
       <Root.Screen
         name="MyVideo"
         component={MyVideoScreen}

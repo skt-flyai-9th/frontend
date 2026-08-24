@@ -20,6 +20,13 @@ export type RootStackParamList = {
    *    (2026-08-24 실기기 확인). 그래서 Root 에 둡니다.
    */
   MyVideo: { videoOutputId?: number } | undefined;
+  /**
+   * 알림 (시안 HomeHeader 의 벨).
+   *
+   * 탭 안이 아니라 Root 에 둡니다 — 홈 탭에서 열리는데 마이 탭 스택에 넣으면
+   * 여는 순간 탭이 바뀌어 버립니다. 뒤로가기로 홈에 그대로 돌아와야 합니다.
+   */
+  Notifications: undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   StoreSetup: NavigatorScreenParams<StoreSetupStackParamList>;
