@@ -103,6 +103,9 @@ EXPO_PUBLIC_FORCE_MOCK=1 EXPO_PUBLIC_QA_NAV=1 \
 node serve.mjs /tmp/webexp 8099
 node batchV4.mjs            # 3-in-1 비교 이미지 → 바탕화면\비교대상V4\
 node dbg.mjs <화면이름>      # 시안/앱 글자 밴드 y 를 pt 로 나란히 출력
+node scrollshot.mjs <시안화면> <라우트> <params|null> <폴더> <파일> [pre]
+                            # 끝까지 내린 상태로 비교 (내용이 한 화면을 넘으면 필수)
+                            # 라우트는 중첩까지 정확히 — 예: Create + {"screen":"EditResult",...}
 ```
 
 ### ⚠️ "밝기 불일치 %" 를 믿지 마세요
@@ -226,7 +229,22 @@ Tailwind preflight 의 `html { line-height: 1.5 }` 입니다 (시안 `_template.
 시안 여백을 각 블록이 직접 잡는 화면이면 `contentStyle={{ paddingTop: 0, gap: 0 }}` 를 주세요.
 
 `footer` 가 없으면 `SafeAreaView` 가 하단 안전영역(34)을 먹습니다. 여기에 안쪽
-`paddingBottom: 32` 를 또 주면 66 이 됩니다.
+`paddingBottom: 32` 를 또 주면 66 이 됩니다. **이 어긋남은 캡처에도 그대로 재현됩니다** —
+`App.tsx:30` 이 캡처 모드에서 기기와 같은 inset(54/34)을 일부러 주입합니다.
+("웹이라 inset 0 이니 안 잡힌다" 는 틀린 전제입니다. 첫 화면만 찍으면 안 보일 뿐입니다.)
+
+스크롤 화면이면 `edges={['top']}` 로 두고 안쪽에서 `Math.max(insets.bottom, space[10])`
+처럼 계산하세요. 시안 여백에 맞으면서 기기 홈 인디케이터도 침범하지 않습니다.
+
+### ③-1 시안 헤더는 스크롤 영역 **밖**입니다
+시안은 `<header>` 다음에 `overflow-y-auto` 인 div 가 따로 옵니다 — 내려도 헤더가 제자리입니다.
+`Screen` 에 스크롤을 맡기면(기본 `scroll`) 자체 헤더가 같이 밀려 올라갑니다.
+`AppBar` 를 첫 자식으로 쓰면 자동으로 밖에 그려지지만, **좌측 정렬 자체 헤더를 쓰는
+화면**(legal·faq·insight·plans·settings·export)은 `scroll={false}` + 안쪽 `ScrollView`
+로 직접 나눠야 합니다.
+
+**첫 화면만 찍으면 이 두 가지가 다 안 보입니다.** 내용이 한 화면을 넘는 화면은
+`scrollshot.mjs` 로 아래쪽도 찍으세요.
 
 첫 자식이 `AppBar` 면 자동으로 스크롤 **바깥**에 그려집니다 (시안 TopHeader 가
 `absolute` 인 것에 맞춘 것). 그래서 `contentStyle` 의 `paddingTop` 은 앱바 **아래**부터입니다.
