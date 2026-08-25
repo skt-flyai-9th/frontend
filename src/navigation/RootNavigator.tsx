@@ -109,7 +109,6 @@ function MyStack() {
       <My.Screen name="Performance" component={PerformanceScreen} />
       <My.Screen name="Settings" component={SettingsScreen} />
       <My.Screen name="Insight" component={InsightScreen} />
-      <My.Screen name="Faq" component={FaqScreen} />
       <My.Screen name="PermissionsInfo" component={PermissionsInfoScreen} />
       <My.Screen name="EditProfile" component={EditProfileScreen} />
       <My.Screen name="Plans" component={PlansScreen} />
@@ -240,6 +239,8 @@ export default function RootNavigator() {
       {/* 내 숏폼 뷰어 — 탭바 위를 완전히 덮어야 해서 Root 에 있습니다 (types.ts 참고) */}
       {/* 알림 — 홈 탭의 벨에서 열립니다. 뒤로가면 홈 그대로 (types.ts 참고) */}
       <Root.Screen name="Notifications" component={NotificationsScreen} />
+      {/* 시안: 이 화면에는 하단 탭바가 없습니다 */}
+      <Root.Screen name="Faq" component={FaqScreen} />
       <Root.Screen
         name="MyVideo"
         component={MyVideoScreen}

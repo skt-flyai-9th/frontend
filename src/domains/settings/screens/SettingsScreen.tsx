@@ -44,7 +44,10 @@ import type { RootStackParamList, MyStackParamList } from '../../../navigation/t
 type Nav = NativeStackNavigationProp<RootStackParamList & MyStackParamList>;
 
 /** 시안 SETTINGS_ITEMS 순서 그대로. 아이콘도 시안이 지정한 lucide 이름입니다. */
-const ITEMS: { icon: typeof Bell; label: string; go: keyof MyStackParamList | 'Notifications' }[] = [
+/** Faq·Notifications 는 탭 밖(Root), 나머지는 마이 탭 안입니다. */
+type Dest = keyof MyStackParamList | 'Notifications' | 'Faq';
+
+const ITEMS: { icon: typeof Bell; label: string; go: Dest }[] = [
   { icon: CircleHelp, label: '자주 묻는 질문', go: 'Faq' },
   { icon: Bell, label: '알림', go: 'Notifications' },
   { icon: FileText, label: '서비스 이용약관', go: 'Legal' },
@@ -138,8 +141,9 @@ export default function SettingsScreen() {
                 key={item.label}
                 accessibilityRole="button"
                 onPress={() =>
-                  item.go === 'Notifications'
-                    ? nav.navigate('Notifications')
+                  // Root 화면과 탭 안 화면이 섞여 있어 분기합니다.
+                  item.go === 'Notifications' || item.go === 'Faq'
+                    ? nav.navigate(item.go)
                     : nav.navigate(item.go as never)
                 }
                 style={({ pressed }) => [

@@ -27,6 +27,12 @@ export type RootStackParamList = {
    * 여는 순간 탭이 바뀌어 버립니다. 뒤로가기로 홈에 그대로 돌아와야 합니다.
    */
   Notifications: undefined;
+  /**
+   * 자주 묻는 질문 — 탭 **밖**입니다.
+   * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
+   * 시안과 어긋납니다(알림 화면과 같은 이유).
+   */
+  Faq: undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   StoreSetup: NavigatorScreenParams<StoreSetupStackParamList>;
@@ -89,7 +95,6 @@ export type MyStackParamList = {
   Settings: undefined;
   // ── 신규 ──
   Insight: undefined;
-  Faq: undefined;
   PermissionsInfo: undefined;
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
