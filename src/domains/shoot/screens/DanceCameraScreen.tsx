@@ -192,7 +192,6 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
 
       {/*
         참고 영상. 시안은 이 화면에서 width 110 을 씁니다(카메라 화면은 98).
-        PipGuide 가 98 고정이라 지금은 98 입니다 — 폭 prop 요청은 보고에 적었습니다.
         ⚠️ 이 아래로는 아무것도 그리지 않습니다. 플레이어가 항상 맨 위여야 합니다.
       */}
       {/* 시안: 안무 카메라의 PiP 는 110 입니다(카메라는 98) */}
