@@ -1,5 +1,5 @@
 /**
- * RenderScreen — **시안 v3 `editing` 대조 이식** (2026-08-26). 명세 14.1, 14.2.
+ * RenderScreen — **시안 V4 `editing` 대조 이식** (2026-08-26). 명세 14.1, 14.2.
  *
  * 시안 구조 (위에서부터, 이게 전부입니다)
  *   화면    앱바 없음 · bg-canvas · px-6(24) pt-6(24)
@@ -24,24 +24,31 @@
  *    편집이 끝나는 순간 화면이 혼자 바뀌면 사장님은 뭘 눌렀는지도 모른 채
  *    다음 화면에 가 있습니다.
  *
- * 실패(14.2 FAILED · 시간 초과 · 400 TASKS_INCOMPLETE)는 시안 EditingFailed 자리에
- * 기존 안내를 그대로 씁니다 — 촬영본은 남아 있고 다시 시도할 수 있다는 사실이 핵심입니다.
+ * ⚠️ 하단 안전영역을 **두 번 먹던 것을 고쳤습니다** (2026-08-26, 비교 이미지 측정).
+ *    시안 대비 버튼만 34 만큼 위에 떠 있었습니다. Screen 은 footer 가 없으면
+ *    edges 가 ['top','bottom'] 이라 SafeAreaView 가 하단 inset(기기 34)을 먹는데,
+ *    그 안에서 pb-8(32)을 또 줘서 시안 32 자리에 66 이 들어가 있었습니다.
+ *    이 화면은 버튼이 footer 가 아니라 본문 흐름(mt-auto)에 있어 BottomAction 을
+ *    쓸 수 없으므로, edges 를 ['top'] 으로 내리고 여백을 여기서 직접 잡습니다.
+ *    (측정: 시안 버튼 위 여백 258px @2x, 앱 202px → 차이 28 design px + 버튼 위치 6px)
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Circle, CircleCheck, MapPin } from 'lucide-react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Circle, CircleCheck, MapPin, TriangleAlert } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { BottomAction, Button } from '../../../ui/Button';
+import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
-import { Banner, Spinner } from '../../../ui/Feedback';
+import { Spinner, StateBlock } from '../../../ui/Feedback';
 import theme, { color, radius, space, text } from '../../../design/theme';
 import { useEditResult, useStartEdit } from '../../../api/queries/edit';
 import { useStore } from '../../../api/queries/store';
 import { useAppState } from '../../../lib/appState';
 import { ApiError } from '../../../api/http';
 import type { IncompleteTask, TargetPlatform } from '../../../api/schema/types';
-import type { CreateStackParamList } from '../../../navigation/types';
+import type { CreateStackParamList, RootStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'Render'>;
 
@@ -57,8 +64,38 @@ const RENDER_PLATFORM: TargetPlatform = 'INSTAGRAM';
 /** 렌더가 끝나지 않을 때를 대비한 상한 */
 const TIMEOUT_MS = 180000;
 
+/**
+ * 미리보기 칩의 등장 효과 — 시안 `rise-in` / `pop-in` 을 그대로 옮겼습니다.
+ *   rise  @keyframes rise{from{opacity:0;translateY(14px)}}  .3s cubic-bezier(.16,1,.3,1)
+ *   pop   @keyframes pop {from{opacity:0;scale(.6)}}         .3s cubic-bezier(.34,1.4,.64,1)
+ *
+ * 단계가 지나갈 때 뭐가 더해졌는지 눈에 걸려야 진행이 읽힙니다. 그냥 나타나면
+ * 사장님은 방금 무엇이 바뀌었는지 못 봅니다.
+ */
+function ChipIn({ mode, style, children }: { mode: 'rise' | 'pop'; style: object; children: React.ReactNode }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: 300,
+      easing:
+        mode === 'rise' ? Easing.bezier(0.16, 1, 0.3, 1) : Easing.bezier(0.34, 1.4, 0.64, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [t, mode]);
+
+  const transform =
+    mode === 'rise'
+      ? [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }]
+      : [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }];
+
+  return <Animated.View style={[style, { opacity: t, transform }]}>{children}</Animated.View>;
+}
+
 export default function RenderScreen({ navigation, route }: Props) {
   const { projectId, platform } = route.params;
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
   const storeId = useAppState((s) => s.storeId);
   const { data: store } = useStore(storeId ?? undefined);
 
@@ -107,59 +144,62 @@ export default function RenderScreen({ navigation, route }: Props) {
   /** 지금 돌고 있는 단계. 다 끝나면 목록 전체가 체크로 바뀝니다. */
   const stepIndex = done ? STEPS.length : Math.min(STEPS.length - 1, Math.floor(percent * STEPS.length));
 
-  // ── 실패 ─────────────────────────────────────────────
+  // ── 실패 (시안 EditingFailed) ─────────────────────────
+  /*
+   * 시안: flex-1 justify-center · px-2 · pb-16(64) · StateBlock 한 덩어리 +
+   *       그 아래 가운데 밑줄 링크.
+   * 시안에 없는 "연결이 끊겼나요? 오류 화면 보기" 는 프로토타입 데모용이라 뺐습니다.
+   */
   if (failed) {
     return (
-      <Screen
-        footer={
-          <BottomAction>
-            {incomplete ? (
-              <Button
-                label="남은 컷 찍으러 가기"
-                onPress={() => navigation.replace('Camera', { projectId })}
-              />
-            ) : (
-              <>
-                <Button label="다시 시도" onPress={begin} />
-                <Button
-                  label="촬영으로 돌아가기"
-                  variant="quiet"
-                  size="small"
-                  onPress={() => navigation.replace('Camera', { projectId })}
-                />
-              </>
-            )}
-          </BottomAction>
-        }
-      >
-        <View style={styles.head}>
-          <Text style={text.heading}>AI 자동 편집</Text>
-          <Text style={styles.sub}>편집을 멈췄습니다.</Text>
+      <Screen scroll={false} padded={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>
+        <View style={styles.failBody}>
+          {incomplete ? (
+            /*
+             * 시안에는 없는 갈래입니다 — 서버가 실제로 주는 400 이라 남깁니다.
+             * 망가진 게 아니라 아직 안 찍은 것이므로 heart(빨강) 대신 brand 를 씁니다.
+             */
+            <StateBlock
+              icon={TriangleAlert}
+              tone="brand"
+              title={`아직 안 찍은 장면이 ${incomplete.length}개 있습니다`}
+              body={
+                incomplete.length > 0
+                  ? `${incomplete.map((t) => t.taskTitle).join(', ')}을(를) 찍으면 영상을 만들 수 있습니다.`
+                  : '촬영 목록에서 남은 장면을 확인해 주세요.'
+              }
+              primaryLabel="남은 컷 찍으러 가기"
+              onPrimary={() => navigation.replace('Camera', { projectId })}
+            />
+          ) : (
+            <StateBlock
+              icon={TriangleAlert}
+              tone="heart"
+              title={timedOut ? '편집이 너무 오래 걸려요' : '편집을 끝내지 못했어요'}
+              body="촬영본은 그대로 있으니 다시 시도해도 처음부터 찍지 않아도 돼요."
+              primaryLabel="편집 다시 시도"
+              onPrimary={begin}
+              secondaryLabel="촬영부터 다시 하기"
+              onSecondary={() => navigation.replace('Camera', { projectId })}
+            />
+          )}
+
+          {/* 시안: mx-auto mt-6 py-2 · 13 medium slate · 밑줄 */}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => rootNav.navigate('Main', { screen: 'HomeFeed' })}
+            style={styles.laterLink}
+          >
+            <Text style={styles.laterText}>나중에 하기</Text>
+          </Pressable>
         </View>
-        {incomplete ? (
-          <Banner
-            tone="warn"
-            title={`아직 안 찍은 장면이 ${incomplete.length}개 있습니다`}
-            description={
-              incomplete.length > 0
-                ? `${incomplete.map((t) => t.taskTitle).join(', ')}을(를) 찍으면 영상을 만들 수 있습니다.`
-                : '촬영 목록에서 남은 장면을 확인해 주세요.'
-            }
-          />
-        ) : (
-          <Banner
-            tone="danger"
-            title={timedOut ? '시간이 너무 오래 걸립니다' : '영상을 만들지 못했습니다'}
-            description="촬영본은 그대로 있습니다. 다시 시도하거나 잠시 뒤에 다시 오세요."
-          />
-        )}
       </Screen>
     );
   }
 
   // ── 편집 진행 ────────────────────────────────────────
   return (
-    <Screen scroll={false} padded={false} contentStyle={{ paddingTop: 0, gap: 0 }}>
+    <Screen scroll={false} padded={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>
       <View style={styles.body}>
         {/* ① */}
         <View style={styles.head}>
@@ -177,17 +217,17 @@ export default function RenderScreen({ navigation, route }: Props) {
             실제 자막·위치 태그는 서버가 만든 결과물에 들어갑니다.
           */}
           {stepIndex >= 2 && (
-            <View style={styles.captionChip}>
+            <ChipIn mode="rise" style={styles.captionChip}>
               <Text style={styles.captionText}>이 한 그릇, 30년입니다</Text>
-            </View>
+            </ChipIn>
           )}
           {stepIndex >= 3 && (
-            <View style={styles.placeChip}>
+            <ChipIn mode="pop" style={styles.placeChip}>
               <MapPin size={12} strokeWidth={2} color={color.paper} />
               <Text style={styles.placeText} numberOfLines={1}>
                 {store?.name ?? '우리 가게'}
               </Text>
-            </View>
+            </ChipIn>
           )}
         </View>
 
@@ -213,7 +253,7 @@ export default function RenderScreen({ navigation, route }: Props) {
         </View>
 
         {/* ④ 편집이 끝나야 넘어갑니다. */}
-        <View style={styles.cta}>
+        <View style={[styles.cta, { paddingBottom: Math.max(insets.bottom, space[8]) }]}>
           <Button
             label={done ? '완성된 영상 내보내기' : '편집 중...'}
             disabled={!done}
@@ -287,9 +327,34 @@ const styles = StyleSheet.create({
 
   // 시안: mt-7(28) gap-2.5(10)
   steps: { marginTop: space[7], gap: 10 },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  /*
+   * 시안 한 줄 높이는 24 입니다 — 아이콘 22 가 아니라 15px 글자의 줄높이가 잡습니다.
+   * 비워 두면 우리 bodyStrong 줄높이대로 23 이 되어 줄마다 1 씩, 네 줄에서 3 이
+   * 밀립니다 (비교 이미지 @2x 에서 단계 간격 시안 68 / 앱 66 으로 측정).
+   */
+  stepRow: { flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: 24 },
   stepLabel: { ...theme.text.bodyStrong, flexShrink: 1 },
 
-  // 시안: mt-auto pb-8(32)
-  cta: { marginTop: 'auto', paddingBottom: space[8] },
+  /*
+   * 시안: mt-auto pb-8(32).
+   * pb 는 인라인에서 max(안전영역, 32) 로 잡습니다 — Screen 이 edges=['top'] 이라
+   * 하단 inset 이 여기 말고는 갈 데가 없습니다. 기기에서는 34(제스처 바)라
+   * 시안보다 2 큽니다. 32 로 고정하면 홈 인디케이터에 버튼이 깔립니다.
+   */
+  cta: { marginTop: 'auto' },
+
+  // 시안 EditingFailed: justify-center · px-2(8) · pb-16(64)
+  failBody: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: space[2],
+    paddingBottom: space[16],
+  },
+  // 시안: mx-auto mt-6 py-2
+  laterLink: { alignSelf: 'center', marginTop: space[6], paddingVertical: space[2] },
+  laterText: {
+    ...text.caption,
+    color: color.ink[500],
+    textDecorationLine: 'underline',
+  },
 });
