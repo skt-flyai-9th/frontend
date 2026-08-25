@@ -670,3 +670,38 @@ export const notices = [
     time: '3일 전',
   },
 ];
+
+/**
+ * 매장 인사이트 지표 — 시안 v3 `INSIGHT_KPIS` · `WEEK_VIEWS` · `LOCAL_ANALYSIS` 원문.
+ *
+ * ⚠️ 계정 단위 집계 API 가 없습니다(17.1 은 게시물 단위라 주간 합산을 못 만듭니다).
+ *    그래서 **mock 에만** 존재합니다. 실서버 모드에서는 KPI 가 "—", 차트는
+ *    빈 상태가 됩니다 — 사장님에게 가짜 숫자가 가지 않게 하려는 구분입니다.
+ *    알림(notices)과 같은 방식입니다.
+ */
+export const insightKpis = [
+  { label: '이번 주 총 조회수', value: '3,820회', delta: '+12%', icon: 'trending-up' },
+  { label: '플레이스 유입 전환', value: '142회', delta: '+8%', icon: 'map-pin' },
+  { label: '저장 및 공유', value: '89회', icon: 'bookmark' },
+  { label: '주 타깃', value: '여성 20~30대', icon: 'users' },
+];
+
+export const weekViews = [
+  { day: '월', value: 320 },
+  { day: '화', value: 480 },
+  { day: '수', value: 410 },
+  { day: '목', value: 620 },
+  { day: '금', value: 580 },
+  { day: '토', value: 780 },
+  { day: '일', value: 630 },
+];
+
+/** 시안 색: 진한 브랜드 → 옅은 브랜드 → 회색 순으로 비중을 표현합니다. */
+export const localAnalysis = [
+  { label: '매장 반경 1km 이내 주민', value: 58, color: '#2563eb' },
+  { label: '인근 직장인 유입', value: 27, color: '#60a5fa' },
+  { label: '타지역 방문객', value: 15, color: '#cbd5e1' },
+];
+
+/** 주간 추이 카드 우측에 붙는 증감. KPI 조회수와 같은 값입니다. */
+export const weekViewsDelta = '+12%';

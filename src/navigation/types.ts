@@ -27,6 +27,8 @@ export type RootStackParamList = {
    * 여는 순간 탭이 바뀌어 버립니다. 뒤로가기로 홈에 그대로 돌아와야 합니다.
    */
   Notifications: undefined;
+  /** 매장 인사이트 분석 — 시안에 탭바가 없어 탭 밖입니다. */
+  Insight: undefined;
   /**
    * 자주 묻는 질문 — 탭 **밖**입니다.
    * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
@@ -94,7 +96,6 @@ export type MyStackParamList = {
   Performance: undefined;
   Settings: undefined;
   // ── 신규 ──
-  Insight: undefined;
   PermissionsInfo: undefined;
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
