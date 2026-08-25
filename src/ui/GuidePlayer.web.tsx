@@ -28,17 +28,24 @@ interface Props {
   url?: string | null;
   startSec?: number;
   compact?: boolean;
+  /** 원본과 같은 규칙 — 화면 폭을 다 쓰고 3:4 자리를 차지합니다. */
+  fullBleed?: boolean;
 }
 
-export function GuidePlayer({ compact = false }: Props) {
+export function GuidePlayer({ compact = false, fullBleed = false }: Props) {
   const { width } = useWindowDimensions();
-  const playerWidth = Math.max(200, width - space[5] * 2);
-  const playerHeight = compact
-    ? Math.min(210, Math.round((playerWidth * 9) / 16))
-    : Math.max(200, Math.round((playerWidth * 9) / 16));
+  // fullBleed 는 화면 폭을 그대로 쓰고 3:4 자리를 차지합니다(원본과 같은 규칙).
+  const playerWidth = fullBleed ? width : Math.max(200, width - space[5] * 2);
+  const playerHeight = fullBleed
+    ? Math.round((playerWidth * 4) / 3)
+    : compact
+      ? Math.min(210, Math.round((playerWidth * 9) / 16))
+      : Math.max(200, Math.round((playerWidth * 9) / 16));
 
   return (
-    <View style={[styles.box, { width: playerWidth, height: playerHeight }]}>
+    <View
+      style={[styles.box, { width: playerWidth, height: playerHeight }, fullBleed && { borderRadius: 0 }]}
+    >
       <Text style={[text.bodySmall, { color: color.ink[500] }]}>유튜브 임베딩 영상</Text>
     </View>
   );

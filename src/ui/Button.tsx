@@ -18,6 +18,11 @@ export interface ButtonProps {
   style?: ViewStyle;
   /** 접근성 라벨. 버튼 문구와 실제 동작이 다를 때만 지정합니다. */
   a11yLabel?: string;
+  /**
+   * 문구 앞에 붙는 아이콘 (시안 PrimaryButton 의 icon).
+   * 색은 버튼이 정합니다 — 호출부가 색까지 정하면 variant 와 어긋납니다.
+   */
+  icon?: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
 const BG: Record<Variant, string> = {
@@ -44,6 +49,7 @@ export function Button({
   full = true,
   style,
   a11yLabel,
+  icon: Icon,
 }: ButtonProps) {
   const inactive = disabled || loading;
   const height = size === 'large' ? sizing.buttonHeight : sizing.buttonHeightSmall;
@@ -85,9 +91,12 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={FG[variant]} />
       ) : (
-        <Text style={[text.button, { color: FG[variant] }]} numberOfLines={1}>
-          {label}
-        </Text>
+        <View style={styles.row}>
+          {Icon ? <Icon size={18} strokeWidth={2} color={FG[variant]} /> : null}
+          <Text style={[text.button, { color: FG[variant] }]} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
       )}
     </Pressable>
   );
@@ -114,6 +123,8 @@ export function BottomAction({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+  // 시안: 아이콘과 문구 사이 gap-2
+  row: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   base: {
     // 가이드라인 §3.1: 버튼은 12 (카드 16 과 구분)
     borderRadius: radius.md,
