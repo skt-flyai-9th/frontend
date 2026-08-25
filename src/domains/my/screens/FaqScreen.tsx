@@ -16,8 +16,9 @@
  *   · 여러 개가 동시에 열리던 것 → 하나만 열립니다
  */
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { ChevronDown, ChevronLeft } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import { Screen } from '../../../ui/Screen';
@@ -49,6 +50,7 @@ const FAQS: { q: string; a: string }[] = [
 ];
 
 export default function FaqScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation();
   /** 시안: 처음에 첫 항목이 열려 있고, 한 번에 하나만 열립니다. */
   const [open, setOpen] = useState<number | null>(0);
@@ -63,6 +65,12 @@ export default function FaqScreen() {
        * 16 이 더해져 헤더가 8px 내려가고, 헤더와 카드 사이도 시안의 12 보다 벌어집니다.
        * 이 화면은 간격을 직접 정하므로 기본값을 끕니다.
        */
+      /*
+       * 시안은 헤더가 스크롤 영역 밖이라 내려도 제자리입니다. 안쪽 ScrollView 를 씁니다.
+       */
+      scroll={false}
+      // 하단 안전영역은 아래 ScrollView 가 직접 다룹니다
+      edges={['top']}
       contentStyle={{ paddingTop: space[2], gap: 0 }}
     >
       {/* 시안: 뒤로가기 바로 옆에 타이틀 (중앙 정렬 아님) */}
@@ -79,7 +87,15 @@ export default function FaqScreen() {
         <Text style={text.heading}>자주 묻는 질문</Text>
       </View>
 
-      <View style={styles.list}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.list,
+          // 시안 pb-10(40). 안전영역이 더 크면 그쪽을 씁니다.
+          { paddingBottom: Math.max(insets.bottom, space[10]) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {FAQS.map((item, i) => {
           const isOpen = open === i;
           return (
@@ -106,7 +122,7 @@ export default function FaqScreen() {
             </View>
           );
         })}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -143,7 +159,9 @@ const styles = StyleSheet.create({
   },
 
   // 시안: px-4 · 카드 사이 gap-2.5(10)
-  list: { paddingHorizontal: space[4], paddingBottom: space[10], gap: 10 },
+  flex: { flex: 1 },
+  // 시안: px-4 pb-10 · gap-2.5 (하단은 화면에서 안전영역과 함께 계산)
+  list: { paddingHorizontal: space[4], gap: 10 },
 
   card: {
     borderRadius: radius.lg,

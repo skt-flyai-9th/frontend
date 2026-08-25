@@ -34,7 +34,8 @@
  *   그래서 지금 기능을 흉내 내면 나중에 전부 되돌려야 합니다.
  */
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Check, ChevronLeft, Crown, X } from 'lucide-react-native';
 
@@ -54,12 +55,17 @@ const ROWS: Row[] = [
 ];
 
 export default function PlansScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation();
 
   return (
     <Screen
       padded={false}
       background={color.surface}
+      /* 시안은 헤더가 스크롤 영역 밖이라 내려도 제자리입니다. 안쪽 ScrollView 를 씁니다. */
+      scroll={false}
+      // 하단 안전영역은 아래 ScrollView 가 직접 다룹니다
+      edges={['top']}
       contentStyle={{ paddingTop: 0, paddingBottom: 0, gap: 0 }}
     >
       {/* 시안: 헤더가 좌측 정렬입니다 (자주 묻는 질문과 같은 모양) */}
@@ -76,7 +82,15 @@ export default function PlansScreen() {
         <Text style={text.heading}>플랜 안내</Text>
       </View>
 
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.body,
+          // 시안 pb-10(40). 안전영역이 더 크면 그쪽을 씁니다.
+          { paddingBottom: Math.max(insets.bottom, space[10]) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ① Pro 카드 */}
         <View style={styles.hero}>
           <View style={styles.crown}>
@@ -124,7 +138,7 @@ export default function PlansScreen() {
           <Text style={styles.ctaText}>Pro로 업그레이드</Text>
         </View>
         <Text style={styles.note}>아직 준비 중입니다. 열리면 앱에서 알려드릴게요.</Text>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -164,7 +178,9 @@ const styles = StyleSheet.create({
   },
 
   // 시안: px-4 pb-10
-  body: { paddingHorizontal: space[4], paddingBottom: space[10] },
+  flex: { flex: 1 },
+  // 시안: px-4 pb-10 (하단은 화면에서 안전영역과 함께 계산)
+  body: { paddingHorizontal: space[4] },
 
   // 시안: rounded-2xl p-5 (그라디언트는 위 주석 참고)
   hero: { borderRadius: radius.lg, padding: space[5], backgroundColor: color.brand[600] },

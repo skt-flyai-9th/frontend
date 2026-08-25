@@ -26,6 +26,7 @@ import {
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Clipboard from 'expo-clipboard';
 import { Check, ChevronLeft, Clock, Copy, Download, Music2, Upload } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -112,6 +113,7 @@ function CardLabel({ icon: Icon, children }: { icon?: typeof Clock; children: Re
 }
 
 export default function EditResultScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const { projectId } = route.params;
   useAutoSave({ projectId, step: 'EDITING' });
 
@@ -170,7 +172,7 @@ export default function EditResultScreen({ navigation, route }: Props) {
 
   if (isError || (!isLoading && !result)) {
     return (
-      <Screen scroll={false} padded={false} background={color.surface}>
+      <Screen scroll={false} padded={false} edges={['top']} background={color.surface}>
         <ExportHeader onBack={goBack} />
         <View style={styles.stateBody}>
           <EmptyState
@@ -191,7 +193,7 @@ export default function EditResultScreen({ navigation, route }: Props) {
 
   if (isLoading || !result) {
     return (
-      <Screen scroll={false} padded={false} background={color.surface}>
+      <Screen scroll={false} padded={false} edges={['top']} background={color.surface}>
         <ExportHeader onBack={goBack} />
         <Loading label="영상을 불러오는 중" />
       </Screen>
@@ -213,12 +215,16 @@ export default function EditResultScreen({ navigation, route }: Props) {
       : '';
 
   return (
-    <Screen scroll={false} padded={false} background={color.surface}>
+    <Screen scroll={false} padded={false} edges={['top']} background={color.surface}>
       <ExportHeader onBack={goBack} />
 
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          // 시안 pb-10(40). 안전영역이 더 크면 그쪽을 씁니다 — Screen 이 먹으면 40 위에 34 가 더 붙습니다.
+          { paddingBottom: Math.max(insets.bottom, space[10]) },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -354,7 +360,8 @@ const styles = StyleSheet.create({
   },
 
   // 시안 스크롤 영역: px-4 pb-10
-  scroll: { paddingHorizontal: space[4], paddingBottom: space[10] },
+  // 시안: px-4 pb-10 (하단은 화면에서 안전영역과 함께 계산)
+  scroll: { paddingHorizontal: space[4] },
 
   preview: {
     alignSelf: 'center',
