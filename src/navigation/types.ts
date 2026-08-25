@@ -114,8 +114,18 @@ export type CreateStackParamList = {
    * PathChoice 를 건너뛰고 곧장 PlanSummary 로 갑니다.
    */
   PurposeSelect: { formatId?: number } | undefined;
-  /** 명세 4.2 (2026-08-21) — 목적별 상세 정보 */
-  PromotionDetail: { projectId: number; formatId?: number };
+  /**
+   * 명세 4.2 (2026-08-21) — 목적별 상세 정보.
+   *
+   * topicTag·topicText 는 시안 v3 촬영 준비 화면에서 이미 고른 주제와 내용입니다.
+   * 여기까지 들고 와야 같은 걸 두 번 묻지 않습니다.
+   */
+  PromotionDetail: {
+    projectId: number;
+    formatId?: number;
+    topicTag?: string;
+    topicText?: string;
+  };
   TargetSelect: { projectId: number; formatId?: number };
   ShootCondition: { projectId: number; formatId?: number };
 

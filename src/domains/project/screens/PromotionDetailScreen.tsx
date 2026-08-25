@@ -68,7 +68,7 @@ const CUSTOMER_GOALS: { key: CustomerGoal; hint: string }[] = [
 ];
 
 export default function PromotionDetailScreen({ navigation, route }: Props) {
-  const { projectId } = route.params;
+  const { projectId, topicTag } = route.params;
 
   // 진행 상황을 서버에 남깁니다. 앱을 꺼도 이어서 할 수 있습니다.
   useAutoSave({ projectId, step: 'SETUP' });
@@ -80,10 +80,17 @@ export default function PromotionDetailScreen({ navigation, route }: Props) {
 
   // 메뉴소개
   const [menuId, setMenuId] = useState<number | null>(null);
-  const [menuTag, setMenuTag] = useState<MenuDetailTag | null>(null);
+  /**
+   * 촬영 준비 화면(시안 v3)에서 이미 고른 주제를 초기값으로 씁니다.
+   * 같은 걸 두 번 묻지 않기 위해서입니다 — 사장님은 방금 답했습니다.
+   */
+  const [menuTag, setMenuTag] = useState<MenuDetailTag | null>(
+    (topicTag as MenuDetailTag | undefined) ?? null
+  );
 
   // 이벤트알리기
   const [ev, setEv] = useState({
+    // 이벤트는 앞 화면에서 자유 입력을 받았으므로 혜택 칸에 이어 붙입니다.
     eventName: '',
     benefit: '',
     period: '',
