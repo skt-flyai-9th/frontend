@@ -131,7 +131,7 @@ node scrollshot.mjs <시안화면> <라우트> <params|null> <폴더> <파일> [
 
 ---
 
-## 5. 반복해서 걸린 함정 세 가지
+## 5. 반복해서 걸린 함정 네 가지
 
 ### ① 줄높이 — 시안은 `leading-*` 이 없으면 **글자크기 × 1.5**
 
@@ -248,6 +248,45 @@ Tailwind preflight 의 `html { line-height: 1.5 }` 입니다 (시안 `_template.
 
 첫 자식이 `AppBar` 면 자동으로 스크롤 **바깥**에 그려집니다 (시안 TopHeader 가
 `absolute` 인 것에 맞춘 것). 그래서 `contentStyle` 의 `paddingTop` 은 앱바 **아래**부터입니다.
+
+### ④ `Animated.loop` + `useNativeDriver: true` 는 웹에서 **한 바퀴만 돕니다**
+
+`Animated.loop` 는 네이티브 드라이버 애니메이션의 **반복을 네이티브 모듈에 넘깁니다.**
+그 모듈이 없는 react-native-web 에는 반복시킬 주체가 없어서, 애니메이션이 한 번 끝나면
+**진행도 1 에 굳은 채로 멈춥니다.** 예외도 경고도 나지 않습니다.
+
+```ts
+// ❌ 웹에서 한 바퀴만 돌고 멈춥니다
+Animated.loop(Animated.timing(v, { toValue: 1, duration: 2500, useNativeDriver: true })).start();
+
+// ✅ 반복이면 JS 드라이버로 둡니다
+Animated.loop(Animated.timing(v, { toValue: 1, duration: 2500, useNativeDriver: false })).start();
+```
+
+**증상이 "가끔 되는 것"처럼 보입니다.** 화면을 벗어났다 돌아오면 `.start()` 가 다시
+불려 한 바퀴 더 돌기 때문입니다. 2026-08-25 튜토리얼 삽화가 그랬습니다 — 첫 화면만
+텅 비어 있고 넘겼다 돌아오면 멀쩡했습니다.
+
+**가르는 법:** 인라인 스타일을 시간차로 두 번 떠서 비교하세요. 캡처만 보면
+"애니메이션이 그 시점에 안 보이는 상태였나" 로 오독합니다.
+
+```js
+// CDP Runtime.evaluate 로 400ms 간격 두 번
+[...document.querySelectorAll('*')].filter(e => e.getAttribute('style'))
+  .map(e => e.getAttribute('style'))
+```
+
+당시 `width`(JS 드라이버)는 계속 변하는데 `opacity`·`transform`(네이티브)만 고정이라
+드라이버가 원인이라는 게 바로 드러났습니다.
+
+**반복이 아니면 네이티브 드라이버를 그대로 쓰세요.** 한 번짜리 `timing`·`spring` 은
+멀쩡합니다 — 튜토리얼 페이지 전환(`trackX`)이 그렇습니다. 문제는 `loop` 뿐입니다.
+
+그리고 시안의 폭·높이 애니는 **레이아웃 속성이라 어차피 네이티브 드라이버를 못 씁니다.**
+`scaleX`/`scaleY` 로 바꾸면 `borderRadius` 가 같이 늘어나 끝 모양이 시안과 달라집니다.
+같은 화면에서 값을 둘로 쪼개면 두 시계가 어긋나고, **한 노드의 style 에 두 드라이버를
+섞으면 RN 이 예외를 냅니다**(`navigation/SwipeTabs.tsx` 주석). 반복 애니는 시계 하나로
+통일하는 게 안전합니다 (`domains/onboarding/components/TutorialArt.tsx`).
 
 ---
 
