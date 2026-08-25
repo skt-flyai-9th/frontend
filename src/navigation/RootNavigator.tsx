@@ -109,7 +109,6 @@ function MyStack() {
       <My.Screen name="Performance" component={PerformanceScreen} />
       <My.Screen name="Settings" component={SettingsScreen} />
       <My.Screen name="PermissionsInfo" component={PermissionsInfoScreen} />
-      <My.Screen name="Plans" component={PlansScreen} />
       <My.Screen name="Legal" component={LegalScreen} />
     </My.Navigator>
   );
@@ -241,6 +240,7 @@ export default function RootNavigator() {
       <Root.Screen name="Faq" component={FaqScreen} />
       <Root.Screen name="Insight" component={InsightScreen} />
       <Root.Screen name="EditProfile" component={EditProfileScreen} />
+      <Root.Screen name="Plans" component={PlansScreen} />
       <Root.Screen
         name="MyVideo"
         component={MyVideoScreen}

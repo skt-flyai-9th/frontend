@@ -35,6 +35,8 @@ export type RootStackParamList = {
    * 탭 안에 두면 탭바가 그 자리를 먹어 저장하기가 화면 밖으로 밀립니다.
    */
   EditProfile: undefined;
+  /** 플랜 안내 — 정적 화면(플랜 API 없음). 시안에 탭바가 없어 탭 밖입니다. */
+  Plans: undefined;
   /**
    * 자주 묻는 질문 — 탭 **밖**입니다.
    * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
@@ -105,8 +107,6 @@ export type MyStackParamList = {
   PermissionsInfo: undefined;
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
-  /** 플랜 안내 — 정적 화면 (플랜 API 없음) */
-  Plans: undefined;
 };
 
 /** 숏폼 만들기 — 목적부터 게시까지 하나의 긴 흐름 */

@@ -13,7 +13,7 @@
  *    "이 방법으로 만들기" 로 이어지기 때문입니다. 눌러서 도달하는 곳은 결국 같습니다.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -36,6 +36,16 @@ const COLS = 3;
 
 export default function FavoritesScreen() {
   const nav = useNavigation<Nav>();
+  const { width } = useWindowDimensions();
+  /**
+   * 타일 폭을 직접 계산합니다.
+   *
+   * flex: 1/3 으로 두면 **그 줄에 몇 개가 있느냐**에 따라 폭이 달라집니다.
+   * flex 는 남은 공간의 비율이라, 마지막 줄에 두 개만 있으면 둘이 절반씩
+   * 나눠 가져 타일이 커집니다(그래서 화면이 시안보다 컸습니다).
+   * 시안은 CSS grid 라 개수와 무관하게 항상 1/3 입니다.
+   */
+  const cellWidth = (width - GAP * 2 - GAP * (COLS - 1)) / COLS;
   const favorites = useFavorites();
   const toggle = useToggleFavorite();
 
@@ -58,24 +68,52 @@ export default function FavoritesScreen() {
   };
 
   return (
+    /*
+     * 시안은 헤더가 absolute 라 그리드가 **헤더 밑으로 파고듭니다**
+     * (grid 는 pt-[86px] 인데 헤더는 98 높이 — 첫 줄 위 12 가 헤더에 가립니다).
+     * 그래야 스크롤할 때 타일이 반투명 헤더 아래로 지나갑니다.
+     * Screen 은 첫 자식이 AppBar 일 때만 위로 빼내므로, 여기서는 일부러
+     * 마지막에 두고 직접 덮어 씌웁니다.
+     */
     <Screen padded={false} scroll={false} edges={['top']}>
-      <AppBar
-        title="관심 목록"
-        right={
-          items.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={selectMode ? '선택 마치기' : '선택 모드'}
-              hitSlop={8}
-              onPress={() => (selectMode ? exitSelect() : setSelectMode(true))}
-              style={({ pressed }) => [pressTap(pressed, 'icon')]}
-            >
-              <Text style={styles.selectBtn}>{selectMode ? '완료' : '선택'}</Text>
-            </Pressable>
-          ) : undefined
-        }
-      />
+      <View style={styles.stack}>
+        {renderBody()}
+        <View style={styles.headerLayer}>
+          <AppBar
+            title="관심 목록"
+            right={
+              items.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={selectMode ? '선택 마치기' : '선택 모드'}
+                  hitSlop={8}
+                  onPress={() => (selectMode ? exitSelect() : setSelectMode(true))}
+                  style={({ pressed }) => [pressTap(pressed, 'icon')]}
+                >
+                  <Text style={styles.selectBtn}>{selectMode ? '완료' : '선택'}</Text>
+                </Pressable>
+              ) : undefined
+            }
+          />
+        </View>
+      </View>
 
+      {selectMode && selected.length > 0 ? (
+        <View style={styles.removeBar}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={removeSelected}
+            style={({ pressed }) => [styles.removeBtn, pressTap(pressed, 'button')]}
+          >
+            <Text style={styles.removeText}>좋아요 취소({selected.length}개)</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </Screen>
+  );
+
+  function renderBody() {
+    return (
       <LoadGate
         loading={favorites.isLoading}
         error={favorites.isError}
@@ -116,7 +154,11 @@ export default function FavoritesScreen() {
                           params: { formatId: item.id },
                         })
                   }
-                  style={({ pressed }) => [styles.cell, pressTap(pressed, 'card')]}
+                  style={({ pressed }) => [
+                    styles.cell,
+                    { width: cellWidth },
+                    pressTap(pressed, 'card'),
+                  ]}
                 >
                   <VideoThumbnail
                     url={item.referenceUrl}
@@ -133,20 +175,8 @@ export default function FavoritesScreen() {
           />
         )}
       </LoadGate>
-
-      {selectMode && selected.length > 0 ? (
-        <View style={styles.removeBar}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={removeSelected}
-            style={({ pressed }) => [styles.removeBtn, pressTap(pressed, 'button')]}
-          >
-            <Text style={styles.removeText}>좋아요 취소({selected.length}개)</Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </Screen>
-  );
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -156,9 +186,16 @@ const styles = StyleSheet.create({
     fontWeight: theme.text.bodyStrong.fontWeight,
     color: color.brand[600],
   },
-  grid: { padding: GAP, paddingBottom: space[8] },
-  // numColumns 는 각 셀을 균등 분배합니다. flex:1 로 남는 폭을 나눠 갖게 합니다.
-  cell: { flex: 1 / COLS, aspectRatio: 3 / 4 },
+  stack: { flex: 1 },
+  // 시안 header 는 absolute inset-x-0 top-0 z-30 입니다.
+  headerLayer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30 },
+  /**
+   * 시안 pt-[86px] — 안전영역(54) 안쪽 기준으로는 32 입니다.
+   * 헤더(44)보다 12 적어, 첫 줄 위 12 가 헤더 아래로 들어갑니다.
+   */
+  grid: { paddingTop: 32, paddingHorizontal: GAP, paddingBottom: space[8] },
+  // 폭은 화면에서 계산해 넣습니다(위 cellWidth 주석 참고). 시안 aspect-[3/4].
+  cell: { aspectRatio: 3 / 4 },
   thumb: { width: '100%', height: '100%', borderRadius: radius.tile },
   ring: {
     position: 'absolute',
