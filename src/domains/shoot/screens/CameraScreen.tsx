@@ -31,6 +31,7 @@ import {
   useUpdateTask,
   useUploadFootage,
 } from '../../../api/queries/shoot';
+import { useProject, useVideoFormat } from '../../../api/queries/project';
 import { useAppState } from '../../../lib/appState';
 import type { CreateStackParamList } from '../../../navigation/types';
 
@@ -61,6 +62,16 @@ export default function CameraScreen({ navigation, route }: Props) {
   const setTaskId = setPickedTaskId;
 
   const { data: guide } = useTaskGuide(taskId);
+
+  /*
+   * 좌상단 참고 영상(시안 PipGuide).
+   * 컷마다 참고 영상이 붙는 건 안무형(9.1 reference_video)뿐이라, 없으면
+   * 이 프로젝트가 고른 포맷의 참고 영상을 씁니다 — 촬영 준비 화면에서 본
+   * 그 영상입니다. 둘 다 없으면 창을 띄우지 않습니다(빈 창을 만들지 않습니다).
+   */
+  const { data: project } = useProject(projectId);
+  const { data: format } = useVideoFormat(project?.videoFormatId ?? undefined);
+  const pipUrl = guide?.referenceVideo?.referenceUrl ?? format?.referenceUrl;
 
   /*
    * 안무 컷(9.1 DANCE)은 참고 영상을 보면서 찍어야 해서 전용 화면이 따로 있습니다.
@@ -217,7 +228,7 @@ export default function CameraScreen({ navigation, route }: Props) {
         구도 오버레이(9.1 overlay 지시문)는 시안에 없어 걷어냈습니다 —
         지시문은 촬영 준비 화면의 컷 목록이 대신 말해 줍니다.
       */}
-      <PipGuide url={guide?.referenceVideo?.referenceUrl} />
+      <PipGuide url={pipUrl} />
 
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         <View style={styles.topBar}>
@@ -247,8 +258,7 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
-        {/* 시안: 셔터 위 bottom-[190] 자리. 찍은 컷은 초록 체크. */}
+      {/* 시안: 셔터 위 bottom-[190] 자리. 찍은 컷은 초록 체크. */}
         <View style={styles.chipRow}>
           {tasks.map((t) => {
             const done = shot(t);
@@ -279,6 +289,7 @@ export default function CameraScreen({ navigation, route }: Props) {
           })}
         </View>
 
+      <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
         {/*
           시안: 셔터 영역 h150 가운데 셔터, 오른쪽 26 에 전환 버튼 52.
           가이드 밝기·불빛 버튼은 시안에 없어 걷어냈습니다.
@@ -374,7 +385,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: CHROME,
   },
+  // 시안: absolute bottom-[190] · 가운데 정렬
   chipRow: {
+    position: 'absolute',
+    bottom: 190,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
@@ -431,11 +447,12 @@ const styles = StyleSheet.create({
     paddingTop: space[2],
     gap: space[3],
   },
+  // 시안: 배경 없는 36 버튼. 카메라 위라 아이콘만 흰색으로 둡니다.
   chromeButton: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
+    marginLeft: -6,
     borderRadius: radius.pill,
-    backgroundColor: CHROME,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -475,7 +492,15 @@ const styles = StyleSheet.create({
   recDot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: color.paper },
   recText: { ...text.bodySmall, color: color.paper },
 
-  bottomLayer: { position: 'absolute', bottom: 0, left: 0, right: 0, gap: space[4], paddingBottom: space[3] },
+  // 시안: 셔터 밴드는 h150 (칩 줄은 그 위 bottom-[190] 에 따로 있습니다)
+  bottomLayer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+    justifyContent: 'center',
+  },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
