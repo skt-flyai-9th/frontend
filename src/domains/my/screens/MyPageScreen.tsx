@@ -37,6 +37,7 @@ import { useAppState } from '../../../lib/appState';
 import { useStore, useStoreShorts } from '../../../api/queries/store';
 import { useProjects } from '../../../api/queries/project';
 import { useSnsConnections } from '../../../api/queries/edit';
+import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import { projectLabel } from '../../../lib/format';
 import theme, { color, space, radius, text, sizing } from '../../../design/theme';
 import type { RootStackParamList, MyStackParamList } from '../../../navigation/types';
@@ -79,6 +80,15 @@ export default function MyPageScreen() {
   const { data: drafts } = useProjects(storeId ?? undefined, 'DRAFT');
   const shorts = useStoreShorts(storeId ?? undefined);
   const { data: connections } = useSnsConnections();
+  const metrics = useInsightMetrics();
+
+  /*
+   * 시안 문구: "최근 1주일 동안 1,500번 조회되었어요".
+   * 주간 조회수는 계정 단위 집계 API 가 없어 지금은 mock 에서만 옵니다.
+   * 값이 오면 시안과 같은 문장으로, 없으면 준비 중이라고 말합니다 — 숫자를 짓지 않습니다.
+   */
+  const week = metrics.data?.weekViews ?? [];
+  const weekTotal = week.length > 0 ? week.reduce((sum, d) => sum + d.value, 0) : null;
 
   const items = shorts.data?.items ?? [];
   const resume = drafts?.[0];
@@ -182,7 +192,15 @@ export default function MyPageScreen() {
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={text.bodyStrong}>Professional Insight</Text>
             <Text style={[text.caption, { color: color.ink[500] }]}>
-              우리 동네와 우리 가게를 함께 봅니다
+              {weekTotal != null ? (
+                <>
+                  최근 1주일 동안 <Text style={styles.viewCount}>{weekTotal.toLocaleString()}번</Text>{' '}
+                  조회되었어요
+                </>
+              ) : (
+                // 계정 단위 집계 API 가 없으면 숫자를 지어내지 않습니다.
+                '조회수 집계는 준비 중입니다'
+              )}
             </Text>
           </View>
           <ChevronRight size={22} strokeWidth={2} color={color.brand[600]} />
@@ -251,6 +269,12 @@ const GAP = 2;
 
 const styles = StyleSheet.create({
   // 시안 HeaderIconBtn — 36 원형
+  // 시안: 수치만 verified 초록 semibold
+  viewCount: {
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.done[500],
+  },
   menuBtn: {
     width: 36,
     height: 36,

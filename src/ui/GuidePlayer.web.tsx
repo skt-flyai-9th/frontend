@@ -30,13 +30,22 @@ interface Props {
   compact?: boolean;
   /** 원본과 같은 규칙 — 화면 폭을 다 쓰고 3:4 자리를 차지합니다. */
   fullBleed?: boolean;
+  /**
+   * 폭을 직접 정합니다. 카메라 위 작은 창(PiP)처럼 화면 폭과 무관한 자리에 씁니다.
+   * 주면 세로도 이 폭 기준으로 잡습니다.
+   */
+  width?: number;
+  /** 세로형(9:16) 자리에 넣을 때. 기본은 16:9 입니다. */
+  portrait?: boolean;
 }
 
-export function GuidePlayer({ compact = false, fullBleed = false }: Props) {
+export function GuidePlayer({ compact = false, fullBleed = false, width: fixedWidth, portrait = false }: Props) {
   const { width } = useWindowDimensions();
   // fullBleed 는 화면 폭을 그대로 쓰고 3:4 자리를 차지합니다(원본과 같은 규칙).
-  const playerWidth = fullBleed ? width : Math.max(200, width - space[5] * 2);
-  const playerHeight = fullBleed
+  const playerWidth = fixedWidth ?? (fullBleed ? width : Math.max(200, width - space[5] * 2));
+  const playerHeight = portrait
+    ? Math.round((playerWidth * 16) / 9)
+    : fullBleed
     ? Math.round((playerWidth * 4) / 3)
     : compact
       ? Math.min(210, Math.round((playerWidth * 9) / 16))

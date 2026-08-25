@@ -10,12 +10,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import {
+  CAMERA_IS_PLACEHOLDER,
+  CameraPreview,
+  type CameraPreviewHandle,
+} from '../../../ui/CameraPreview';
 import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
-import { CameraGuideOverlay, type GuideShape } from '../../../ui/CameraGuideOverlay';
+import { PipGuide } from '../../../ui/PipGuide';
 import { Shutter } from '../../../ui/Shutter';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
@@ -33,15 +38,6 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
 
 const COUNTDOWN_FROM = 3;
 
-/** 명세 broll_shot.shot_type 을 오버레이 모양으로 옮깁니다. */
-function shapeFor(shotType?: string): GuideShape {
-  if (!shotType) return 'wideSpace';
-  if (shotType.includes('클로즈')) return 'productLowerThird';
-  if (shotType.includes('풀')) return 'fullBody';
-  if (shotType.includes('미디엄') || shotType.includes('상반신')) return 'upperBody';
-  return 'wideSpace';
-}
-
 export default function CameraScreen({ navigation, route }: Props) {
   const { projectId, taskId: firstTaskId } = route.params;
   /**
@@ -53,7 +49,7 @@ export default function CameraScreen({ navigation, route }: Props) {
   /** 방금 찍은 것. 값이 있으면 검수 시트가 뜹니다. */
   const [take, setTake] = useState<{ uri: string; durationSec: number } | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<CameraPreviewHandle>(null);
 
   const { data: board } = useTasks(projectId);
 
@@ -116,7 +112,8 @@ export default function CameraScreen({ navigation, route }: Props) {
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       setRecording(false);
-      if (video?.uri) setTake({ uri: video.uri, durationSec: elapsed || 5 });
+      // 지어낸 5초 대신 실제로 흐른 시간을 씁니다(1초 미만도 그대로).
+      if (video?.uri) setTake({ uri: video.uri, durationSec: Math.max(1, elapsed) });
     } catch (e) {
       setRecording(false);
       console.warn('[camera] 녹화 실패', e);
@@ -160,10 +157,11 @@ export default function CameraScreen({ navigation, route }: Props) {
   }, [countdown, beginRecording]);
 
   // ── 권한 게이트 ──────────────────────────────────────
-  if (!camPermission) return <View style={styles.black} />;
+  // 웹 자리표시자에서는 권한을 물을 대상이 없어 건너뜁니다(디자인 대조용).
+  if (!CAMERA_IS_PLACEHOLDER && !camPermission) return <View style={styles.black} />;
 
-  if (!camPermission.granted) {
-    const blocked = !camPermission.canAskAgain;
+  if (!CAMERA_IS_PLACEHOLDER && !camPermission?.granted) {
+    const blocked = !camPermission?.canAskAgain;
     return (
       <SafeAreaView style={styles.permWrap}>
         <View style={styles.permBody}>
@@ -185,7 +183,7 @@ export default function CameraScreen({ navigation, route }: Props) {
     );
   }
 
-  if (needsMic && micPermission && !micPermission.granted) {
+  if (!CAMERA_IS_PLACEHOLDER && needsMic && micPermission && !micPermission.granted) {
     return (
       <SafeAreaView style={styles.permWrap}>
         <View style={styles.permBody}>
@@ -200,31 +198,22 @@ export default function CameraScreen({ navigation, route }: Props) {
     );
   }
 
-  const instruction = guide?.overlay?.instructions?.[0] ?? task?.taskTitle ?? '';
-
   return (
     <View style={styles.black}>
       {/* 프리뷰. 오버레이는 이 컴포넌트 바깥 형제 노드입니다. */}
-      <CameraView
+      <CameraPreview
         ref={cameraRef}
-        style={StyleSheet.absoluteFill}
         facing={facing}
-        mode="video"
-        videoQuality="1080p"
         mute={!needsMic}
-        onCameraReady={() => setReady(true)}
+        onReady={() => setReady(true)}
       />
 
-      {/* 촬영 파일에 합성되지 않습니다 */}
-      <CameraGuideOverlay
-        spec={{
-          shape: shapeFor(guide?.brollShot?.shotType),
-          instruction,
-          faceOut: guide?.overlay?.instructions?.some((i) => i.includes('얼굴')),
-        }}
-        opacity={guideOpacity}
-        visible={guideVisible && countdown === null}
-      />
+      {/*
+        시안 카메라 위에 있는 건 참고 영상 작은 창(PiP) 하나입니다.
+        구도 오버레이(9.1 overlay 지시문)는 시안에 없어 걷어냈습니다 —
+        지시문은 촬영 준비 화면의 컷 목록이 대신 말해 줍니다.
+      */}
+      <PipGuide url={guide?.referenceVideo?.referenceUrl} />
 
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         <View style={styles.topBar}>
@@ -255,7 +244,7 @@ export default function CameraScreen({ navigation, route }: Props) {
       )}
 
       <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
-        {/* 시안 V4: 컷 목록이 화면 안에 있습니다. 찍은 컷은 초록 체크. */}
+        {/* 시안: 셔터 위 bottom-[190] 자리. 찍은 컷은 초록 체크. */}
         <View style={styles.chipRow}>
           {tasks.map((t) => {
             const done = shot(t);
