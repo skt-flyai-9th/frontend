@@ -13,8 +13,16 @@
  *    1px 차이는 감수했습니다. 시안에서 17px 은 전체 3곳뿐입니다.
  */
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
+import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert } from 'lucide-react-native';
 import theme, { color, radius, space, text } from '../design/theme';
 import { Button } from './Button';
 
@@ -24,6 +32,34 @@ export function Loading({ label = '불러오는 중' }: { label?: string }) {
       <ActivityIndicator color={color.brand[600]} size="large" />
       <Text style={text.bodySmall}>{label}</Text>
     </View>
+  );
+}
+
+/**
+ * Spinner — 시안 `loader-circle` + `animate-spin`.
+ *
+ * ActivityIndicator 는 OS 기본 모양이라 시안과 다르게 생겼습니다. 시안이 쓰는
+ * 원호 아이콘을 그대로 쓰고 회전만 우리가 겁니다 (1회전 1초, 등속).
+ */
+export function Spinner({ size = 22, tint = color.brand[600] }: { size?: number; tint?: string }) {
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [spin]);
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  return (
+    <Animated.View style={{ transform: [{ rotate }] }}>
+      <LoaderCircle size={size} strokeWidth={2} color={tint} />
+    </Animated.View>
   );
 }
 

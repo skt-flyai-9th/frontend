@@ -21,6 +21,20 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // ── 메모리 상태 ────────────────────────────────────────────
 /** 태스크 완료 여부. 촬영 흐름이 이어지려면 상태가 남아야 합니다. */
 const taskStatus = new Map<number, string>();
+
+/**
+ * 캡처(QA) 전용 — 촬영을 전부 끝낸 상태로 만들어 둡니다.
+ *
+ * 편집·내보내기는 "다 찍은 뒤" 화면이라, 그냥 열면 14.1 이 TASKS_INCOMPLETE 로
+ * 막습니다(그게 맞는 동작입니다). 화면을 시안과 대조하려면 그 앞 상태가 필요해서
+ * EXPO_PUBLIC_QA_NAV=1 일 때만 전역 하나를 붙입니다. 앱 동작에는 영향이 없습니다.
+ */
+if (process.env.EXPO_PUBLIC_QA_NAV === '1') {
+  (globalThis as { __realsShotAll?: () => number }).__realsShotAll = () => {
+    fx.tasks.forEach((t) => taskStatus.set(t.id, 'DONE'));
+    return fx.tasks.length;
+  };
+}
 /** 평가를 몇 번 실행했는지. 실행 전 조회는 404 여야 합니다. */
 const evalCount = new Map<number, number>();
 /** 수정 요청 이력. 명세 14.3 revision_id 가 증가하는지 확인용입니다. */

@@ -271,8 +271,19 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     //    fixtures 는 명세 그대로 snake_case 라서, 변환을 빼먹으면
     //    화면이 찾는 onboardingSteps 가 undefined 가 되어 로딩이 끝나지 않습니다.
     //    실서버 경로(rawRequest)와 똑같은 모양이 나와야 Mock 검증이 의미를 가집니다.
-    const raw = await mockRequest<unknown>(path, options.method ?? 'GET', options.body);
-    return toCamel<T>(raw);
+    try {
+      const raw = await mockRequest<unknown>(path, options.method ?? 'GET', options.body);
+      return toCamel<T>(raw);
+    } catch (e) {
+      /**
+       * 던져지는 오류의 detail 도 변환해야 합니다. Mock 은 명세대로 snake_case 로
+       * 담는데(예: 14.1 TASKS_INCOMPLETE 의 incomplete_tasks), 실서버 경로는
+       * rawRequest 가 camelCase 로 바꿔 줍니다. 여기서 안 맞추면 화면의
+       * "안 찍은 장면" 안내가 Mock 에서만 조용히 죽습니다.
+       */
+      if (e instanceof ApiError && e.detail) e.detail = toCamel<Record<string, unknown>>(e.detail);
+      throw e;
+    }
   }
 
   const tokens = await getTokens();
