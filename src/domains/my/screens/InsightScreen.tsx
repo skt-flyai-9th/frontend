@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
    * 비워 두면 아이콘 16 이 줄 높이가 되어 카드가 2 낮아집니다.
    */
   kpiHead: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18 },
-  kpiLabel: { ...theme.text.label, fontFamily: theme.text.caption.fontFamily, fontWeight: theme.text.caption.fontWeight, color: color.ink[500] },
+  kpiLabel: { ...theme.text.label, lineHeight: 18, fontFamily: theme.text.caption.fontFamily, fontWeight: theme.text.caption.fontWeight, color: color.ink[500] },
   kpiValueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: space[2] },
   /*
    * 시안: 19·bold · tracking-tighter-title.
@@ -392,8 +392,8 @@ const styles = StyleSheet.create({
    * 25 로 두면 카드가 78 이라 시안보다 5 낮고, 두 줄이라 아래가 10 밀립니다
    * (@2x 측정: 카드 높이 시안 166 / 앱 156).
    */
-  kpiValue: { ...theme.text.heading, fontSize: 19, lineHeight: 29, letterSpacing: -0.38 },
-  kpiDelta: { ...theme.text.label, marginBottom: 2, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.done[500] },
+  kpiValue: { ...theme.text.heading, fontSize: 19, lineHeight: 28.5, letterSpacing: -0.38 },
+  kpiDelta: { ...theme.text.label, lineHeight: 18, marginBottom: 2, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.done[500] },
 
   /*
    * 그리드가 marginVertical -6 으로 아래 6 을 당겨 가므로 여기서 6 을 되돌립니다.
@@ -416,17 +416,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: space[3],
   },
-  cardTitle: { ...theme.text.subheading },
+  // 시안 16 은 leading 이 없어 1.5 가 걸립니다 (토큰 22 → 24)
+  cardTitle: { ...theme.text.subheading, lineHeight: 24 },
   sectionTitle: { marginTop: space[6], marginBottom: space[3] },
 
   // 차트 자리 — 데이터가 오면 LineChart 로 바뀝니다
   chartEmpty: { height: 132, alignItems: 'center', justifyContent: 'center' },
   chartEmptyText: { ...theme.text.caption, color: color.ink[400] },
 
-  delta: { ...theme.text.label, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.done[500] },
+  delta: { ...theme.text.label, lineHeight: 18, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.done[500] },
   shareHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  shareLabel: { ...theme.text.caption, color: color.ink[700] },
-  shareValue: { ...theme.text.caption, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[900] },
+  shareLabel: { ...theme.text.caption, lineHeight: 19.5, color: color.ink[700] },
+  shareValue: { ...theme.text.caption, lineHeight: 19.5, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[900] },
   shareTrack: { height: 8, borderRadius: radius.pill, backgroundColor: '#F1F5F9', overflow: 'hidden' },
   shareFill: { height: '100%', borderRadius: radius.pill },
   /* 시안 제목 줄(mb-4)에 chevron 만 얹습니다 — 16 은 제목 줄높이 안이라 높이가 안 늘어납니다. */
@@ -461,8 +462,8 @@ const styles = StyleSheet.create({
     backgroundColor: color.brand[50],
   },
   recBadgeText: { ...theme.text.micro, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.brand[600] },
-  recTitle: { ...theme.text.bodyStrong, marginTop: space[2], lineHeight: 21 },
-  recBody: { ...theme.text.caption, marginTop: space[1], lineHeight: 21, color: color.ink[500] },
+  recTitle: { ...theme.text.bodyStrong, marginTop: space[2], lineHeight: 20.6 },
+  recBody: { ...theme.text.caption, marginTop: space[1], lineHeight: 21.1, color: color.ink[500] },
 
   // 시안: h-11 rounded-xl · 14·semibold
   recPrimary: {

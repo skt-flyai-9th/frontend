@@ -37,7 +37,13 @@ export function RealsLogo({ size = 18, tint }: { size?: number; tint?: string })
           styles.word,
           {
             fontSize: size,
-            lineHeight: Math.round(size * 1.18),
+            /*
+             * 시안은 이 글자에 `leading-*` 을 주지 않아 줄상자가 크기 × 1.5 입니다.
+             * 1.18 로 두면 로고 블록이 32 기준 10pt 낮아지고, 로그인처럼 세로 가운데
+             * 정렬인 화면은 그 절반만큼 아래 내용이 통째로 올라옵니다(실측).
+             * 앱바에서는 행 높이가 44 로 고정이라 영향이 없습니다.
+             */
+            lineHeight: size * 1.5,
             letterSpacing: size * font.letterSpacing.titleEm,
             color: tint ?? color.ink[900],
           },

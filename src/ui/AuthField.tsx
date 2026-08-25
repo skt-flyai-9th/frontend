@@ -71,7 +71,12 @@ export function AuthField({
 
 const styles = StyleSheet.create({
   // 시안: mb-1.5(6) pl-1(4) · 12 · medium · slate-muted
-  label: { ...text.label, marginBottom: 6, paddingLeft: 4, color: color.ink[500] },
+  /*
+   * 시안 SignupField 라벨: `mb-1.5 block pl-1 text-[12px] font-medium` —
+   * `leading-*` 이 없어 줄상자가 12 × 1.5 = 18 입니다(토큰 17).
+   * 필드가 7개인 회원가입에서 라벨마다 1pt 씩 쌓여 아래가 6pt 어긋났습니다.
+   */
+  label: { ...text.label, lineHeight: 18, marginBottom: 6, paddingLeft: 4, color: color.ink[500] },
   box: {
     flexDirection: 'row',
     alignItems: 'center',

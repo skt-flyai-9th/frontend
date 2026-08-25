@@ -95,9 +95,15 @@ export default function MyPageScreen() {
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 
+  /*
+   * ⚠️ `Screen` 기본 scrollContent 는 paddingTop 16 · gap 16 입니다.
+   *    여기서 끄지 않으면 앱바 아래 8(시안 pt-2) 대신 24 가 들어가고,
+   *    프로필 블록과 정보 블록 사이에 16 이 더 붙어 카테고리 줄부터 아래가
+   *    통째로 24pt 내려갑니다(캡처 실측). 여백은 각 블록이 직접 잡습니다.
+   */
   return (
     /* 시안: 헤더 아래 pt-2(8). Screen 기본값 16 이면 화면 전체가 8 내려갑니다. */
-    <Screen edges={['top']} padded={false} contentStyle={{ paddingTop: space[2] }}>
+    <Screen edges={['top']} padded={false} contentStyle={{ paddingTop: 0, gap: 0 }}>
       {/*
         시안: 가운데에 가게 이름, 오른쪽에 메뉴 하나뿐입니다.
         home 배치를 쓰면 알림 벨과 로고가 함께 붙어 시안과 달라집니다.
@@ -190,8 +196,8 @@ export default function MyPageScreen() {
             <ChartIcon />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={text.bodyStrong}>Professional Insight</Text>
-            <Text style={[text.caption, { color: color.ink[500] }]}>
+            <Text style={styles.insightTitle}>Professional Insight</Text>
+            <Text style={styles.insightDesc}>
               {weekTotal != null ? (
                 <>
                   최근 1주일 동안 <Text style={styles.viewCount}>{weekTotal.toLocaleString()}번</Text>{' '}
@@ -301,14 +307,18 @@ const styles = StyleSheet.create({
 
   stats: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start' },
   stat: { alignItems: 'center', gap: 2 },
-  // 시안: 통계 숫자 22·bold
-  statValue: { ...theme.text.title, fontSize: 22, lineHeight: 28 },
-  statLabel: { ...theme.text.caption, color: color.ink[700] },
+  /*
+   * 시안: 숫자 22·bold · 라벨 13 — 둘 다 `leading-*` 이 없어 1.5 가 걸립니다
+   * (22 → 33, 13 → 19.5). 토큰(28/19)을 쓰면 숫자 줄이 5pt 짧습니다.
+   */
+  statValue: { ...theme.text.title, fontSize: 22, lineHeight: 33 },
+  statLabel: { ...theme.text.caption, lineHeight: 19.5, color: color.ink[700] },
   statSkeleton: { width: 44, height: 28, borderRadius: radius.xs },
 
   info: { paddingHorizontal: space[4], paddingTop: space[4], gap: space[2] },
   infoPad: { paddingHorizontal: space[4] },
-  links: { gap: space[2] },
+  // 시안: gap-1.5(6) — 8 이 아닙니다
+  links: { gap: 6 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   linkRowWide: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   linkText: { ...theme.text.bodySmall, color: color.ink[800] },
@@ -320,12 +330,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[3],
     marginTop: space[2],
-    padding: space[4],
+    // 시안: px-4 py-3.5 — 세로는 14 입니다
+    paddingHorizontal: space[4],
+    paddingVertical: space['3.5'],
     borderRadius: radius.lg,
     borderWidth: theme.border.hairline,
     borderColor: color.brand[300],
     backgroundColor: color.brand[50],
   },
+  // 시안 15/13 은 leading 이 없어 1.5 가 걸립니다
+  insightTitle: { ...theme.text.bodyStrong, lineHeight: 22.5 },
+  insightDesc: { ...theme.text.caption, lineHeight: 19.5, color: color.ink[500] },
   insightTile: {
     width: 40,
     height: 40,
