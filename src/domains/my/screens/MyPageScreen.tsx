@@ -22,7 +22,7 @@
  */
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Menu } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -37,6 +37,7 @@ import { useAppState } from '../../../lib/appState';
 import { useStore, useStoreShorts } from '../../../api/queries/store';
 import { useProjects } from '../../../api/queries/project';
 import { useSnsConnections } from '../../../api/queries/edit';
+import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import { projectLabel } from '../../../lib/format';
 import theme, { color, space, radius, text, sizing } from '../../../design/theme';
 import type { RootStackParamList, MyStackParamList } from '../../../navigation/types';
@@ -79,16 +80,48 @@ export default function MyPageScreen() {
   const { data: drafts } = useProjects(storeId ?? undefined, 'DRAFT');
   const shorts = useStoreShorts(storeId ?? undefined);
   const { data: connections } = useSnsConnections();
+  const metrics = useInsightMetrics();
+
+  /*
+   * 시안 문구: "최근 1주일 동안 1,500번 조회되었어요".
+   * 주간 조회수는 계정 단위 집계 API 가 없어 지금은 mock 에서만 옵니다.
+   * 값이 오면 시안과 같은 문장으로, 없으면 준비 중이라고 말합니다 — 숫자를 짓지 않습니다.
+   */
+  const week = metrics.data?.weekViews ?? [];
+  const weekTotal = week.length > 0 ? week.reduce((sum, d) => sum + d.value, 0) : null;
 
   const items = shorts.data?.items ?? [];
   const resume = drafts?.[0];
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 
+  /*
+   * ⚠️ `Screen` 기본 scrollContent 는 paddingTop 16 · gap 16 입니다.
+   *    여기서 끄지 않으면 앱바 아래 8(시안 pt-2) 대신 24 가 들어가고,
+   *    프로필 블록과 정보 블록 사이에 16 이 더 붙어 카테고리 줄부터 아래가
+   *    통째로 24pt 내려갑니다(캡처 실측). 여백은 각 블록이 직접 잡습니다.
+   */
   return (
-    <Screen edges={['top']} padded={false}>
-      {/* 시안: 타이틀이 "마이" 가 아니라 가게 이름입니다 */}
-      <AppBar title={store?.name ?? '우리 가게'} home={{ onMenu: () => nav.navigate('Settings') }} />
+    /* 시안: 헤더 아래 pt-2(8). Screen 기본값 16 이면 화면 전체가 8 내려갑니다. */
+    <Screen edges={['top']} padded={false} contentStyle={{ paddingTop: 0, gap: 0 }}>
+      {/*
+        시안: 가운데에 가게 이름, 오른쪽에 메뉴 하나뿐입니다.
+        home 배치를 쓰면 알림 벨과 로고가 함께 붙어 시안과 달라집니다.
+      */}
+      <AppBar
+        title={store?.name ?? '우리 가게'}
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="설정"
+            hitSlop={8}
+            onPress={() => nav.navigate('Settings')}
+            style={({ pressed }) => [styles.menuBtn, pressTap(pressed, 'icon')]}
+          >
+            <Menu size={22} strokeWidth={2} color={color.ink[900]} />
+          </Pressable>
+        }
+      />
 
       {/* ── ② 아바타 + 통계 ── */}
       <View style={styles.profile}>
@@ -163,9 +196,17 @@ export default function MyPageScreen() {
             <ChartIcon />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={text.bodyStrong}>Professional Insight</Text>
-            <Text style={[text.caption, { color: color.ink[500] }]}>
-              우리 동네와 우리 가게를 함께 봅니다
+            <Text style={styles.insightTitle}>Professional Insight</Text>
+            <Text style={styles.insightDesc}>
+              {weekTotal != null ? (
+                <>
+                  최근 1주일 동안 <Text style={styles.viewCount}>{weekTotal.toLocaleString()}번</Text>{' '}
+                  조회되었어요
+                </>
+              ) : (
+                // 계정 단위 집계 API 가 없으면 숫자를 지어내지 않습니다.
+                '조회수 집계는 준비 중입니다'
+              )}
             </Text>
           </View>
           <ChevronRight size={22} strokeWidth={2} color={color.brand[600]} />
@@ -225,38 +266,29 @@ export default function MyPageScreen() {
         </View>
       )}
 
-      {/* 진입점 목록 — 시안에 없는 기능. 그리드 아래로 내려 상단 구성을 가리지 않게 */}
-      <View style={styles.infoPad}>
-        <View style={styles.menu}>
-          <MenuRow label="플랜 안내" hint="Free · Pro 요금제" onPress={() => nav.navigate('Plans')} />
-          <MenuRow label="자주 묻는 질문" onPress={() => nav.navigate('Faq')} />
-          <MenuRow label="앱 권한 안내" onPress={() => nav.navigate('PermissionsInfo')} />
-          <MenuRow label="설정" onPress={() => nav.navigate('Settings')} />
-        </View>
-      </View>
     </Screen>
   );
 }
 
-function MenuRow({ label, hint, onPress }: { label: string; hint?: string; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: color.surface }]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={text.body}>{label}</Text>
-        {hint ? <Text style={[text.caption, { color: color.ink[400] }]}>{hint}</Text> : null}
-      </View>
-      <ChevronRight size={20} strokeWidth={2} color={color.ink[300]} />
-    </Pressable>
-  );
-}
 
 const GAP = 2;
 
 const styles = StyleSheet.create({
+  // 시안 HeaderIconBtn — 36 원형
+  // 시안: 수치만 verified 초록 semibold
+  viewCount: {
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.done[500],
+  },
+  menuBtn: {
+    width: 36,
+    height: 36,
+    marginRight: -6,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   profile: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -275,14 +307,18 @@ const styles = StyleSheet.create({
 
   stats: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start' },
   stat: { alignItems: 'center', gap: 2 },
-  // 시안: 통계 숫자 22·bold
-  statValue: { ...theme.text.title, fontSize: 22, lineHeight: 28 },
-  statLabel: { ...theme.text.caption, color: color.ink[700] },
+  /*
+   * 시안: 숫자 22·bold · 라벨 13 — 둘 다 `leading-*` 이 없어 1.5 가 걸립니다
+   * (22 → 33, 13 → 19.5). 토큰(28/19)을 쓰면 숫자 줄이 5pt 짧습니다.
+   */
+  statValue: { ...theme.text.title, fontSize: 22, lineHeight: 33 },
+  statLabel: { ...theme.text.caption, lineHeight: 19.5, color: color.ink[700] },
   statSkeleton: { width: 44, height: 28, borderRadius: radius.xs },
 
   info: { paddingHorizontal: space[4], paddingTop: space[4], gap: space[2] },
   infoPad: { paddingHorizontal: space[4] },
-  links: { gap: space[2] },
+  // 시안: gap-1.5(6) — 8 이 아닙니다
+  links: { gap: 6 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   linkRowWide: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   linkText: { ...theme.text.bodySmall, color: color.ink[800] },
@@ -294,12 +330,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[3],
     marginTop: space[2],
-    padding: space[4],
+    // 시안: px-4 py-3.5 — 세로는 14 입니다
+    paddingHorizontal: space[4],
+    paddingVertical: space['3.5'],
     borderRadius: radius.lg,
     borderWidth: theme.border.hairline,
     borderColor: color.brand[300],
     backgroundColor: color.brand[50],
   },
+  // 시안 15/13 은 leading 이 없어 1.5 가 걸립니다
+  insightTitle: { ...theme.text.bodyStrong, lineHeight: 22.5 },
+  insightDesc: { ...theme.text.caption, lineHeight: 19.5, color: color.ink[500] },
   insightTile: {
     width: 40,
     height: 40,

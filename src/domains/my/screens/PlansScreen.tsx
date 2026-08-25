@@ -18,6 +18,12 @@
  *    그래서 시안의 "언제든 해지할 수 있어요." 자리에는 해지할 것이 없다는 사실 대신
  *    아직 열리지 않았다는 안내를 둡니다.
  *
+ * ⚠️ **줄높이** — 시안은 이 화면 텍스트에 `leading-*` 을 하나도 주지 않습니다.
+ *    그러면 브라우저 normal 이 걸리는데, 캡처 실측으로 그 비율이 **1.5** 입니다
+ *    (파란 카드에서 20px+24px 두 줄상자 합이 우리보다 8pt 커서 44r = 66 → r = 1.5).
+ *    우리 토큰은 큰 글자일수록 짧아서(20→26, 24→32) 카드가 8pt 낮았고
+ *    그 아래 표·버튼이 통째로 10pt 위로 올라와 있었습니다. 이 화면에서만 덮습니다.
+ *
  * ⚠️ 시안 카드는 좌상→우하 그라디언트입니다. 그라디언트는 네이티브 모듈
  *    (expo-linear-gradient)이 필요해 단색 brand 600 으로 둡니다 —
  *    없는 의존성을 이 화면 하나 때문에 늘리지 않습니다.
@@ -39,8 +45,8 @@ import theme, { color, radius, space, text } from '../../../design/theme';
 type Row = { label: string; free: string | boolean; pro: string | boolean };
 
 const ROWS: Row[] = [
-  // 시안 2차: '무제한' 이 아니라 '30편 추가' 입니다.
-  { label: '월 숏폼 제작', free: '3개', pro: '30편 추가' },
+  // 시안 V4 PLAN_FEATURES 원문. v3 의 '30편 추가' 가 아니라 '30편' 입니다.
+  { label: '월 숏폼 제작', free: '3개', pro: '30편' },
   { label: 'AI 숏폼 추천', free: true, pro: true },
   { label: 'AI 자동 편집', free: true, pro: true },
   { label: '워터마크 제거', free: false, pro: true },
@@ -78,7 +84,7 @@ export default function PlansScreen() {
           </View>
           <Text style={styles.heroTitle}>Reals. Pro</Text>
           <Text style={styles.heroDesc}>
-            더 많은 숏폼을 만들어 SNS에 꾸준히 올리고 매장을 알려요.
+            더 많은 숏폼 생성으로 SNS에 주기적으로 업로드하고 매장을 알려요.
           </Text>
           <View style={styles.priceRow}>
             <Text style={styles.price}>₩9,900</Text>
@@ -151,7 +157,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    marginLeft: -6,
+    // 시안에 음수 여백 없음 — 제목이 뒤로가기 옆에 붙는 헤더입니다 (FaqScreen 헤더 규칙 주석 참고)
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -171,7 +177,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   // 시안 h2 는 20 입니다. 스케일에 20 이 없어 이 화면에서만 크기를 짚어 줍니다.
-  heroTitle: { ...text.title, fontSize: 20, lineHeight: 26, marginTop: space[3], color: color.paper },
+  heroTitle: { ...text.title, fontSize: 20, lineHeight: 30, marginTop: space[3], color: color.paper },
   // 시안 leading-relaxed(1.625) — 기본 21 보다 줄이 넉넉합니다
   heroDesc: {
     ...text.bodySmall,
@@ -180,7 +186,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
   },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: space[3] },
-  price: { ...text.display, color: color.paper },
+  price: { ...text.display, lineHeight: 36, color: color.paper },
   priceUnit: { ...text.bodySmall, color: 'rgba(255,255,255,0.8)' },
 
   // 시안: mt-4 rounded-2xl border-hairline/80 bg-white
@@ -202,6 +208,7 @@ const styles = StyleSheet.create({
   headRow: { backgroundColor: color.surface, paddingVertical: space[3] },
   headCell: {
     ...text.label,
+    lineHeight: 18,
     fontFamily: theme.text.chipLabel.fontFamily,
     fontWeight: theme.text.chipLabel.fontWeight,
     color: color.ink[500],
@@ -211,7 +218,8 @@ const styles = StyleSheet.create({
   divider: { borderBottomWidth: theme.border.hairline, borderBottomColor: '#F1F5F9' },
   label: { ...text.bodySmall, color: color.ink[800] },
   valueText: {
-    ...text.bodySmall,
+    ...text.caption,
+    lineHeight: 19.5,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
   },
@@ -230,7 +238,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: color.track,
   },
-  ctaText: { ...text.button, color: color.paper },
+  ctaText: { ...text.button, lineHeight: 22.5, color: color.paper },
   // 시안: mt-2.5 가운데 12 · #94A3B8
-  note: { ...text.label, marginTop: 10, textAlign: 'center', color: color.ink[400] },
+  note: { ...text.label, lineHeight: 18, marginTop: 10, textAlign: 'center', color: color.ink[400] },
 });

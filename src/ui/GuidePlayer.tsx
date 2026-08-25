@@ -86,6 +86,13 @@ interface Props {
    * 갖고, 영상은 그 안에서 16:9 를 지킨 채 가운데에 놓입니다.
    */
   fullBleed?: boolean;
+  /**
+   * 폭을 직접 정합니다. 카메라 위 작은 창(PiP)처럼 화면 폭과 무관한 자리에 씁니다.
+   * 주면 세로도 이 폭 기준으로 잡습니다.
+   */
+  width?: number;
+  /** 세로형(9:16) 자리에 넣을 때. 기본은 16:9 입니다. */
+  portrait?: boolean;
 }
 
 /** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
@@ -93,7 +100,7 @@ type PageMsg = { t: 'boot' } | { t: 'ready' } | { t: 'err'; c: number | string }
 
 type Phase = 'loading' | 'ready' | 'apiFailed' | 'embedBlocked' | 'videoBad';
 
-export function GuidePlayer({ url, startSec, compact = false, fullBleed = false }: Props) {
+export function GuidePlayer({ url, startSec, compact = false, fullBleed = false, width: fixedWidth, portrait = false }: Props) {
   const { width } = useWindowDimensions();
   const videoId = extractVideoId(url);
 
@@ -102,13 +109,19 @@ export function GuidePlayer({ url, startSec, compact = false, fullBleed = false 
   const [errCode, setErrCode] = useState<number | null>(null);
 
   // fullBleed 는 화면 폭을 그대로 씁니다(시안: -mx-5 로 좌우 여백을 없앰).
-  const playerWidth = fullBleed ? width : Math.max(200, width - space[5] * 2);
+  const playerWidth = fixedWidth ?? (fullBleed ? width : Math.max(200, width - space[5] * 2));
   // 영상 자체는 언제나 16:9 입니다. compact 는 화면을 카메라와 나눠 쓰므로 상한을 둡니다.
-  const videoHeight = compact
+  const videoHeight = portrait
+    ? Math.round((playerWidth * 16) / 9)
+    : compact
     ? Math.min(210, Math.round((playerWidth * 9) / 16))
     : Math.max(200, Math.round((playerWidth * 9) / 16));
   // 시안 V4 의 3:4 자리. 그 안에서 영상은 16:9 를 지키고 위아래가 검게 남습니다.
-  const playerHeight = fullBleed ? Math.round((playerWidth * 4) / 3) : videoHeight;
+  const playerHeight = portrait
+    ? Math.round((playerWidth * 16) / 9)
+    : fullBleed
+      ? Math.round((playerWidth * 4) / 3)
+      : videoHeight;
 
   /**
    * 재생할 주소는 **서버(DB)가 준 url 하나뿐**입니다.

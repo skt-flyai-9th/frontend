@@ -271,11 +271,11 @@ export default function AiChatScreen() {
             >
               {b.role === 'ai' && (
                 <View style={styles.avatar}>
-                  <Sparkles size={18} strokeWidth={2} color={color.paper} />
+                  <Sparkles size={16} strokeWidth={2} color={color.paper} />
                 </View>
               )}
               <View style={[styles.bubble, b.role === 'me' ? styles.me : styles.ai]}>
-                <Text style={[text.body, b.role === 'me' && { color: color.paper }]}>
+                <Text style={[styles.bubbleText, b.role === 'me' && { color: color.paper }]}>
                   {b.content}
                 </Text>
               </View>
@@ -301,10 +301,10 @@ export default function AiChatScreen() {
           {current && (
             <View style={styles.bubbleRow}>
               <View style={styles.avatar}>
-                <Sparkles size={18} strokeWidth={2} color={color.paper} />
+                <Sparkles size={16} strokeWidth={2} color={color.paper} />
               </View>
               <View style={[styles.bubble, styles.ai]}>
-                <Text style={text.body}>{current.question}</Text>
+                <Text style={styles.bubbleText}>{current.question}</Text>
                 {current.type === 'multi_choice' && (
                   <Text style={[text.micro, { color: color.ink[400] }]}>여러 개 고를 수 있어요</Text>
                 )}
@@ -399,24 +399,39 @@ const styles = StyleSheet.create({
     borderBottomWidth: theme.border.hairline,
     borderBottomColor: color.ink[200],
   },
-  chat: { padding: space[5], gap: space[3], paddingBottom: space[6] },
-  bubbleRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-end' },
+  /*
+   * 시안: px-5 pt-[110px] · 말풍선 사이 gap-3.
+   * 시안 헤더는 화면 위에 겹쳐 있고(absolute) 그 아래 110 에서 내용이 시작합니다.
+   * 우리 AppBar 는 흐름 안에 있어 안전영역(54)+헤더(44)=98 을 이미 먹으므로
+   * 남은 12 만 여기서 더합니다. 20 을 주면 첫 말풍선이 8pt 내려갑니다.
+   */
+  chat: {
+    paddingHorizontal: space[5],
+    paddingTop: space[3],
+    gap: space[3],
+    paddingBottom: space[6],
+  },
+  // 시안: items-start — 아바타가 말풍선 위쪽에 붙습니다(아래가 아닙니다)
+  bubbleRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-start' },
   avatar: {
     width: 32,
     height: 32,
+    marginTop: 2, // 시안 mt-0.5
     borderRadius: radius.pill,
     backgroundColor: color.brand[600],
     alignItems: 'center',
     justifyContent: 'center',
   },
   // 가이드라인 §5.6: 최대 78%, 꼬리쪽 모서리만 8, AI 말풍선에만 그림자
-  bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.lg },
+  bubble: { maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.lg },
   ai: {
     backgroundColor: color.paper,
     borderTopLeftRadius: radius.xs,
     ...theme.elevation('bubble'),
   },
   me: { backgroundColor: color.brand[600], borderTopRightRadius: radius.xs },
+  // 시안: 15 · font-medium · leading-snug(1.375) = 20.6
+  bubbleText: { ...text.body, lineHeight: 20.6 },
   headerBtn: {
     width: sizing.iconButton,
     height: sizing.iconButton,
@@ -430,7 +445,13 @@ const styles = StyleSheet.create({
    * flexDirection 을 안 주면 세로로 쌓이며 전체 폭으로 늘어나, 대화가 아니라
    * 목록처럼 보입니다(이전 상태).
    */
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginTop: space[2] },
+  options: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space[2],
+    // 시안 ml-10 — 칩이 아바타(32)+간격(8) 만큼 들어가 말풍선과 줄이 맞습니다
+    marginLeft: 40,
+  },
   /**
    * 시안 answerChip — rounded-full · border-brand-border · bg-canvas · px-4 py-2.5.
    * 사각 카드가 아니라 알약입니다. 대화 안에서 "고르는 말" 로 읽히게 하는 형태라

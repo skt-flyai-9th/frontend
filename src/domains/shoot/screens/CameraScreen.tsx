@@ -10,14 +10,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { X, Check, Eye, EyeOff, SunMedium, RotateCcw } from 'lucide-react-native';
+import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import {
+  CAMERA_IS_PLACEHOLDER,
+  CameraPreview,
+  type CameraPreviewHandle,
+} from '../../../ui/CameraPreview';
+import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
-import { CameraGuideOverlay, type GuideShape } from '../../../ui/CameraGuideOverlay';
-import { SpineStrip } from '../../../ui/ProgressSpine';
+import { PipGuide } from '../../../ui/PipGuide';
 import { Shutter } from '../../../ui/Shutter';
+import { pressTap } from '../../../ui/press';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
 import { JobProgress } from '../../../ui/Feedback';
 import {
@@ -26,21 +31,13 @@ import {
   useUpdateTask,
   useUploadFootage,
 } from '../../../api/queries/shoot';
+import { useProject, useVideoFormat } from '../../../api/queries/project';
 import { useAppState } from '../../../lib/appState';
 import type { CreateStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
 
 const COUNTDOWN_FROM = 3;
-
-/** 명세 broll_shot.shot_type 을 오버레이 모양으로 옮깁니다. */
-function shapeFor(shotType?: string): GuideShape {
-  if (!shotType) return 'wideSpace';
-  if (shotType.includes('클로즈')) return 'productLowerThird';
-  if (shotType.includes('풀')) return 'fullBody';
-  if (shotType.includes('미디엄') || shotType.includes('상반신')) return 'upperBody';
-  return 'wideSpace';
-}
 
 export default function CameraScreen({ navigation, route }: Props) {
   const { projectId, taskId: firstTaskId } = route.params;
@@ -53,7 +50,7 @@ export default function CameraScreen({ navigation, route }: Props) {
   /** 방금 찍은 것. 값이 있으면 검수 시트가 뜹니다. */
   const [take, setTake] = useState<{ uri: string; durationSec: number } | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<CameraPreviewHandle>(null);
 
   const { data: board } = useTasks(projectId);
 
@@ -66,18 +63,34 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   const { data: guide } = useTaskGuide(taskId);
 
+  /*
+   * 좌상단 참고 영상(시안 PipGuide).
+   * 컷마다 참고 영상이 붙는 건 안무형(9.1 reference_video)뿐이라, 없으면
+   * 이 프로젝트가 고른 포맷의 참고 영상을 씁니다 — 촬영 준비 화면에서 본
+   * 그 영상입니다. 둘 다 없으면 창을 띄우지 않습니다(빈 창을 만들지 않습니다).
+   */
+  const { data: project } = useProject(projectId);
+  const { data: format } = useVideoFormat(project?.videoFormatId ?? undefined);
+  const pipUrl = guide?.referenceVideo?.referenceUrl ?? format?.referenceUrl;
+
+  /*
+   * 안무 컷(9.1 DANCE)은 참고 영상을 보면서 찍어야 해서 전용 화면이 따로 있습니다.
+   * 촬영 목록 화면을 없애면서 그리로 가는 길이 끊겨 있었습니다 — 여기서 잇습니다.
+   */
+  const goingToDance = guide?.guideType === 'DANCE';
+  useEffect(() => {
+    if (!taskId || !goingToDance) return;
+    navigation.replace('DanceCamera', { projectId, taskId });
+  }, [taskId, goingToDance, navigation, projectId]);
+
   const guideVisible = useAppState((s) => s.guideVisible);
   const guideOpacity = useAppState((s) => s.guideOpacity);
-  const toggleGuide = useAppState((s) => s.toggleGuide);
-  const setGuideOpacity = useAppState((s) => s.setGuideOpacity);
   const task = tasks.find((t) => t.id === taskId);
-  const orderIndex = task ? tasks.findIndex((t) => t.id === taskId) + 1 : 1;
 
   const [camPermission, requestCam] = useCameraPermissions();
   const [micPermission, requestMic] = useMicrophonePermissions();
 
   const [facing, setFacing] = useState<'back' | 'front'>('back');
-  const [torch, setTorch] = useState(false);
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -111,7 +124,8 @@ export default function CameraScreen({ navigation, route }: Props) {
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
       setRecording(false);
-      if (video?.uri) setTake({ uri: video.uri, durationSec: elapsed || 5 });
+      // 지어낸 5초 대신 실제로 흐른 시간을 씁니다(1초 미만도 그대로).
+      if (video?.uri) setTake({ uri: video.uri, durationSec: Math.max(1, elapsed) });
     } catch (e) {
       setRecording(false);
       console.warn('[camera] 녹화 실패', e);
@@ -154,11 +168,15 @@ export default function CameraScreen({ navigation, route }: Props) {
     return () => clearTimeout(t);
   }, [countdown, beginRecording]);
 
-  // ── 권한 게이트 ──────────────────────────────────────
-  if (!camPermission) return <View style={styles.black} />;
+  // 안무 컷으로 넘어가는 사이에 이 화면이 한 프레임 스쳐 보이지 않게 검은 판만 둡니다.
+  if (goingToDance) return <View style={styles.black} />;
 
-  if (!camPermission.granted) {
-    const blocked = !camPermission.canAskAgain;
+  // ── 권한 게이트 ──────────────────────────────────────
+  // 웹 자리표시자에서는 권한을 물을 대상이 없어 건너뜁니다(디자인 대조용).
+  if (!CAMERA_IS_PLACEHOLDER && !camPermission) return <View style={styles.black} />;
+
+  if (!CAMERA_IS_PLACEHOLDER && !camPermission?.granted) {
+    const blocked = !camPermission?.canAskAgain;
     return (
       <SafeAreaView style={styles.permWrap}>
         <View style={styles.permBody}>
@@ -180,7 +198,7 @@ export default function CameraScreen({ navigation, route }: Props) {
     );
   }
 
-  if (needsMic && micPermission && !micPermission.granted) {
+  if (!CAMERA_IS_PLACEHOLDER && needsMic && micPermission && !micPermission.granted) {
     return (
       <SafeAreaView style={styles.permWrap}>
         <View style={styles.permBody}>
@@ -195,35 +213,26 @@ export default function CameraScreen({ navigation, route }: Props) {
     );
   }
 
-  const instruction = guide?.overlay?.instructions?.[0] ?? task?.taskTitle ?? '';
-
   return (
     <View style={styles.black}>
       {/* 프리뷰. 오버레이는 이 컴포넌트 바깥 형제 노드입니다. */}
-      <CameraView
+      <CameraPreview
         ref={cameraRef}
-        style={StyleSheet.absoluteFill}
         facing={facing}
-        mode="video"
-        enableTorch={torch}
-        videoQuality="1080p"
         mute={!needsMic}
-        onCameraReady={() => setReady(true)}
+        onReady={() => setReady(true)}
       />
 
-      {/* 촬영 파일에 합성되지 않습니다 */}
-      <CameraGuideOverlay
-        spec={{
-          shape: shapeFor(guide?.brollShot?.shotType),
-          instruction,
-          faceOut: guide?.overlay?.instructions?.some((i) => i.includes('얼굴')),
-        }}
-        opacity={guideOpacity}
-        visible={guideVisible && countdown === null}
-      />
+      {/*
+        시안 카메라 위에 있는 건 참고 영상 작은 창(PiP) 하나입니다.
+        구도 오버레이(9.1 overlay 지시문)는 시안에 없어 걷어냈습니다 —
+        지시문은 촬영 준비 화면의 컷 목록이 대신 말해 줍니다.
+      */}
+      <PipGuide url={pipUrl} />
 
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         <View style={styles.topBar}>
+          {/* 시안 카메라 상단에는 뒤로가기 하나뿐입니다. */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="촬영 그만두기"
@@ -231,33 +240,8 @@ export default function CameraScreen({ navigation, route }: Props) {
             hitSlop={12}
             style={styles.chromeButton}
           >
-            <X size={22} strokeWidth={2} color={color.paper} />
+            <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
           </Pressable>
-
-          <View style={styles.taskLabel}>
-            <Text style={styles.taskOrder}>
-              {orderIndex}번째 · {tasks.length}개 중
-            </Text>
-            <Text style={styles.taskTitle}>{task?.taskTitle}</Text>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={guideVisible ? '가이드 숨기기' : '가이드 보이기'}
-            onPress={toggleGuide}
-            hitSlop={12}
-            style={styles.chromeButton}
-          >
-            {guideVisible ? (
-              <Eye size={22} strokeWidth={2} color={color.paper} />
-            ) : (
-              <EyeOff size={22} strokeWidth={2} color={color.paper} />
-            )}
-          </Pressable>
-        </View>
-
-        <View style={styles.stripWrap}>
-          <SpineStrip total={tasks.length} current={orderIndex} />
         </View>
       </SafeAreaView>
 
@@ -274,8 +258,7 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
-        {/* 시안 V4: 컷 목록이 화면 안에 있습니다. 찍은 컷은 초록 체크. */}
+      {/* 시안: 셔터 위 bottom-[190] 자리. 찍은 컷은 초록 체크. */}
         <View style={styles.chipRow}>
           {tasks.map((t) => {
             const done = shot(t);
@@ -306,18 +289,12 @@ export default function CameraScreen({ navigation, route }: Props) {
           })}
         </View>
 
+      <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
+        {/*
+          시안: 셔터 영역 h150 가운데 셔터, 오른쪽 26 에 전환 버튼 52.
+          가이드 밝기·불빛 버튼은 시안에 없어 걷어냈습니다.
+        */}
         <View style={styles.controls}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="가이드 진하기 조절"
-            onPress={() => setGuideOpacity(guideOpacity > 0.5 ? 0.35 : 0.9)}
-            style={styles.sideButton}
-            disabled={recording}
-          >
-            <SunMedium size={24} strokeWidth={2} color={color.paper} />
-            <Text style={styles.sideLabel}>가이드</Text>
-          </Pressable>
-
           <Shutter
             recording={recording}
             disabled={!ready || countdown !== null}
@@ -335,17 +312,13 @@ export default function CameraScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel="앞뒤 카메라 바꾸기"
             onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
-            style={styles.sideButton}
+            style={({ pressed }) => [styles.flipBtn, pressTap(pressed, 'icon')]}
             disabled={recording}
           >
-            <RotateCcw size={24} strokeWidth={2} color={color.paper} />
-            <Text style={styles.sideLabel}>전환</Text>
+            <SwitchCamera size={23} strokeWidth={2} color={color.paper} />
           </Pressable>
         </View>
 
-        <Pressable onPress={() => setTorch((t) => !t)} style={styles.torchRow} disabled={recording}>
-          <Text style={styles.torchText}>{torch ? '불빛 끄기' : '어두우면 불빛 켜기'}</Text>
-        </Pressable>
       </SafeAreaView>
 
       {/*
@@ -401,7 +374,23 @@ const styles = StyleSheet.create({
   black: { flex: 1, backgroundColor: color.mediaBlack },
 
   // 시안: 셔터 위 컷 칩 줄 (rounded-full · 12 semibold · 완료 verified)
+  // 시안: 셔터 영역 오른쪽 26 · 52 원 · ink 45%
+  flipBtn: {
+    position: 'absolute',
+    right: 26,
+    width: 52,
+    height: 52,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: CHROME,
+  },
+  // 시안: absolute bottom-[190] · 가운데 정렬
   chipRow: {
+    position: 'absolute',
+    bottom: 190,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
@@ -458,11 +447,12 @@ const styles = StyleSheet.create({
     paddingTop: space[2],
     gap: space[3],
   },
+  // 시안: 배경 없는 36 버튼. 카메라 위라 아이콘만 흰색으로 둡니다.
   chromeButton: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
+    // 시안에 음수 여백 없음 — 어두운 오버레이 헤더입니다 (FaqScreen 헤더 규칙 주석 참고)
     borderRadius: radius.pill,
-    backgroundColor: CHROME,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -502,7 +492,15 @@ const styles = StyleSheet.create({
   recDot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: color.paper },
   recText: { ...text.bodySmall, color: color.paper },
 
-  bottomLayer: { position: 'absolute', bottom: 0, left: 0, right: 0, gap: space[4], paddingBottom: space[3] },
+  // 시안: 셔터 밴드는 h150 (칩 줄은 그 위 bottom-[190] 에 따로 있습니다)
+  bottomLayer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 150,
+    justifyContent: 'center',
+  },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,6 +511,4 @@ const styles = StyleSheet.create({
   sideLabel: { ...text.micro, color: 'rgba(255,255,255,0.8)' },
 
 
-  torchRow: { alignSelf: 'center', paddingVertical: space[2], paddingHorizontal: space[4] },
-  torchText: { ...text.bodySmall, color: 'rgba(255,255,255,0.85)' },
 });

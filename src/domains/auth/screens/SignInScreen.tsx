@@ -190,7 +190,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', paddingHorizontal: space[6], paddingBottom: 64 },
 
   // 시안: mt-2 · 15 · medium · slate-muted
-  tagline: { ...text.body, marginTop: space[2], color: color.ink[500] },
+  // 시안 15 는 leading 이 없어 1.5 가 걸립니다
+  tagline: { ...text.body, lineHeight: 22.5, marginTop: space[2], color: color.ink[500] },
 
   // 시안: mt-9(36) gap-3(12). 36 은 원본 스케일에도 없어 그대로 둡니다.
   fields: { marginTop: 36, gap: space[3] },
@@ -209,7 +210,8 @@ const styles = StyleSheet.create({
     gap: space[4],
     marginTop: space[4],
   },
-  link: { ...text.caption, color: color.ink[500] },
+  // 시안 13 은 leading 이 없어 1.5 가 걸립니다
+  link: { ...text.caption, lineHeight: 19.5, color: color.ink[500] },
   // 시안: h-3 w-px bg-hairline
   divider: { width: theme.border.hairline, height: 12, backgroundColor: color.ink[200] },
 });

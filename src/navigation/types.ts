@@ -38,11 +38,24 @@ export type RootStackParamList = {
   /** 플랜 안내 — 정적 화면(플랜 API 없음). 시안에 탭바가 없어 탭 밖입니다. */
   Plans: undefined;
   /**
+   * 약관 및 접근 권한 동의 — 가입 직후 단계라 탭 밖입니다.
+   * 시안에도 탭바가 없고 헤더에 제목조차 없습니다.
+   */
+  PermissionsInfo: undefined;
+  /** 설정 — 시안에 탭바가 없어 탭 밖입니다. */
+  Settings: undefined;
+  /**
    * 자주 묻는 질문 — 탭 **밖**입니다.
    * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
    * 시안과 어긋납니다(알림 화면과 같은 이유).
    */
   Faq: undefined;
+  /**
+   * 개인정보 처리방침 본문 — 시안 `LegalScreen(variant="privacy")`.
+   * 이용약관(Onboarding/Terms)과 **같은 화면**을 focus 만 바꿔 씁니다.
+   * 시안에 탭바가 없어 탭 밖입니다.
+   */
+  Legal: { focus?: 'privacy' } | undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   StoreSetup: NavigatorScreenParams<StoreSetupStackParamList>;
@@ -90,11 +103,6 @@ export type MainTabParamList = {
  */
 export type MyStackParamList = {
   MyPage: undefined;
-  Settings: undefined;
-  // ── 신규 ──
-  PermissionsInfo: undefined;
-  /** 약관·정책 목록 (시안 legal) */
-  Legal: undefined;
 };
 
 /** 숏폼 만들기 — 목적부터 게시까지 하나의 긴 흐름 */

@@ -34,6 +34,17 @@ if (process.env.EXPO_PUBLIC_QA_NAV === '1') {
     fx.tasks.forEach((t) => taskStatus.set(t.id, 'DONE'));
     return fx.tasks.length;
   };
+  /**
+   * 기획(7.1)을 이미 끝낸 상태로 만듭니다.
+   * 카메라의 참고 영상 창은 프로젝트가 고른 포맷에서 오는데, 캡처는 촬영 준비 화면을
+   * 거치지 않고 바로 들어가 그 값이 비어 있습니다. 화면을 시안과 대조하려면 필요합니다.
+   */
+  (globalThis as { __realsPlanned?: (formatId?: number) => number }).__realsPlanned = (
+    formatId = 71
+  ) => {
+    projectState.video_format_id = formatId;
+    return formatId;
+  };
 }
 /** 평가를 몇 번 실행했는지. 실행 전 조회는 404 여야 합니다. */
 const evalCount = new Map<number, number>();

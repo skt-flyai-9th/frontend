@@ -98,16 +98,24 @@ export default function MyVideoScreen({ route, navigation }: Props) {
         )}
       </LoadGate>
 
-      {/* 뒤로가기 — 영상 위에 얹히는 유일한 요소입니다 (유튜브 임베드가 아니라 우리 파일) */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="뒤로"
-        onPress={() => navigation.goBack()}
-        hitSlop={12}
-        style={[styles.back, { top: insets.top + space[2] }]}
-      >
-        <ChevronLeft size={26} strokeWidth={2} color={color.paper} />
-      </Pressable>
+      {/*
+        시안 헤더: 뒤로가기 + 가운데 "내 숏폼" 16·bold.
+        영상 위에 얹히는 요소는 이것뿐입니다(유튜브 임베드가 아니라 우리 파일이라 가능합니다).
+      */}
+      <View style={[styles.header, { top: insets.top }]} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="뒤로"
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={styles.back}
+        >
+          <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
+        </Pressable>
+        <Text style={styles.headerTitle} pointerEvents="none">
+          내 숏폼
+        </Text>
+      </View>
     </View>
   );
 }
@@ -162,6 +170,18 @@ function Reel({
 
   return (
     <View style={{ width, height }}>
+      {/*
+        영상이 뜨기 전(또는 못 뜰 때) 검은 판만 남지 않게 커버 이미지를 깝니다.
+        15.2 가 cover_image_url 을 주므로 지어내는 값이 아닙니다.
+      */}
+      {short.coverImageUrl ? (
+        <Image
+          source={{ uri: short.coverImageUrl }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      ) : null}
+
       <VideoView
         style={StyleSheet.absoluteFill}
         player={player}
@@ -206,11 +226,31 @@ function Reel({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  back: {
+  // 시안: h-11(44) px-4 · 뒤로 36 · 제목 절대 중앙
+  header: {
     position: 'absolute',
-    left: space[3],
-    width: 44,
+    left: 0,
+    right: 0,
     height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: space[4],
+    zIndex: 20,
+  },
+  headerTitle: {
+    ...text.subheading,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: color.paper,
+  },
+  // 시안: -ml-1.5 · 36 원형
+  back: {
+    width: 36,
+    height: 36,
+    marginLeft: -6,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

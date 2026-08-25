@@ -1,9 +1,9 @@
 /**
- * FaqScreen — **시안 v3 `faq` 대조 이식** (2026-08-26).
+ * FaqScreen — **시안 V4 `24_faq` 대조 이식**.
  *
  * 시안 사양 (`FaqScreen` 원문 수치 그대로)
  *   배경     bg-surface
- *   헤더     px-4 pb-3 · 뒤로가기 36 + 타이틀 18·bold **좌측 정렬** · 탭바 없음
+ *   헤더     px-4 pb-3 gap-2 · 뒤로가기 36 + 타이틀 18·bold **좌측 정렬** · 탭바 없음
  *   목록     px-4 · 카드 사이 gap-2.5(10)
  *   카드     rounded-2xl(16) · border-hairline/80 · bg-white · shadow-card
  *   질문 행  px-4 py-4 · 15·semibold · 우측 chevron-down 18 (#94a3b8)
@@ -120,10 +120,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     paddingBottom: space[3],
   },
+  /**
+   * ⚠️ 여기에는 `marginLeft: -6` 이 없습니다. 시안 헤더는 **세 종류**입니다
+   *    (시안 원문의 `aria-label="뒤로가기"` 를 전수 조사한 결과입니다).
+   *
+   *   ① 뒤로가기가 홀로 있는 h-11 헤더  → `-ml-1.5`(-6) **있음**
+   *      TopHeader(제목 가운데) · 07_권한 안내(제목 없음) · 20_내 숏폼(제목이 절대 중앙)
+   *   ② 제목이 뒤로가기 바로 옆에 좌측 정렬 → 음수 여백 **없음**
+   *      17·21·22·23·24·27·28
+   *   ③ 어두운 오버레이 헤더            → 없음 (13·14·15)
+   *
+   * 가르는 건 "자체 헤더냐" 가 아니라 **버튼이 홀로 있느냐**입니다.
+   * 홀로 있으면 광학 정렬로 6 을 당기고, 옆에 제목이 붙으면 당기지 않습니다.
+   * `ui/AppBar` 의 -6 은 ① 이라 맞습니다 — 일관성을 이유로 지우지 마세요.
+   */
   backBtn: {
     width: 36,
     height: 36,
-    marginLeft: -6,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -141,7 +154,17 @@ const styles = StyleSheet.create({
     ...theme.elevation('card'),
   },
 
-  // 시안: px-4 py-4 · 질문과 chevron 사이 gap-3
+  /*
+   * 시안: px-4 py-4 · 질문과 chevron 사이 gap-3.
+   *
+   * ⚠️ 접힌 행의 높이를 정하는 건 **질문 글자가 아니라 chevron** 입니다.
+   *    시안 chevron 은 `<span>` 안의 인라인 svg(18)라 줄상자가 24.5 로 잡히고,
+   *    질문 줄상자(15 × 1.5 = 22.5)보다 커서 이쪽이 행 높이를 끕니다.
+   *    우리 아이콘은 높이 18 짜리 View 라 22.5 가 이겨서 행이 2pt 짧았고,
+   *    카드마다 쌓여 다섯 번째에서 9pt 어긋났습니다(캡처 실측).
+   *    그래서 글자를 늘리는 대신 **행에 최소 높이**를 둡니다 —
+   *    질문이 두 줄로 감기면 시안처럼 글자가 높이를 끌어야 하기 때문입니다.
+   */
   qRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -149,8 +172,10 @@ const styles = StyleSheet.create({
     gap: space[3],
     paddingHorizontal: space[4],
     paddingVertical: space[4],
+    minHeight: 24.5 + 32,
   },
-  q: { ...theme.text.bodyStrong, flex: 1 },
+  // 시안 15px 은 leading 이 없어 1.5 가 걸립니다 (토큰 22 → 22.5)
+  q: { ...theme.text.bodyStrong, flex: 1, lineHeight: 22.5 },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
 
   // 시안: px-4 pb-4 · 14 · leading-relaxed · #475569

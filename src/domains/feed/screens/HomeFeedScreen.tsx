@@ -82,8 +82,8 @@ export default function HomeFeedScreen() {
     <AppBar
       home={{
         onBell: () => nav.navigate('Notifications'),
-        // 설정은 우리 IA 상 마이 탭 아래에 있습니다.
-        onMenu: () => nav.navigate('Main', { screen: 'My', params: { screen: 'Settings' } }),
+        // 설정은 시안에 탭바가 없어 탭 밖(Root)에 있습니다.
+        onMenu: () => nav.navigate('Settings'),
       }}
     />
   );
