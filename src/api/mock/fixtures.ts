@@ -628,6 +628,43 @@ export const storeShorts = [
     is_posted: false,
     created_at: '2026-08-20T18:40:00Z',
   },
+  /*
+   * 아래 셋은 마이페이지 그리드가 시안처럼 3열 두 줄로 차는지 보려고 둡니다.
+   * 시안 OWNER_VIDEOS 도 6개입니다.
+   */
+  {
+    video_output_id: 504,
+    shorts_project_id: 303,
+    project_title: '아침마다 미는 면',
+    promotion_purpose: '가게소개',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    cover_image_url: 'https://picsum.photos/seed/reals504/720/1280',
+    duration_sec: 21,
+    is_posted: true,
+    created_at: '2026-08-18T09:10:00Z',
+  },
+  {
+    video_output_id: 505,
+    shorts_project_id: 304,
+    project_title: '바지락 두 시간',
+    promotion_purpose: '메뉴소개',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+    cover_image_url: 'https://picsum.photos/seed/reals505/720/1280',
+    duration_sec: 27,
+    is_posted: true,
+    created_at: '2026-08-16T13:05:00Z',
+  },
+  {
+    video_output_id: 506,
+    shorts_project_id: 305,
+    project_title: '점심 줄 서는 이유',
+    promotion_purpose: '이벤트',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
+    cover_image_url: 'https://picsum.photos/seed/reals506/720/1280',
+    duration_sec: 19,
+    is_posted: false,
+    created_at: '2026-08-14T17:30:00Z',
+  },
 ];
 
 /**

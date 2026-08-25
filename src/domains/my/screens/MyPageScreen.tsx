@@ -22,7 +22,7 @@
  */
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Menu } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -86,9 +86,26 @@ export default function MyPageScreen() {
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 
   return (
-    <Screen edges={['top']} padded={false}>
-      {/* 시안: 타이틀이 "마이" 가 아니라 가게 이름입니다 */}
-      <AppBar title={store?.name ?? '우리 가게'} home={{ onMenu: () => nav.navigate('Settings') }} />
+    /* 시안: 헤더 아래 pt-2(8). Screen 기본값 16 이면 화면 전체가 8 내려갑니다. */
+    <Screen edges={['top']} padded={false} contentStyle={{ paddingTop: space[2] }}>
+      {/*
+        시안: 가운데에 가게 이름, 오른쪽에 메뉴 하나뿐입니다.
+        home 배치를 쓰면 알림 벨과 로고가 함께 붙어 시안과 달라집니다.
+      */}
+      <AppBar
+        title={store?.name ?? '우리 가게'}
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="설정"
+            hitSlop={8}
+            onPress={() => nav.navigate('Settings')}
+            style={({ pressed }) => [styles.menuBtn, pressTap(pressed, 'icon')]}
+          >
+            <Menu size={22} strokeWidth={2} color={color.ink[900]} />
+          </Pressable>
+        }
+      />
 
       {/* ── ② 아바타 + 통계 ── */}
       <View style={styles.profile}>
@@ -225,38 +242,23 @@ export default function MyPageScreen() {
         </View>
       )}
 
-      {/* 진입점 목록 — 시안에 없는 기능. 그리드 아래로 내려 상단 구성을 가리지 않게 */}
-      <View style={styles.infoPad}>
-        <View style={styles.menu}>
-          <MenuRow label="플랜 안내" hint="Free · Pro 요금제" onPress={() => nav.navigate('Plans')} />
-          <MenuRow label="자주 묻는 질문" onPress={() => nav.navigate('Faq')} />
-          <MenuRow label="앱 권한 안내" onPress={() => nav.navigate('PermissionsInfo')} />
-          <MenuRow label="설정" onPress={() => nav.navigate('Settings')} />
-        </View>
-      </View>
     </Screen>
   );
 }
 
-function MenuRow({ label, hint, onPress }: { label: string; hint?: string; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: color.surface }]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={text.body}>{label}</Text>
-        {hint ? <Text style={[text.caption, { color: color.ink[400] }]}>{hint}</Text> : null}
-      </View>
-      <ChevronRight size={20} strokeWidth={2} color={color.ink[300]} />
-    </Pressable>
-  );
-}
 
 const GAP = 2;
 
 const styles = StyleSheet.create({
+  // 시안 HeaderIconBtn — 36 원형
+  menuBtn: {
+    width: 36,
+    height: 36,
+    marginRight: -6,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   profile: {
     flexDirection: 'row',
     alignItems: 'center',
