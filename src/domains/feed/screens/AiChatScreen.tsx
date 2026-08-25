@@ -1,391 +1,206 @@
-/**
- * AiChatScreen — AI 추천 탭. 프로토타입 `03_AI추천_채팅.png`.
- *
- * 기존 QuizScreen(질문 카드 6장)과 같은 6.1/6.2 API 를 쓰되,
- * 화면만 말풍선 대화로 바꿨습니다. 제출 로직은 QuizScreen 의 것을
- * 그대로 옮겨왔습니다 (인수인계 §6.3 "로직은 가져다 쓰세요").
- *
- * 왜 대화가 목적 선택부터 시작하나
- *   6.1 GET /quiz-questions 는 프로젝트 단위 API 라 projectId 가 먼저
- *   필요합니다. 그리고 4.1 프로젝트 생성에는 목적이 필수이고,
- *   생성 후에는 바꿀 수 없습니다(BE 확정). 그래서 대화 순서가
- *     들어가기(정적) → 목적(정적) → 4.1 생성 → 6.1 질문들 → 6.2 제출
- *   이 됩니다. 목적을 나중에 물으면 프로젝트를 만들 수 없습니다.
- *
- * DRAFT 재사용
- *   같은 목적의 DRAFT 가 있으면 재사용합니다(쌓임 방지 — PurposeSelect 와
- *   같은 이유). 목적이 다르면 재사용하지 않습니다. 목적 변경이 금지라
- *   PATCH 로 바꿀 수 없기 때문입니다.
- *
- * ⚠️ 6.2 body: free_text 는 answers 와 별개 필드입니다.
- *    자유입력을 answers 에도 넣으면 중복 전송입니다 (인수인계 §6.3).
- */
-import React, { useMemo, useRef, useState } from 'react';
+/** AI 추천 탭 — 백엔드 R06 대화형 숏폼 Agent의 실제 세션을 사용합니다. */
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { ArrowUp, RotateCcw, Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
-import { pressTap } from '../../../ui/press';
 import { Banner, Loading } from '../../../ui/Feedback';
+import { Screen } from '../../../ui/Screen';
+import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import {
-  useProjects,
-  useCreateProject,
-  useQuizQuestions,
-  useSubmitQuiz,
-} from '../../../api/queries/project';
-import theme, { color, space, radius, text, sizing } from '../../../design/theme';
+  discardShortformSession,
+  useAcceptShortformRecommendation,
+  useCreateShortformSession,
+  useNextShortformRecommendation,
+  useSubmitShortformTurn,
+} from '../../../api/queries/shortform';
+import type {
+  ShortformOption,
+  ShortformRecommendation,
+  ShortformTurnInput,
+  ShortformTurnResponse,
+} from '../../../api/schema/types';
 import type { RootStackParamList } from '../../../navigation/types';
-import type { PromotionPurpose, QuizQuestion } from '../../../api/schema/types';
+import theme, { color, radius, sizing, space, text } from '../../../design/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-
 type Bubble = { role: 'ai' | 'me'; content: string };
 
-const PURPOSES: PromotionPurpose[] = ['메뉴소개', '이벤트알리기', '가게소개', '고객늘리기'];
-
-/**
- * 시안 v3 root 노드의 선택지 **그대로** 입니다.
- *   { label: "홍보하고 싶은 게 있어요" } / { label: "직접 입력하기" }
- * v1·v2 에 있던 "어떤 걸 찍을지 막막해요" 는 v3 에서 사라졌습니다.
- */
-const INTRO_OPTIONS = ['홍보하고 싶은 게 있어요', '직접 입력하기'] as const;
+const CONFIRM_OPTIONS: ShortformOption[] = [
+  { id: 'CONFIRM_TRUE', label: '이대로 추천받기' },
+  { id: 'CONFIRM_FALSE', label: '내용 수정하기' },
+];
 
 export default function AiChatScreen() {
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
-
-  // ── 대화 상태 ──
-  const [log, setLog] = useState<Bubble[]>([
-    { role: 'ai', content: '오늘 어떤 영상을 찍을까요?' },
-  ]);
-  const [step, setStep] = useState<'intro' | 'purpose' | 'questions' | 'submitting'>('intro');
-  const [qIndex, setQIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
-  const [freeText, setFreeText] = useState<string | undefined>(undefined);
-  const [input, setInput] = useState('');
-  const [projectId, setProjectId] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const mounted = useRef(true);
+  const [sessionId, setSessionId] = useState<number>();
+  const [log, setLog] = useState<Bubble[]>([]);
+  const [options, setOptions] = useState<ShortformOption[]>([]);
+  const [recommendation, setRecommendation] = useState<ShortformRecommendation>();
+  const [input, setInput] = useState('');
 
-  /** 시안 헤더 우측의 대화 새로고침. 처음 질문으로 되돌립니다. */
-  const resetChat = () => {
-    setLog([{ role: 'ai', content: '오늘 어떤 영상을 찍을까요?' }]);
-    setStep('intro');
-    setQIndex(0);
-    setAnswers({});
-    setFreeText(undefined);
-    setInput('');
-    setProjectId(null);
-  };
+  const createSession = useCreateShortformSession(storeId ?? undefined);
+  const submitTurn = useSubmitShortformTurn(sessionId);
+  const nextRecommendation = useNextShortformRecommendation(sessionId);
+  const acceptRecommendation = useAcceptShortformRecommendation(sessionId);
 
-  // ── 서버 ──
-  const { data: drafts } = useProjects(storeId ?? undefined, 'DRAFT');
-  const createProject = useCreateProject();
-  const questionsQuery = useQuizQuestions(projectId ?? undefined);
-  const submit = useSubmitQuiz(projectId ?? 0);
-
-  // free_text 타입 질문은 하단 입력창이 대신하므로 대화 단계에서 뺍니다.
-  const questions = useMemo(
-    () => (questionsQuery.data ?? []).filter((q) => q.type !== 'free_text'),
-    [questionsQuery.data]
-  );
-  const current: QuizQuestion | undefined = step === 'questions' ? questions[qIndex] : undefined;
-
-  const say = (bubbles: Bubble[]) => {
-    setLog((prev) => [...prev, ...bubbles]);
+  const append = useCallback((...bubbles: Bubble[]) => {
+    setLog((previous) => [...previous, ...bubbles]);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
-  };
+  }, []);
 
-  // ── 단계 진행 ──
+  const applyResponse = useCallback((response: ShortformTurnResponse) => {
+    if (response.assistantMessage) append({ role: 'ai', content: response.assistantMessage });
+    setRecommendation(response.recommendation);
+    setOptions(response.action === 'CONFIRM' ? CONFIRM_OPTIONS : response.options ?? []);
+  }, [append]);
 
-  const pickIntro = (opt: (typeof INTRO_OPTIONS)[number]) => {
-    say([{ role: 'me', content: opt }]);
-    if (opt === '직접 입력하기') {
-      say([
-        {
-          role: 'ai',
-          content: '좋아요! 아래 입력창에 아이디어를 적어 주세요. 함께 추천에 반영할게요.',
-        },
-        { role: 'ai', content: '먼저, 이번 영상의 목적을 골라 주세요. 만든 뒤에는 바꿀 수 없어요.' },
-      ]);
-    } else {
-      say([
-        { role: 'ai', content: '먼저, 이번 영상의 목적을 골라 주세요. 만든 뒤에는 바꿀 수 없어요.' },
-      ]);
-    }
-    setStep('purpose');
-  };
-
-  const pickPurpose = (purpose: PromotionPurpose) => {
-    if (!storeId) return;
-    say([{ role: 'me', content: purpose }]);
-
-    // 같은 목적의 DRAFT 는 재사용 — 목적이 다르면 새로 만듭니다(변경 금지).
-    const reusable = drafts?.find((d) => d.promotionPurpose === purpose);
-    if (reusable) {
-      setProjectId(reusable.id);
-      afterProject();
-      return;
-    }
-    createProject.mutate(
-      { storeId, promotionPurpose: purpose },
-      {
-        onSuccess: (p) => {
-          setProjectId(p.id);
-          afterProject();
-        },
-        // 실패는 아래 Banner 로 표시됩니다. 조용히 넘어가지 않습니다.
+  const begin = useCallback(async () => {
+    if (!storeId || createSession.isPending) return;
+    const oldSessionId = sessionId;
+    setSessionId(undefined);
+    setRecommendation(undefined);
+    setOptions([]);
+    setLog([]);
+    setInput('');
+    if (oldSessionId) {
+      try {
+        await discardShortformSession(oldSessionId);
+      } catch {
+        // 정리 실패가 새 대화 시작을 막아서는 안 됩니다.
       }
-    );
-  };
-
-  const afterProject = () => {
-    say([{ role: 'ai', content: '몇 가지만 더 여쭤볼게요.' }]);
-    setStep('questions');
-    setQIndex(0);
-  };
-
-  const pickAnswer = (q: QuizQuestion, opt: string) => {
-    if (q.type === 'multi_choice') {
-      // 복수 선택: 누를 때마다 토글, "다음" 으로 넘어갑니다.
-      setAnswers((p) => {
-        const cur = Array.isArray(p[q.id]) ? (p[q.id] as string[]) : [];
-        return { ...p, [q.id]: cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt] };
-      });
-      return;
     }
-    setAnswers((p) => ({ ...p, [q.id]: opt }));
-    say([{ role: 'me', content: opt }]);
-    advance(q, opt);
-  };
+    createSession.mutate(undefined, {
+      onSuccess: (session) => {
+        if (!mounted.current) return;
+        setSessionId(Number(session.id));
+        setOptions(session.options);
+        setLog([
+          { role: 'ai', content: session.assistantMessage ?? '오늘 어떤 영상을 찍을까요?' },
+        ]);
+      },
+    });
+  }, [createSession, sessionId, storeId]);
 
-  const confirmMulti = (q: QuizQuestion) => {
-    const v = answers[q.id];
-    const picked = Array.isArray(v) ? v : [];
-    if (picked.length === 0) return;
-    say([{ role: 'me', content: picked.join(', ') }]);
-    advance(q, picked.join(', '));
-  };
-
-  const advance = (q: QuizQuestion, _answer: string) => {
-    const nextIndex = questions.findIndex((x) => x.id === q.id) + 1;
-    if (nextIndex < questions.length) {
-      setQIndex(nextIndex);
-      return;
-    }
-    doSubmit();
-  };
-
-  const doSubmit = () => {
-    if (!projectId) return;
-    setStep('submitting');
-    say([{ role: 'ai', content: '알겠어요. 딱 맞는 숏폼을 찾고 있어요…' }]);
-
-    // 명세 6.2: free_text 는 answers 에 넣지 않습니다 (별개 필드).
-    const body = {
-      answers: questions
-        .filter((q) => answers[q.id])
-        .map((q) => {
-          const v = answers[q.id];
-          return { questionId: q.id, answer: Array.isArray(v) ? v.join(', ') : (v as string) };
-        }),
-      freeText,
+  useEffect(() => {
+    mounted.current = true;
+    if (storeId && !sessionId && log.length === 0 && !createSession.isPending) void begin();
+    return () => {
+      mounted.current = false;
     };
-    submit.mutate(body, {
-      onSuccess: () =>
-        // 시안 V4: 추천 결과는 홈 피드에서 고릅니다(별도 결과 화면 없음).
-        nav.navigate('Main', { screen: 'HomeFeed' }),
-      onError: () => {
-        // 빠져나갈 길을 둡니다 — 다시 시도할 수 있게 질문 단계로 되돌립니다.
-        setStep('questions');
-        say([{ role: 'ai', content: '앗, 잠시 문제가 있었어요. 마지막 질문을 다시 눌러 주세요.' }]);
+  }, [begin, createSession.isPending, log.length, sessionId, storeId]);
+
+  const send = (inputValue: ShortformTurnInput, label: string) => {
+    if (!sessionId || submitTurn.isPending) return;
+    append({ role: 'me', content: label });
+    setOptions([]);
+    setRecommendation(undefined);
+    submitTurn.mutate(inputValue, { onSuccess: applyResponse });
+  };
+
+  const pickOption = (option: ShortformOption) => {
+    if (option.id === 'CONFIRM_TRUE') send({ type: 'CONFIRM', value: true }, option.label);
+    else if (option.id === 'CONFIRM_FALSE') send({ type: 'CONFIRM', value: false }, option.label);
+    else send({ type: 'OPTION', optionId: option.id }, option.label);
+  };
+
+  const sendText = () => {
+    const value = input.trim();
+    if (!value) return;
+    setInput('');
+    send({ type: 'TEXT', text: value }, value);
+  };
+
+  const accept = () => {
+    acceptRecommendation.mutate(undefined, {
+      onSuccess: (project) => {
+        setSessionId(undefined);
+        nav.navigate('Create', { screen: 'Camera', params: { projectId: Number(project.id) } });
       },
     });
   };
 
-  const sendFree = () => {
-    const t = input.trim();
-    if (!t) return;
-    setInput('');
-    say([{ role: 'me', content: t }]);
-    // 자유입력은 6.2 의 free_text 필드로만 갑니다.
-    setFreeText((prev) => (prev ? `${prev}\n${t}` : t));
-    say([{ role: 'ai', content: '메모했어요! 추천에 함께 반영할게요.' }]);
+  const tryNext = () => {
+    setRecommendation(undefined);
+    nextRecommendation.mutate(undefined, { onSuccess: applyResponse });
   };
 
-  // ── 현재 단계의 선택지 ──
-  const options: string[] =
-    step === 'intro'
-      ? [...INTRO_OPTIONS]
-      : step === 'purpose'
-        ? PURPOSES
-        : current?.options ?? [];
-
-  const multiPicked = current && Array.isArray(answers[current.id])
-    ? (answers[current.id] as string[])
-    : [];
+  const pending = createSession.isPending || submitTurn.isPending || nextRecommendation.isPending;
+  const hasError = createSession.isError || submitTurn.isError || nextRecommendation.isError || acceptRecommendation.isError;
 
   return (
     <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
       <AppBar
         title="AI 숏폼 추천"
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="대화 새로고침"
-            hitSlop={6}
-            onPress={resetChat}
-            style={({ pressed }) => [styles.headerBtn, pressTap(pressed, 'icon')]}
+          <Pressable accessibilityRole="button" accessibilityLabel="대화 새로고침" hitSlop={6}
+            onPress={() => void begin()} style={({ pressed }) => [styles.headerBtn, pressTap(pressed, 'icon')]}
           >
             <RotateCcw size={22} strokeWidth={2} color={color.ink[900]} />
           </Pressable>
         }
       />
-
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          ref={scrollRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.chat}
-          keyboardShouldPersistTaps="handled"
-        >
-          {log.map((b, i) => (
-            <View
-              key={i}
-              style={[styles.bubbleRow, b.role === 'me' && { justifyContent: 'flex-end' }]}
-            >
-              {b.role === 'ai' && (
-                <View style={styles.avatar}>
-                  <Sparkles size={16} strokeWidth={2} color={color.paper} />
-                </View>
-              )}
-              <View style={[styles.bubble, b.role === 'me' ? styles.me : styles.ai]}>
-                <Text style={[styles.bubbleText, b.role === 'me' && { color: color.paper }]}>
-                  {b.content}
-                </Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.chat} keyboardShouldPersistTaps="handled">
+          {!storeId && <Banner tone="warn" title="가게 정보가 필요합니다" description="가게를 먼저 등록해 주세요." />}
+          {log.map((bubble, index) => (
+            <View key={`${bubble.role}-${index}`} style={[styles.bubbleRow, bubble.role === 'me' && styles.meRow]}>
+              {bubble.role === 'ai' && <View style={styles.avatar}><Sparkles size={16} strokeWidth={2} color={color.paper} /></View>}
+              <View style={[styles.bubble, bubble.role === 'me' ? styles.me : styles.ai]}>
+                <Text style={[styles.bubbleText, bubble.role === 'me' && styles.meText]}>{bubble.content}</Text>
               </View>
             </View>
           ))}
-
-          {/* 질문 로딩 — 조용히 기다리게 두지 않습니다 */}
-          {step === 'questions' && questionsQuery.isLoading && (
-            <Loading label="질문을 준비하는 중" />
-          )}
-          {step === 'questions' && questionsQuery.isError && (
-            <Banner
-              tone="warn"
-              title="질문을 불러오지 못했습니다"
-              description="아래 입력창에 하고 싶은 이야기를 적어 주셔도 됩니다."
-            />
-          )}
-          {createProject.isError && (
-            <Banner tone="warn" title="시작하지 못했습니다" description="목적을 다시 골라 주세요." />
-          )}
-
-          {/* 현재 질문 말풍선 */}
-          {current && (
-            <View style={styles.bubbleRow}>
-              <View style={styles.avatar}>
-                <Sparkles size={16} strokeWidth={2} color={color.paper} />
-              </View>
-              <View style={[styles.bubble, styles.ai]}>
-                <Text style={styles.bubbleText}>{current.question}</Text>
-                {current.type === 'multi_choice' && (
-                  <Text style={[text.micro, { color: color.ink[400] }]}>여러 개 고를 수 있어요</Text>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* 선택지 버튼 — 터치 영역 넉넉하게 */}
-          {step !== 'submitting' && options.length > 0 && (
+          {pending && <Loading label="AI가 답변을 준비하는 중" />}
+          {hasError && <Banner tone="warn" title="AI 추천을 이어가지 못했습니다" description="잠시 후 다시 시도하거나 오른쪽 위에서 새 대화를 시작해 주세요." />}
+          {!pending && options.length > 0 && (
             <View style={styles.options}>
-              {options.map((opt) => {
-                const selected = current?.type === 'multi_choice' && multiPicked.includes(opt);
-                return (
-                  <Pressable
-                    key={opt}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    hitSlop={6}
-                    onPress={() => {
-                      if (step === 'intro') pickIntro(opt as (typeof INTRO_OPTIONS)[number]);
-                      else if (step === 'purpose') pickPurpose(opt as PromotionPurpose);
-                      else if (current) pickAnswer(current, opt);
-                    }}
-                    style={({ pressed }) => [
-                      styles.option,
-                      selected && styles.optionOn,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text style={[styles.optionText, selected && { color: color.brand[700] }]}>{opt}</Text>
-                  </Pressable>
-                );
-              })}
-              {current?.type === 'multi_choice' && (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => confirmMulti(current)}
-                  style={({ pressed }) => [
-                    styles.option,
-                    styles.confirm,
-                    multiPicked.length === 0 && { opacity: 0.4 },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text style={[text.body, { color: color.paper }]}>
-                    {multiPicked.length > 0 ? `${multiPicked.length}개 골랐어요, 다음` : '골라 주세요'}
-                  </Text>
-                </Pressable>
-              )}
+              {options.map((option) => (
+                <Pressable key={option.id} accessibilityRole="button" onPress={() => pickOption(option)}
+                  style={({ pressed }) => [styles.option, pressed && { opacity: 0.7 }]}
+                ><Text style={styles.optionText}>{option.label}</Text></Pressable>
+              ))}
             </View>
           )}
-
-          {step === 'submitting' && <Loading label="추천을 만드는 중" />}
+          {recommendation && (
+            <View style={styles.recommendation}>
+              <Text style={styles.recommendationEyebrow}>AI 추천</Text>
+              <Text style={styles.recommendationTitle}>{recommendation.title}</Text>
+              <Text style={styles.recommendationConcept}>{recommendation.concept}</Text>
+              <View style={styles.recommendationActions}>
+                <Pressable accessibilityRole="button" onPress={tryNext} style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.7 }]}>
+                  <Text style={styles.secondaryText}>다른 추천</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={accept} disabled={acceptRecommendation.isPending}
+                  style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.8 }]}
+                ><Text style={styles.primaryText}>{acceptRecommendation.isPending ? '촬영 준비 중…' : '이 포맷으로 촬영하기'}</Text></Pressable>
+              </View>
+            </View>
+          )}
         </ScrollView>
-
-        {/* 하단 자유 입력 — 언제든 쓸 수 있고, 6.2 free_text 로 갑니다 */}
         <View style={styles.inputRow}>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="직접 입력해 보세요"
-            placeholderTextColor={color.ink[300]}
-            style={styles.input}
-            returnKeyType="send"
-            onSubmitEditing={sendFree}
+          <TextInput value={input} onChangeText={setInput} placeholder="직접 입력해 보세요" placeholderTextColor={color.ink[300]}
+            style={styles.input} returnKeyType="send" onSubmitEditing={sendText} editable={!!sessionId && !pending && !recommendation}
           />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="보내기"
-            onPress={sendFree}
-            disabled={!input.trim()}
-            style={({ pressed }) => [
-              styles.send,
-              // 시안: disabled:opacity-40 · active:scale-90
-              !input.trim() && { opacity: 0.4 },
-              pressed && input.trim() ? { transform: [{ scale: 0.9 }] } : null,
-            ]}
-          >
-            {/* 시안 v3: 종이비행기가 아니라 위쪽 화살표입니다 */}
-            <ArrowUp size={20} strokeWidth={2} color={color.paper} />
-          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="보내기" onPress={sendText}
+            disabled={!input.trim() || pending || !!recommendation}
+            style={({ pressed }) => [styles.send, (!input.trim() || pending || !!recommendation) && { opacity: 0.4 }, pressed && input.trim() ? { transform: [{ scale: 0.9 }] } : null]}
+          ><ArrowUp size={20} strokeWidth={2} color={color.paper} /></Pressable>
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -393,115 +208,29 @@ export default function AiChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    alignItems: 'center',
-    paddingVertical: space[3],
-    borderBottomWidth: theme.border.hairline,
-    borderBottomColor: color.ink[200],
-  },
-  /*
-   * 시안: px-5 pt-[110px] · 말풍선 사이 gap-3.
-   * 시안 헤더는 화면 위에 겹쳐 있고(absolute) 그 아래 110 에서 내용이 시작합니다.
-   * 우리 AppBar 는 흐름 안에 있어 안전영역(54)+헤더(44)=98 을 이미 먹으므로
-   * 남은 12 만 여기서 더합니다. 20 을 주면 첫 말풍선이 8pt 내려갑니다.
-   */
-  chat: {
-    paddingHorizontal: space[5],
-    paddingTop: space[3],
-    gap: space[3],
-    paddingBottom: space[6],
-  },
-  // 시안: items-start — 아바타가 말풍선 위쪽에 붙습니다(아래가 아닙니다)
+  chat: { paddingHorizontal: space[5], paddingTop: space[3], gap: space[3], paddingBottom: space[6] },
   bubbleRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-start' },
-  avatar: {
-    width: 32,
-    height: 32,
-    marginTop: 2, // 시안 mt-0.5
-    borderRadius: radius.pill,
-    backgroundColor: color.brand[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // 가이드라인 §5.6: 최대 78%, 꼬리쪽 모서리만 8, AI 말풍선에만 그림자
+  meRow: { justifyContent: 'flex-end' },
+  avatar: { width: 32, height: 32, marginTop: 2, borderRadius: radius.pill, backgroundColor: color.brand[600], alignItems: 'center', justifyContent: 'center' },
   bubble: { maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.lg },
-  ai: {
-    backgroundColor: color.paper,
-    borderTopLeftRadius: radius.xs,
-    ...theme.elevation('bubble'),
-  },
+  ai: { backgroundColor: color.paper, borderTopLeftRadius: radius.xs, ...theme.elevation('bubble') },
   me: { backgroundColor: color.brand[600], borderTopRightRadius: radius.xs },
-  // 시안: 15 · font-medium · leading-snug(1.375) = 20.6
-  bubbleText: { ...text.body, lineHeight: 20.6 },
-  headerBtn: {
-    width: sizing.iconButton,
-    height: sizing.iconButton,
-    marginRight: -6,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /**
-   * 시안: flex flex-wrap gap-2 — 칩이 **가로로 나란히** 놓이고 넘치면 줄바꿈합니다.
-   * flexDirection 을 안 주면 세로로 쌓이며 전체 폭으로 늘어나, 대화가 아니라
-   * 목록처럼 보입니다(이전 상태).
-   */
-  options: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: space[2],
-    // 시안 ml-10 — 칩이 아바타(32)+간격(8) 만큼 들어가 말풍선과 줄이 맞습니다
-    marginLeft: 40,
-  },
-  /**
-   * 시안 answerChip — rounded-full · border-brand-border · bg-canvas · px-4 py-2.5.
-   * 사각 카드가 아니라 알약입니다. 대화 안에서 "고르는 말" 로 읽히게 하는 형태라
-   * 카드로 그리면 대화가 아니라 목록처럼 보입니다.
-   */
-  option: {
-    // 시안: px-4 py-2.5 — 높이를 고정하지 않고 내용에 맞춥니다. 터치는 hitSlop 으로 보전.
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
-    paddingHorizontal: space[4],
-    paddingVertical: 10,
-    borderRadius: radius.pill,
-    borderWidth: theme.border.hairline,
-    borderColor: color.brand[300],
-    backgroundColor: color.canvas,
-  },
-  // 시안: text-[14px] font-semibold text-brand
-  optionText: {
-    ...theme.text.bodySmall,
-    fontFamily: theme.text.bodyStrong.fontFamily,
-    fontWeight: theme.text.bodyStrong.fontWeight,
-    color: color.brand[600],
-  },
-  optionOn: { borderColor: color.brand[600], backgroundColor: color.brand[50] },
-  confirm: { backgroundColor: color.brand[600], borderColor: color.brand[600], alignItems: 'center' },
-  inputRow: {
-    flexDirection: 'row',
-    gap: space[2],
-    padding: space[4],
-    borderTopWidth: theme.border.hairline,
-    borderTopColor: color.hairlineSoft,
-    backgroundColor: color.canvas,
-  },
-  // 시안 v3: h-11(44) · rounded-full · border-hairline · **bg-panel(흰색)**
-  input: {
-    flex: 1,
-    height: sizing.touchTargetMin,
-    borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    borderRadius: radius.pill,
-    backgroundColor: color.paper,
-    paddingHorizontal: space[4],
-    ...theme.text.body,
-  },
-  send: {
-    width: sizing.touchTargetMin,
-    height: sizing.touchTargetMin,
-    borderRadius: radius.pill,
-    backgroundColor: color.brand[600],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  bubbleText: { ...text.body, lineHeight: 21 },
+  meText: { color: color.paper },
+  headerBtn: { width: sizing.iconButton, height: sizing.iconButton, marginRight: -6, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginLeft: 40 },
+  option: { alignSelf: 'flex-start', paddingHorizontal: space[4], paddingVertical: 10, borderRadius: radius.pill, borderWidth: theme.border.hairline, borderColor: color.brand[300], backgroundColor: color.canvas },
+  optionText: { ...theme.text.bodySmall, fontWeight: '600', color: color.brand[600] },
+  recommendation: { marginLeft: 40, padding: space[4], gap: space[2], borderRadius: radius.lg, borderWidth: theme.border.hairline, borderColor: color.brand[300], backgroundColor: color.paper },
+  recommendationEyebrow: { ...text.micro, color: color.brand[600] },
+  recommendationTitle: { ...theme.text.heading, color: color.ink[900] },
+  recommendationConcept: { ...text.body, color: color.ink[500] },
+  recommendationActions: { flexDirection: 'row', gap: space[2], marginTop: space[2] },
+  secondaryButton: { paddingHorizontal: space[4], height: sizing.touchTargetMin, justifyContent: 'center', borderRadius: radius.pill, borderWidth: theme.border.hairline, borderColor: color.brand[400] },
+  secondaryText: { ...text.body, color: color.brand[600] },
+  primaryButton: { flex: 1, height: sizing.touchTargetMin, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: color.brand[600] },
+  primaryText: { ...text.body, fontWeight: '600', color: color.paper },
+  inputRow: { flexDirection: 'row', gap: space[2], padding: space[4], borderTopWidth: theme.border.hairline, borderTopColor: color.hairlineSoft, backgroundColor: color.canvas },
+  input: { flex: 1, height: sizing.touchTargetMin, borderWidth: theme.border.hairline, borderColor: color.ink[200], borderRadius: radius.pill, backgroundColor: color.paper, paddingHorizontal: space[4], ...theme.text.body },
+  send: { width: sizing.touchTargetMin, height: sizing.touchTargetMin, borderRadius: radius.pill, backgroundColor: color.brand[600], alignItems: 'center', justifyContent: 'center' },
 });
