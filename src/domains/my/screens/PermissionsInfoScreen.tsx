@@ -240,10 +240,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // 시안 h2 는 20 입니다. 스케일에 20 이 없어 이 화면에서만 크기를 짚어 줍니다.
-  title: { ...text.title, fontSize: 20, lineHeight: 26, marginTop: space[4] },
+  /*
+   * 시안 h2 는 20 이고 `leading-*` 이 없습니다 — leading 없는 시안 텍스트는
+   * 줄상자가 글자크기 × 1.5 입니다(캡처 실측). 20 → 30.
+   * 토큰(26)을 쓰면 여기서 4pt 를 잃고 그 아래가 통째로 올라옵니다.
+   */
+  title: { ...text.title, fontSize: 20, lineHeight: 30, marginTop: space[4] },
+  // 시안: leading-relaxed = 14 × 1.625 = 22.75 (토큰 21 보다 큽니다)
   lead: {
     ...text.bodySmall,
+    lineHeight: 22.75,
     marginTop: 6,
     maxWidth: 280,
     textAlign: 'center',
@@ -293,8 +299,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: theme.border.hairline,
     borderBottomColor: color.ink[200],
   },
+  // 시안 15px 은 leading 이 없어 1.5 가 걸립니다
   allText: {
     ...text.body,
+    lineHeight: 22.5,
     fontFamily: theme.text.heading.fontFamily,
     fontWeight: theme.text.heading.fontWeight,
   },

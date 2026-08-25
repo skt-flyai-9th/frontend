@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   chromeButton: {
     width: 36,
     height: 36,
-    marginLeft: -6,
+    // 시안에 음수 여백 없음 — 어두운 오버레이 헤더입니다 (FaqScreen 헤더 규칙 주석 참고)
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

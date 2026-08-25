@@ -154,7 +154,17 @@ const styles = StyleSheet.create({
     ...theme.elevation('card'),
   },
 
-  // 시안: px-4 py-4 · 질문과 chevron 사이 gap-3
+  /*
+   * 시안: px-4 py-4 · 질문과 chevron 사이 gap-3.
+   *
+   * ⚠️ 접힌 행의 높이를 정하는 건 **질문 글자가 아니라 chevron** 입니다.
+   *    시안 chevron 은 `<span>` 안의 인라인 svg(18)라 줄상자가 24.5 로 잡히고,
+   *    질문 줄상자(15 × 1.5 = 22.5)보다 커서 이쪽이 행 높이를 끕니다.
+   *    우리 아이콘은 높이 18 짜리 View 라 22.5 가 이겨서 행이 2pt 짧았고,
+   *    카드마다 쌓여 다섯 번째에서 9pt 어긋났습니다(캡처 실측).
+   *    그래서 글자를 늘리는 대신 **행에 최소 높이**를 둡니다 —
+   *    질문이 두 줄로 감기면 시안처럼 글자가 높이를 끌어야 하기 때문입니다.
+   */
   qRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,15 +172,10 @@ const styles = StyleSheet.create({
     gap: space[3],
     paddingHorizontal: space[4],
     paddingVertical: space[4],
+    minHeight: 24.5 + 32,
   },
-  /*
-   * 시안 질문은 `text-[15px] font-semibold` 뿐 — **줄높이를 지정하지 않습니다.**
-   * 그래서 폰트 고유 metrics 의 normal(≈1.63)이 걸려 줄상자가 24.5 가 됩니다.
-   * 우리 `bodyStrong` 토큰은 22 라 카드가 매번 2.5 씩 짧아지고, 다섯 번째 카드에서
-   * 9pt 어긋납니다(캡처 실측). 토큰은 다른 38개 화면이 함께 쓰므로
-   * 이 화면에서만 시안이 실제로 쓰는 값으로 덮습니다.
-   */
-  q: { ...theme.text.bodyStrong, flex: 1, lineHeight: 24.5 },
+  // 시안 15px 은 leading 이 없어 1.5 가 걸립니다 (토큰 22 → 22.5)
+  q: { ...theme.text.bodyStrong, flex: 1, lineHeight: 22.5 },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
 
   // 시안: px-4 pb-4 · 14 · leading-relaxed · #475569
