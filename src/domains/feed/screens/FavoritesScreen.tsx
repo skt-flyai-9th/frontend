@@ -23,6 +23,7 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { StateBlock } from '../../../ui/Feedback';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
+import { representativeVideoUrl } from '../../../api/formatVideo';
 import { pressTap } from '../../../ui/press';
 import { useFavorites, useToggleFavorite } from '../../../api/queries/project';
 import theme, { color, radius, space, text } from '../../../design/theme';
@@ -161,7 +162,7 @@ export default function FavoritesScreen() {
                   ]}
                 >
                   <VideoThumbnail
-                    url={item.referenceUrl}
+                    url={representativeVideoUrl(item)}
                     platform={item.sourcePlatform}
                     aspectRatio={3 / 4}
                     style={styles.thumb}

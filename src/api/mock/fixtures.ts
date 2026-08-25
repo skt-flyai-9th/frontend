@@ -272,6 +272,8 @@ export const videoFormats = [
       '점심 손님에게 가장 잘 통하는 구성입니다',
     ],
     reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    // 지금 트렌드 클러스터 3건은 대표·가이드가 같은 주소입니다. 달라질 수 있습니다.
+    guide_video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     source_platform: 'YOUTUBE',
   },
   {
@@ -283,6 +285,8 @@ export const videoFormats = [
     face_exposure_level: '낮음',
     recommend_reasons: ['처음 오는 손님의 부담을 줄입니다', '혼자서도 촬영할 수 있습니다'],
     reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    // 지금 트렌드 클러스터 3건은 대표·가이드가 같은 주소입니다. 달라질 수 있습니다.
+    guide_video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     source_platform: 'YOUTUBE',
   },
   {
@@ -294,6 +298,8 @@ export const videoFormats = [
     face_exposure_level: '보통',
     recommend_reasons: ['가장 빨리 끝납니다', '공유가 잘 일어납니다'],
     reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    // 지금 트렌드 클러스터 3건은 대표·가이드가 같은 주소입니다. 달라질 수 있습니다.
+    guide_video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     source_platform: 'YOUTUBE',
   },
 ];
@@ -445,6 +451,9 @@ export const tasks = [
  *
  * guide_type: OVERLAY / DANCE / BROLL
  * reference_video 는 { reference_url, source_platform } 두 필드뿐입니다.
+ * ⚠️ 이름은 reference 지만 **가이드 영상**을 담는 자리입니다 — 촬영 중에 따라 보는
+ *    영상이라서입니다. 서버가 대표 영상을 보내면 사장님이 따라 출 안무가 아니라
+ *    유행 소개 영상을 보게 됩니다 (BE_전달사항.md 참고).
  * (start_sec / end_sec 없음 — 구간은 사장님이 직접 잡습니다)
  */
 export const guides: Record<number, unknown> = {
@@ -465,6 +474,7 @@ export const guides: Record<number, unknown> = {
     guide_type: 'DANCE',
     overlay: null,
     reference_video: {
+      // 가이드 영상 (포맷의 guide_video_url 과 같은 값)
       reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       source_platform: 'YOUTUBE',
     },

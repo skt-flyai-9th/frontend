@@ -33,6 +33,7 @@ import {
   type CameraPreviewHandle,
 } from '../../../ui/CameraPreview';
 import { PipGuide } from '../../../ui/PipGuide';
+import { guideVideoUrl } from '../../../api/formatVideo';
 import { Loading, JobProgress } from '../../../ui/Feedback';
 import { Shutter } from '../../../ui/Shutter';
 import {
@@ -41,6 +42,7 @@ import {
   useUpdateTask,
   useUploadFootage,
 } from '../../../api/queries/shoot';
+import { useProject, useVideoFormat } from '../../../api/queries/project';
 import { color, space, radius, text, sizing } from '../../../design/theme';
 import type { CreateStackParamList } from '../../../navigation/types';
 
@@ -56,6 +58,9 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
 
   const { data: guide, isLoading } = useTaskGuide(taskId);
+  // 9.1 이 참고 영상을 안 줄 때를 대비해 포맷의 가이드 영상을 확보해 둡니다.
+  const { data: project } = useProject(projectId);
+  const { data: format } = useVideoFormat(project?.videoFormatId ?? undefined);
 
   /** 남은 컷이 있는지 보고 다음 갈 곳을 정합니다 (시안 CameraScreen.accept 와 같은 규칙). */
   const { data: board } = useTasks(projectId);
@@ -195,7 +200,8 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
         ⚠️ 이 아래로는 아무것도 그리지 않습니다. 플레이어가 항상 맨 위여야 합니다.
       */}
       {/* 시안: 안무 카메라의 PiP 는 110 입니다(카메라는 98) */}
-      <PipGuide url={guide?.referenceVideo?.referenceUrl} width={110} />
+      {/* 안무를 따라 추는 화면이라 **가이드 영상** 입니다 (api/formatVideo.ts) */}
+      <PipGuide url={guide?.referenceVideo?.referenceUrl ?? guideVideoUrl(format)} width={110} />
 
       {/*
         시안 Shutter: 하단 밴드 150. 셔터 76 은 가운데, 전환 버튼은 오른쪽 26 에

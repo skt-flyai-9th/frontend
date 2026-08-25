@@ -30,6 +30,7 @@ import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
 import { Banner, Loading } from '../../../ui/Feedback';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
+import { guideVideoUrl } from '../../../api/formatVideo';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
 import { useCreatePlan, useVideoFormat } from '../../../api/queries/project';
 import { useTasks } from '../../../api/queries/shoot';
@@ -111,14 +112,15 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
 
       {/* ① 시안: 좌우 여백 없는 3:4 */}
       {!format.sourcePlatform || format.sourcePlatform === 'YOUTUBE' ? (
-        <GuidePlayer url={format.referenceUrl} fullBleed />
+        /* 촬영 준비 화면이므로 **가이드 영상** 입니다 (홈 카드의 대표 영상 아님) */
+        <GuidePlayer url={guideVideoUrl(format)} fullBleed />
       ) : (
         /*
          * ⚠️ 인스타그램·틱톡은 임베드 재생 자체를 지원하지 않아 썸네일로 대체합니다.
          *    명세상 현재 카탈로그는 전부 YouTube 라 실질 이슈는 없습니다.
          */
         <VideoThumbnail
-          url={format.referenceUrl}
+          url={guideVideoUrl(format)}
           platform={format.sourcePlatform}
           aspectRatio={3 / 4}
         />
