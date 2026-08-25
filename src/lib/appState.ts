@@ -8,6 +8,7 @@
  *
  * 서버에 있는 값을 여기 복사해 두면 두 곳이 어긋납니다. 하지 않습니다.
  */
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,6 +17,14 @@ interface AppState {
   /** 로그인 후 등록·선택한 가게 */
   storeId: number | null;
   signedIn: boolean;
+
+  /**
+   * 최초 실행 튜토리얼을 본 적이 있는지 (`domains/onboarding`).
+   *
+   * **계정이 아니라 기기 기준**입니다. 그래서 `reset()`(로그아웃)이 건드리지
+   * 않습니다 — 로그아웃할 때마다 튜토리얼이 다시 뜨면 안내가 아니라 방해입니다.
+   */
+  tutorialSeen: boolean;
 
   /**
    * 마케팅 수신 동의 (약관 화면에서 받습니다).
@@ -45,6 +54,7 @@ interface AppState {
 
   setStoreId: (id: number | null) => void;
   setSignedIn: (v: boolean) => void;
+  setTutorialSeen: (v: boolean) => void;
   setMarketingAgreed: (v: boolean) => void;
   toggleGuide: () => void;
   setGuideOpacity: (v: number) => void;
@@ -58,6 +68,7 @@ export const useAppState = create<AppState>()(
     (set) => ({
       storeId: null,
       signedIn: false,
+      tutorialSeen: false,
       marketingAgreed: false,
       guideVisible: true,
       guideOpacity: 0.8,
@@ -65,6 +76,7 @@ export const useAppState = create<AppState>()(
 
       setStoreId: (storeId) => set({ storeId }),
       setSignedIn: (signedIn) => set({ signedIn }),
+      setTutorialSeen: (tutorialSeen) => set({ tutorialSeen }),
       setMarketingAgreed: (marketingAgreed) => set({ marketingAgreed }),
       toggleGuide: () => set((s) => ({ guideVisible: !s.guideVisible })),
       setGuideOpacity: (guideOpacity) => set({ guideOpacity }),
@@ -73,6 +85,7 @@ export const useAppState = create<AppState>()(
         set((s) => ({ formatFilters: { ...s.formatFilters, ...f } })),
       resetFormatFilters: () =>
         set({ formatFilters: { sort: 'trending', period: '7d', keyword: '' } }),
+      // tutorialSeen 은 일부러 빠져 있습니다 (위 필드 주석 참고).
       reset: () => set({ storeId: null, signedIn: false }),
     }),
     {
@@ -81,6 +94,27 @@ export const useAppState = create<AppState>()(
     }
   )
 );
+
+/**
+ * AsyncStorage 에서 값이 실제로 올라왔는지.
+ *
+ * ⚠️ persist 는 **비동기**입니다. 복원되기 전 한 프레임 동안은 위의 초기값
+ *    (signedIn false · tutorialSeen false)이 그대로 보입니다. 그 순간에 첫 화면을
+ *    정하면 **이미 본 튜토리얼이 켤 때마다 다시 뜹니다.**
+ *    그래서 `App.tsx` 가 이 값이 true 가 될 때까지 splash 를 붙잡습니다.
+ */
+export function useHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(() => useAppState.persist.hasHydrated());
+
+  useEffect(() => {
+    // 구독을 걸기 전에 이미 끝났을 수 있어 양쪽을 다 봅니다.
+    const done = useAppState.persist.onFinishHydration(() => setHydrated(true));
+    if (useAppState.persist.hasHydrated()) setHydrated(true);
+    return done;
+  }, []);
+
+  return hydrated;
+}
 
 /** 화면에서 자주 쓰는 축약 */
 export function useCurrentStore(): number | undefined {

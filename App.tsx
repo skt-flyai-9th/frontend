@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Text, View } from 'react-native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAppFonts } from './src/design/fonts';
+import { useHydrated } from './src/lib/appState';
 import { ApiError } from './src/api/http';
 import { PlayTri } from './src/ui/RealsLogo';
 
@@ -62,12 +63,22 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const fontsReady = useAppFonts();
+  /**
+   * 기기에 저장된 값(로그인 여부·가게·튜토리얼)이 올라올 때까지 기다립니다.
+   *
+   * `RootNavigator` 는 `initialRouteName` 을 **첫 렌더에 딱 한 번** 정합니다.
+   * 그 시점에 persist 복원이 안 끝나 있으면 전부 초기값으로 읽혀,
+   * 이미 튜토리얼을 본 사람에게도 켤 때마다 다시 뜹니다.
+   * 폰트 로딩과 같은 splash 뒤에서 함께 기다리므로 체감 시간은 늘지 않습니다.
+   */
+  const hydrated = useHydrated();
+  const ready = fontsReady && hydrated;
 
   useEffect(() => {
-    if (fontsReady) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsReady]);
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
 
-  if (!fontsReady) {
+  if (!ready) {
     /**
      * 시안 splash — 폰트 로딩 공백을 빈 화면 대신 로고(Reals▶)로 채웁니다.
      *

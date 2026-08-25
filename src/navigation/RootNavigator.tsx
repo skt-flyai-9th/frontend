@@ -4,7 +4,9 @@
  * 40개가 넘는 화면을 한 스택에 나열하지 않고 5개 흐름으로 나눴습니다.
  * 여기서는 "어떤 흐름이 있는지"만 보이고, 세부 화면은 각 스택 파일이 관리합니다.
  *
- *   Onboarding → Auth → StoreSetup → Main ⇄ Create
+ *   Tutorial → Onboarding → Auth → StoreSetup → Main ⇄ Create
+ *
+ * 맨 앞의 Tutorial 은 **최초 실행 때 한 번만** 지나갑니다.
  */
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -22,6 +24,9 @@ import type {
   RootStackParamList,
   StoreSetupStackParamList,
 } from './types';
+
+// 최초 실행 안내
+import TutorialScreen from '../domains/onboarding/screens/TutorialScreen';
 
 // 온보딩·계정
 import TermsScreen from '../domains/auth/screens/TermsScreen';
@@ -158,18 +163,33 @@ function CreateStack() {
 export default function RootNavigator() {
   const signedIn = useAppState((s) => s.signedIn);
   const storeId = useAppState((s) => s.storeId);
+  const tutorialSeen = useAppState((s) => s.tutorialSeen);
 
-  // 명세 S01.1.1: 최초 실행 시에만 전체 온보딩을 노출합니다.
-  const initial: keyof RootStackParamList = !signedIn
-    ? 'Onboarding'
-    : !storeId
-      ? 'StoreSetup'
-      : 'Main';
+  /*
+   * 명세 S01.1.1: 최초 실행 시에만 전체 온보딩을 노출합니다.
+   *
+   * ⚠️ 여기 오기 전에 **persist 복원이 끝나 있어야** 합니다. 안 그러면 세 값이
+   *    모두 초기값이라 이미 본 사람에게도 튜토리얼이 다시 뜹니다.
+   *    `App.tsx` 가 `useHydrated()` 로 붙잡고 있습니다.
+   *
+   * 튜토리얼 조건에 `!signedIn` 이 함께 붙는 이유: 이미 로그인한 기기에서
+   * 앱을 업데이트하면 tutorialSeen 이 없어 false 로 읽힙니다. 그때 튜토리얼을
+   * 띄우면 마지막 버튼이 **이미 가입한 사람을 회원가입으로** 보냅니다.
+   */
+  const initial: keyof RootStackParamList =
+    !tutorialSeen && !signedIn
+      ? 'Tutorial'
+      : !signedIn
+        ? 'Onboarding'
+        : !storeId
+          ? 'StoreSetup'
+          : 'Main';
 
   return (
     // ref 는 항상 붙입니다(비용 없음). 전역 노출만 EXPO_PUBLIC_QA_NAV=1 에서 일어납니다.
     <NavigationContainer ref={navRef} onReady={exposeQaNav}>
       <Root.Navigator initialRouteName={initial} screenOptions={noHeader}>
+        <Root.Screen name="Tutorial" component={TutorialScreen} />
         <Root.Screen name="Onboarding" component={OnboardingStack} />
         <Root.Screen name="Auth" component={AuthStack} />
         <Root.Screen name="StoreSetup" component={StoreSetupStack} />
