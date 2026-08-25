@@ -17,6 +17,15 @@ interface AppState {
   storeId: number | null;
   signedIn: boolean;
 
+  /**
+   * 마케팅 수신 동의 (약관 화면에서 받습니다).
+   *
+   * 받는 곳(약관)과 서버로 보내는 곳(1.2 회원가입)이 달라서 여기를 거칩니다.
+   * 예전에는 회원가입 화면에서 한 번 더 물었는데, 시안에는 그 체크박스가 없고
+   * 같은 동의를 두 번 받는 것도 이상합니다. 약관에서 받은 값을 그대로 씁니다.
+   */
+  marketingAgreed: boolean;
+
   /** 카메라 가이드 (기기 설정) */
   guideVisible: boolean;
   guideOpacity: number;
@@ -36,6 +45,7 @@ interface AppState {
 
   setStoreId: (id: number | null) => void;
   setSignedIn: (v: boolean) => void;
+  setMarketingAgreed: (v: boolean) => void;
   toggleGuide: () => void;
   setGuideOpacity: (v: number) => void;
   setFormatFilters: (f: Partial<AppState['formatFilters']>) => void;
@@ -48,12 +58,14 @@ export const useAppState = create<AppState>()(
     (set) => ({
       storeId: null,
       signedIn: false,
+      marketingAgreed: false,
       guideVisible: true,
       guideOpacity: 0.8,
       formatFilters: { sort: 'trending', period: '7d', keyword: '' },
 
       setStoreId: (storeId) => set({ storeId }),
       setSignedIn: (signedIn) => set({ signedIn }),
+      setMarketingAgreed: (marketingAgreed) => set({ marketingAgreed }),
       toggleGuide: () => set((s) => ({ guideVisible: !s.guideVisible })),
       setGuideOpacity: (guideOpacity) => set({ guideOpacity }),
 

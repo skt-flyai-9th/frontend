@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme, { color, radius, sizing, space, text } from '../design/theme';
+import { pressTap } from './press';
 
 type Variant = 'primary' | 'secondary' | 'quiet' | 'danger';
 type Size = 'large' | 'small';
@@ -68,15 +69,15 @@ export function Button({
             disabled && variant === 'primary' ? color.track : BG[variant],
           alignSelf: full ? 'stretch' : 'flex-start',
           paddingHorizontal: full ? space[5] : space[6],
+          /**
+           * 시안은 눌림을 축소로 표현합니다(active:scale-95). 투명도는 비활성에만 씁니다.
+           * 기본 버튼의 비활성은 track 색이 이미 말해 주므로 흐리지 않습니다.
+           */
           opacity:
-            disabled && variant === 'primary'
-              ? 1
-              : inactive
-                ? theme.opacity.disabled
-                : pressed
-                  ? theme.opacity.pressed
-                  : 1,
+            disabled && variant === 'primary' ? 1 : inactive ? theme.opacity.disabled : 1,
         },
+        // 비활성일 때는 눌러도 반응하지 않아야 하므로 축소도 걸지 않습니다.
+        !inactive && pressTap(pressed, 'button'),
         variant === 'secondary' && styles.secondaryBorder,
         style,
       ]}

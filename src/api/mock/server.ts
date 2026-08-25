@@ -21,6 +21,20 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // ── 메모리 상태 ────────────────────────────────────────────
 /** 태스크 완료 여부. 촬영 흐름이 이어지려면 상태가 남아야 합니다. */
 const taskStatus = new Map<number, string>();
+
+/**
+ * 캡처(QA) 전용 — 촬영을 전부 끝낸 상태로 만들어 둡니다.
+ *
+ * 편집·내보내기는 "다 찍은 뒤" 화면이라, 그냥 열면 14.1 이 TASKS_INCOMPLETE 로
+ * 막습니다(그게 맞는 동작입니다). 화면을 시안과 대조하려면 그 앞 상태가 필요해서
+ * EXPO_PUBLIC_QA_NAV=1 일 때만 전역 하나를 붙입니다. 앱 동작에는 영향이 없습니다.
+ */
+if (process.env.EXPO_PUBLIC_QA_NAV === '1') {
+  (globalThis as { __realsShotAll?: () => number }).__realsShotAll = () => {
+    fx.tasks.forEach((t) => taskStatus.set(t.id, 'DONE'));
+    return fx.tasks.length;
+  };
+}
 /** 평가를 몇 번 실행했는지. 실행 전 조회는 404 여야 합니다. */
 const evalCount = new Map<number, number>();
 /** 수정 요청 이력. 명세 14.3 revision_id 가 증가하는지 확인용입니다. */
@@ -58,19 +72,55 @@ let targetState: Record<string, unknown>[] = fx.targetCustomers.map((t) => ({ ..
  * 안 바꾸면 GET 이 항상 빈 목록을 줘서 "연결했는데 연결 안 됨" 이 됩니다.
  * (§실기기 버그에서 배운 그 유형: 저장하고 다시 조회했을 때 반영되는가)
  */
-let connectionState: Record<string, unknown>[] = [];
+/**
+ * 시안은 인스타그램·유튜브가 **이미 연동된 상태**로 시작합니다
+ * (프로필 수정 화면에 계정이 "연동됨" 배지와 함께 떠 있습니다).
+ * 빈 배열로 시작하면 그 상태를 한 번도 볼 수 없어 시안과 대조가 안 됩니다.
+ */
+const CONNECTIONS_SEED = [
+  {
+    id: 8801,
+    sns_platform: 'INSTAGRAM',
+    sns_account_name: 'nangok_kalguksu',
+    token_expires_at: '2026-11-19T00:00:00Z',
+  },
+  {
+    id: 8802,
+    sns_platform: 'YOUTUBE',
+    sns_account_name: '난곡신사손칼국수TV',
+    token_expires_at: '2026-11-19T00:00:00Z',
+  },
+];
+let connectionState: Record<string, unknown>[] = CONNECTIONS_SEED.map((c) => ({ ...c }));
 /**
  * 5.3 찜 (2026-08-23 신설). 계정 단위이므로 storeId 와 무관합니다.
  * POST/DELETE 는 멱등 — Set 이라 중복 add/delete 가 자연히 멱등이 됩니다.
  * 5.1·5.2 응답의 is_favorite 는 이 Set 에서 파생합니다. 상태를 두 곳에
  * 두면 반드시 어긋나므로(저장 안 되는 앱 사고 유형) 파생만 합니다.
  */
-let favoriteSet = new Set<number>();
+/**
+ * 시안은 계정에 **이미 찜한 숏폼이 있는 상태**로 시작합니다
+ * (홈 카드의 하트가 채워져 있고, 관심목록 탭에 그리드가 차 있습니다).
+ * 빈 Set 으로 시작하면 두 화면이 모두 빈 상태로만 보여서 시안과 대조할 수가 없습니다.
+ */
+const FAVORITES_SEED = [71, 73];
+let favoriteSet = new Set<number>(FAVORITES_SEED);
 /** 3.6 로고. 업로드하면 실제로 3.1 응답이 바뀌어야 "저장 안 되는 앱" 이 안 됩니다. */
 let logoUrl: string | null = null;
 /** 1.5 회원정보. PATCH 가 실제로 반영돼야 재조회 검증이 됩니다. */
 let meState: Record<string, unknown> = {};
 let nextId = 9000;
+
+/**
+ * 15.2 완성 숏폼 갤러리.
+ *
+ * 🔴 여기가 "만들었는데 숏츠가 없다" 의 원인이었습니다 (2026-08-26).
+ *    예전에는 fx.storeShorts 를 **그대로** 돌려줘서, 앱에서 영상을 끝까지 만들어도
+ *    마이페이지 그리드·내 숏폼 뷰어에는 영영 나타나지 않았습니다.
+ *    15.1 로 출력 파일이 만들어지면 실서버는 그 결과물이 15.2 에 잡힙니다.
+ *    Mock 도 같은 일을 해야 합니다 — 이 프로젝트 제1규칙(저장은 상태를 실제로 바꾼다).
+ */
+let shortsState: Record<string, unknown>[] = fx.storeShorts.map((v) => ({ ...v }));
 
 /** 콘티. 수정하면 반영돼야 하므로 복사본을 들고 있습니다. */
 let sceneState: Record<string, unknown>[] = fx.scenes.map((s) => ({ ...s }));
@@ -107,12 +157,13 @@ export function resetMockState() {
   jobStartedAt.clear();
   projectState = {};
   sceneState = fx.scenes.map((s) => ({ ...s }));
+  shortsState = fx.storeShorts.map((v) => ({ ...v }));
   storeState = { ...fx.store };
   menuState = fx.menus.map((m) => ({ ...m }));
   photoState = fx.photos.map((p) => ({ ...p }));
   targetState = fx.targetCustomers.map((t) => ({ ...t }));
-  connectionState = [];
-  favoriteSet = new Set();
+  connectionState = CONNECTIONS_SEED.map((c) => ({ ...c }));
+  favoriteSet = new Set(FAVORITES_SEED);
   logoUrl = null;
   meState = {};
   nextId = 9000;
@@ -207,12 +258,34 @@ export async function mockRequest<T>(
   if (p === '/stores' && method === 'POST') {
     jobStartedAt.delete('import');
     const b = (body ?? {}) as Record<string, unknown>;
+
+    /**
+     * 명세 2.2 kakao_place_id (2026-08-25).
+     *
+     * **저장하지 않습니다.** 명세가 "저장되지 않으며 대표메뉴 자동 수집을
+     * 트리거하는 데만 쓰이고 버려진다" 고 못 박았습니다. 그래서 storeState 에
+     * 넣지 않는 게 실서버와 같은 행동입니다 — 여기서만은 "저장은 상태를 실제로
+     * 바꿔야 한다" 규칙의 예외이고, 그 근거가 명세에 있습니다.
+     *
+     * 대신 타입은 봅니다. 실서버가 문자열을 기대하는데 프론트가 숫자를 보내는
+     * 실수는 조용히 지나가면 BE 붙일 때까지 안 드러납니다.
+     */
+    if (b.kakao_place_id != null && typeof b.kakao_place_id !== 'string') {
+      throw new ApiError(
+        400,
+        'VALIDATION_ERROR',
+        `kakao_place_id 는 문자열입니다 (받은 값: ${typeof b.kakao_place_id})`
+      );
+    }
+
     return send({
       id: 10,
       name: b.name ?? fx.store.name,
       category: b.category ?? fx.store.category,
       address: b.address ?? fx.store.address,
-      info_source: b.infoSource ?? 'MANUAL',
+      // body 는 입구에서 toSnake 를 거칩니다. camelCase 로 읽으면 늘 undefined 가
+      // 되어 NAVER·KAKAO 로 등록해도 응답이 MANUAL 로 나갔습니다.
+      info_source: b.info_source ?? 'MANUAL',
       import_status: 'IN_PROGRESS',
       created_at: new Date().toISOString(),
     });
@@ -422,7 +495,10 @@ export async function mockRequest<T>(
   if (match(p, /^\/stores\/(\d+)\/shorts$/)) {
     const page = Number(query(path, 'page') ?? 1);
     const size = Number(query(path, 'size') ?? 20);
-    const all = fx.storeShorts;
+    // 최신순이 위로. 방금 만든 영상이 그리드 첫 칸에 옵니다.
+    const all = [...shortsState].sort(
+      (a, b) => String(b.created_at).localeCompare(String(a.created_at))
+    );
     return send({
       items: all.slice((page - 1) * size, page * size),
       page,
@@ -506,6 +582,12 @@ export async function mockRequest<T>(
      */
     const b = (body ?? {}) as { video_format_id?: number };
     if (b.video_format_id != null) projectState.video_format_id = b.video_format_id;
+    /**
+     * 명세 4.3 (2026-08-26): project_title 은 **AI 가 7.1 기획 때** 지어줍니다.
+     * 그 전에는 null 이라, 여기서 채워야 "기획 전 null → 기획 후 제목" 분기가
+     * Mock 에서 실제로 검증됩니다. 응답만 주고 상태를 안 바꾸면 그 경로가 죽습니다.
+     */
+    projectState.project_title = '우리 가게 손칼국수, 이 국물 실화?';
     return send(fx.plan);
   }
   if (match(p, /^\/shorts-projects\/(\d+)\/scenes$/)) {
@@ -697,6 +779,29 @@ export async function mockRequest<T>(
           outputState.push({ ...base, target_platform: pf, id: 800 + outputState.length + 1 });
         }
       }
+      /**
+       * 만들어진 결과물을 15.2 갤러리에도 올립니다.
+       * 실서버에서 15.2 는 "렌더가 끝난 것" 목록이라, 출력 파일이 생기면 여기에 잡힙니다.
+       * 프로젝트당 한 줄만 둡니다(플랫폼을 추가해도 같은 영상입니다).
+       */
+      // p 는 이미 쿼리스트링이 잘린 `/shorts-projects/{id}/outputs` 입니다.
+      const pid = Number(p.split('/')[2]);
+      const done = outputState.find((o) => o.render_status === 'COMPLETED') ?? outputState[0];
+      if (done && !shortsState.some((v) => v.shorts_project_id === pid)) {
+        shortsState.push({
+          video_output_id: done.id,
+          shorts_project_id: pid,
+          // 7.1 이 지어준 제목. 아직 없으면 null 이고 화면이 목적으로 대체합니다.
+          project_title: projectState.project_title ?? null,
+          promotion_purpose: projectState.promotion_purpose ?? fx.project.promotion_purpose,
+          video_url: done.video_url,
+          cover_image_url: done.cover_image_url,
+          duration_sec: null,
+          is_posted: false,
+          created_at: new Date().toISOString(),
+        });
+      }
+
       // 명세 15.1 (2026-08-21 확정): GET 도 POST 와 동일한 필드 구성입니다.
       return send({ outputs: outputState, publish_kit: fx.publishKit });
     }

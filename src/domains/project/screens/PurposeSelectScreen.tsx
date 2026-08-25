@@ -1,116 +1,331 @@
-/** S04.0.2 홍보 목적 선택 · 명세 4.1 */
+/**
+ * PurposeSelectScreen — **시안 v3 `shoot-topic` 대조 이식** (2026-08-26).
+ *
+ * 시안 사양 (원문 수치 그대로)
+ *   헤더   "촬영 준비" 중앙 · 진행바 없음
+ *   제목   22·bold · leading-tight · tracking-tighter-title
+ *   안내   lightbulb 15(brand) + 13·slate, 위로 mt-2 · gap-1.5
+ *   타일   mt-6 · 2열 grid gap-3 · rounded-2xl p-4
+ *          아이콘 타일 40 rounded-xl (활성 bg-brand + 흰 아이콘 / 비활성 bg-brand-tint + brand)
+ *          라벨 15·bold · 설명 12·slate
+ *          활성 border-brand + bg-brand-tint / 비활성 border-hairline + bg-surface
+ *   입력   타일을 고르면 mt-6 에 나타남. 질문 15·semibold, 입력 h52 rounded-xl bg-surface
+ *          매장홍보만 칩 4개가 먼저 나옵니다.
+ *   버튼   "촬영 준비하기" — 주제와 내용이 모두 있어야 활성
+ *
+ * ⚠️ 시안 4종과 서버 enum 이 다릅니다.
+ *    서버 PromotionPurpose = 메뉴소개 / 이벤트알리기 / 가게소개 / 고객늘리기 (실서버 확인)
+ *    시안 TOPICS         = 신메뉴 / 기존메뉴 / 이벤트 / 매장홍보
+ *
+ *    시안의 신메뉴·기존메뉴는 우리 "메뉴소개" 를 둘로 쪼갠 것이라, 화면은 시안대로
+ *    보여주고 서버로 보낼 때 아래 표대로 변환합니다. 고른 주제는 4.2 의
+ *    detail_tag 로 이어져 다음 화면에서 다시 묻지 않습니다.
+ *
+ *    시안에 없는 "고객늘리기" 는 AI 추천 탭에 그대로 남아 있어 앱에서 사라지지 않습니다.
+ */
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Coffee, Lightbulb, Sparkles, Store, Tag } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import { BottomAction, Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
-import { OptionRow } from '../../../ui/Field';
 import { Banner } from '../../../ui/Feedback';
-import { space, text } from '../../../design/theme';
+import { pressTap } from '../../../ui/press';
+import theme, { color, radius, space, sizing, text } from '../../../design/theme';
 import { useCreateProject, useProjects } from '../../../api/queries/project';
 import { useCurrentStore } from '../../../lib/appState';
-import type { PromotionPurpose } from '../../../api/schema/types';
-import type { CreateStackParamList } from '../../../navigation/types';
+import type { MenuDetailTag, PromotionPurpose } from '../../../api/schema/types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { CreateStackParamList, RootStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'PurposeSelect'>;
 
-/** 명세 promotion_purpose 값과 정확히 일치해야 합니다. */
-const PURPOSES: { key: PromotionPurpose; title: string; description: string }[] = [
-  { key: '메뉴소개', title: '메뉴 소개', description: '대표 메뉴나 신메뉴, 만드는 과정을 보여줍니다' },
-  { key: '이벤트알리기', title: '이벤트 알리기', description: '할인, 기간 한정, 오픈 소식을 정확히 전합니다' },
-  { key: '가게소개', title: '가게 소개', description: '공간과 분위기, 찾아오는 길을 알려줍니다' },
-  { key: '고객늘리기', title: '손님 늘리기', description: '새 손님, 재방문, 한가한 시간대를 노립니다' },
+interface Topic {
+  id: string;
+  label: string;
+  icon: typeof Sparkles;
+  prompt: string;
+  placeholder: string;
+  multiline?: boolean;
+  chips?: string[];
+  /** 서버 4.1 로 보낼 값 */
+  purpose: PromotionPurpose;
+  /** 메뉴소개일 때 4.2 로 이어질 세부 태그 */
+  detailTag?: MenuDetailTag;
+}
+
+/** 시안 TOPICS 원문 + 서버 값 매핑 */
+const TOPICS: Topic[] = [
+  {
+    id: 'new',
+    label: '신메뉴',
+    icon: Sparkles,
+    prompt: '어떤 신메뉴를 홍보할까요?',
+    placeholder: '예: 흑임자 크림 라떼',
+    purpose: '메뉴소개',
+    detailTag: '신메뉴',
+  },
+  {
+    id: 'existing',
+    label: '기존메뉴',
+    icon: Coffee,
+    prompt: '어떤 메뉴를 소개할까요?',
+    placeholder: '예: 시그니처 아메리카노',
+    purpose: '메뉴소개',
+    detailTag: '대표메뉴',
+  },
+  {
+    id: 'event',
+    label: '이벤트',
+    icon: Tag,
+    prompt: '어떤 이벤트인가요?',
+    placeholder: '예: 여름 아메리카노 3,500원 (8/31까지, 오후 2~5시 방문)',
+    multiline: true,
+    purpose: '이벤트알리기',
+  },
+  {
+    id: 'store',
+    label: '매장홍보',
+    icon: Store,
+    prompt: '무엇을 보여주고 싶으세요?',
+    placeholder: '예: 통창으로 햇빛이 잘 드는 좌석',
+    chips: ['매장 분위기', '인테리어', '뷰/전망', '편의시설'],
+    purpose: '가게소개',
+  },
 ];
 
 export default function PurposeSelectScreen({ navigation, route }: Props) {
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   /**
    * 홈 피드에서 포맷을 먼저 고른 흐름이면 formatId 가 들어옵니다.
    * (BE 확정: 포맷 선택 → 목적 선택 → 4.1 생성 → 7.1 기획)
-   * 설정 화면들을 그대로 지나되 마지막에 PathChoice 대신 기획으로 갑니다.
    */
   const formatId = route.params?.formatId;
   const storeId = useCurrentStore();
-  const [purpose, setPurpose] = useState<PromotionPurpose | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [value, setValue] = useState('');
   const createProject = useCreateProject();
 
+  const topic = TOPICS.find((t) => t.id === selected) ?? null;
+  const canContinue = !!topic && value.trim().length > 0 && !!storeId;
+
   /**
-   * 명세 확정 (2026-08-23): 목적은 4.1 생성 때 정해지고, **만든 뒤 바꿀 수 없습니다.**
-   * 4.2 PATCH body 에서 promotion_purpose 가 빠졌습니다.
-   *
-   * 그래서 재사용 규칙이 바뀌었습니다.
-   *   - 지금 고른 목적과 **같은** DRAFT 가 있으면 → PATCH 없이 그대로 이어 씁니다.
-   *   - 다른 목적이면 → 새 프로젝트를 만듭니다. (바꾸려면 새로 만드는 수밖에 없음)
-   * 다른 목적의 DRAFT 가 남는 건 이 확정의 귀결입니다. 마이의 "만들던 영상"
-   * 목록에 남아 이어하거나 버려집니다.
+   * 명세 확정 (2026-08-23): 목적은 4.1 생성 때 정해지고 **만든 뒤 바꿀 수 없습니다.**
+   * 같은 목적의 DRAFT 가 있으면 그대로 이어 쓰고, 다르면 새로 만듭니다.
    */
   const { data: projects } = useProjects(storeId, 'DRAFT');
 
   const next = () => {
-    if (!purpose || !storeId) return;
+    if (!topic || !storeId) return;
+    /*
+     * 시안 V4: 주제를 고르면 곧바로 포맷(촬영 방식)으로 갑니다.
+     * 4.1 이 요구하는 값은 storeId·promotionPurpose 둘뿐이라 여기서 다 채워집니다.
+     * 홍보 상세·타깃·촬영 조건을 따로 묻던 화면들은 시안에 없어 없앴습니다.
+     */
+    const go = (projectId: number) => {
+      if (formatId) navigation.replace('FormatDetail', { projectId, formatId });
+      // 시안 V4 에는 포맷 목록 화면이 따로 없습니다 — 홈 피드에서 고르고 들어옵니다.
+      else rootNav.navigate('Main', { screen: 'HomeFeed' });
+    };
 
-    const reusable = projects?.find((d) => d.promotionPurpose === purpose);
+    const reusable = projects?.find((d) => d.promotionPurpose === topic.purpose);
     if (reusable) {
-      // 같은 목적 — 서버에 손대지 않고 이어 씁니다.
-      navigation.replace('PromotionDetail', { projectId: reusable.id, formatId });
+      go(reusable.id);
       return;
     }
 
     createProject.mutate(
-      { storeId, promotionPurpose: purpose },
-      // 명세 4.2 개정으로 목적별 상세를 먼저 받습니다.
-      { onSuccess: (p) => navigation.replace('PromotionDetail', { projectId: p.id, formatId }) }
+      { storeId, promotionPurpose: topic.purpose },
+      { onSuccess: (p) => go(p.id) }
     );
-    // 실패는 아래 Banner 로 표시됩니다. 조용히 넘어가지 않습니다.
   };
 
   return (
     <Screen
+      padded={false}
+      // 시안: 화면 맨 위에서 헤더까지 62 (= 상태바 54 + 8)
+      contentStyle={{ paddingTop: space[2], gap: 0 }}
       footer={
         <BottomAction>
           <Button
-            label="다음"
+            label="촬영 준비하기"
             onPress={next}
-            disabled={!purpose || !storeId}
+            disabled={!canContinue}
             loading={createProject.isPending}
           />
         </BottomAction>
       }
     >
-      <AppBar onBack={() => navigation.goBack()} title="숏폼 만들기" step={{ current: 1, total: 4 }} />
-      <View style={{ gap: space[2] }}>
-        <Text style={text.title}>이번 영상으로{'\n'}무엇을 하고 싶으세요?</Text>
-        <Text style={text.bodySmall}>목적에 따라 찍는 방식이 완전히 달라집니다.</Text>
-      </View>
+      <AppBar onBack={() => navigation.goBack()} title="촬영 준비" />
 
-      {/* 버튼이 조용히 안 눌리는 대신 이유를 보여줍니다 */}
-      {createProject.isError && (
-        <Banner
-          tone="danger"
-          title="영상 만들기를 시작하지 못했습니다"
-          description="잠시 후 다시 눌러 주세요."
-        />
-      )}
+      <View style={styles.body}>
+        <Text style={styles.title}>어떤 주제를 찍고 싶으세요?</Text>
 
-      {!storeId && (
-        <Banner
-          tone="warn"
-          title="가게 정보를 먼저 등록해 주세요"
-          description="어느 가게 영상인지 알아야 대사와 촬영 순서를 만들 수 있습니다."
-        />
-      )}
+        {/* 시안: 전구 아이콘 + 두 줄 안내 */}
+        <View style={styles.hint}>
+          <Lightbulb size={15} strokeWidth={2} color={color.brand[600]} style={styles.hintIcon} />
+          <Text style={styles.hintText}>
+            홍보 목적을 알려주시면 AI가 그에 맞는 촬영 구성과 자막을 개인화해서 만들어 드려요.
+          </Text>
+        </View>
 
-      <View style={{ gap: space[3] }}>
-        {PURPOSES.map((p) => (
-          <OptionRow
-            key={p.key}
-            title={p.title}
-            description={p.description}
-            selected={purpose === p.key}
-            onPress={() => setPurpose(p.key)}
-          />
-        ))}
+        {createProject.isError && (
+          <View style={{ marginTop: space[4] }}>
+            <Banner
+              tone="danger"
+              title="영상 만들기를 시작하지 못했습니다"
+              description="잠시 후 다시 눌러 주세요."
+            />
+          </View>
+        )}
+
+        {!storeId && (
+          <View style={{ marginTop: space[4] }}>
+            <Banner
+              tone="warn"
+              title="가게 정보를 먼저 등록해 주세요"
+              description="어느 가게 영상인지 알아야 대사와 촬영 순서를 만들 수 있습니다."
+            />
+          </View>
+        )}
+
+        {/* 시안: mt-6 · 2열 grid gap-3 */}
+        <View style={styles.grid}>
+          {TOPICS.map((t) => {
+            const active = selected === t.id;
+            const Icon = t.icon;
+            return (
+              <View key={t.id} style={styles.cell}>
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    setSelected(t.id);
+                    setValue('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.tile,
+                    active ? styles.tileOn : styles.tileOff,
+                    pressTap(pressed, 'card'),
+                  ]}
+                >
+                  <View style={[styles.tileIcon, active ? styles.tileIconOn : styles.tileIconOff]}>
+                    <Icon
+                      size={20}
+                      strokeWidth={2}
+                      color={active ? color.paper : color.brand[600]}
+                    />
+                  </View>
+                  <Text style={styles.tileLabel}>{t.label}</Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* 시안: 타일을 고르면 질문 + 입력이 나타납니다 */}
+        {topic && (
+          <View style={styles.answer}>
+            <Text style={styles.prompt}>{topic.prompt}</Text>
+
+            {topic.chips ? (
+              <View style={styles.chips}>
+                {topic.chips.map((c) => {
+                  const on = value === c;
+                  return (
+                    <Pressable
+                      key={c}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      hitSlop={6}
+                      onPress={() => setValue(c)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        on ? styles.chipOn : styles.chipOff,
+                        pressTap(pressed, 'chip'),
+                      ]}
+                    >
+                      <Text style={[styles.chipText, on && { color: color.paper }]}>{c}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              placeholder={topic.placeholder}
+              placeholderTextColor={color.ink[500]}
+              accessibilityLabel={topic.prompt}
+              multiline={topic.multiline}
+              style={[styles.input, topic.multiline && styles.inputMulti]}
+            />
+          </View>
+        )}
       </View>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  // 시안: px-6
+  body: { paddingHorizontal: space[6], paddingBottom: space[6] },
+
+  // 시안: 22·bold · leading-tight
+  title: { ...theme.text.title, lineHeight: 28 },
+
+  hint: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: space[2] },
+  hintIcon: { marginTop: 2 },
+  hintText: { ...theme.text.caption, flex: 1, lineHeight: 21, color: color.ink[500] },
+
+  // 시안: mt-6 grid-cols-2 gap-3 — gap 대신 셀 안쪽 여백으로 2열을 고정합니다
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space[6], marginHorizontal: -6 },
+  cell: { width: '50%', padding: 6 },
+  tile: {
+    alignItems: 'flex-start',
+    gap: space[2],
+    padding: space[4],
+    borderRadius: radius.lg,
+    borderWidth: theme.border.hairline,
+  },
+  tileOn: { borderColor: color.brand[600], backgroundColor: color.brand[50] },
+  tileOff: { borderColor: color.ink[200], backgroundColor: color.surface },
+  tileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileIconOn: { backgroundColor: color.brand[600] },
+  tileIconOff: { backgroundColor: color.brand[50] },
+  tileLabel: { ...theme.text.bodyStrong, fontFamily: theme.text.heading.fontFamily, fontWeight: theme.text.heading.fontWeight },
+
+  answer: { marginTop: space[6] },
+  // 시안: mb-2 pl-1 · 15·semibold
+  prompt: { ...theme.text.bodyStrong, marginBottom: space[2], paddingLeft: space[1] },
+
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginBottom: 10 },
+  chip: { paddingHorizontal: 14, paddingVertical: space[2], borderRadius: radius.pill, borderWidth: theme.border.hairline },
+  chipOn: { borderColor: color.brand[600], backgroundColor: color.brand[600] },
+  chipOff: { borderColor: color.ink[200], backgroundColor: color.surface },
+  chipText: { ...theme.text.chipLabel, color: color.ink[800] },
+
+  // 시안: h52 rounded-xl border-hairline bg-surface px-4 · 15·medium
+  input: {
+    height: sizing.inputHeight,
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+    paddingHorizontal: space[4],
+    ...theme.text.body,
+    color: color.ink[900],
+  },
+  // 시안: rows=4 · py-3
+  inputMulti: { height: 108, paddingTop: space[3], paddingBottom: space[3], textAlignVertical: 'top' },
+});

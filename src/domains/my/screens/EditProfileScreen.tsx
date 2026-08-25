@@ -1,239 +1,359 @@
 /**
- * EditProfileScreen — 프로필 수정. 시안 `2_프로필수정.png`.
+ * EditProfileScreen — **시안 v3 `edit-profile` 대조 이식** (2026-08-26).
  *
- * 이 화면은 **네 개의 API 를 한 화면에 모읍니다.** 시안의 블록 순서 그대로입니다.
+ * 시안 구조 (위에서부터, 이게 전부입니다)
+ *   ① 아바타 96 + 링 · 우하단 카메라 버튼 32(흰 테두리 2) · "프로필 사진 변경" 13·semibold·brand
+ *   ② 매장 이름 / 카테고리 — 라벨 13·semibold·slate + 입력 h48 rounded-xl bg-panel
+ *   ③ Instagram / YouTube 계정
+ *        라벨 13·semibold·slate + 브랜드 마크 14
+ *        연동된 계정 행 h48: "@핸들" 15 + "연동됨" 배지(verified 10%) + 우측 해제 X 28
+ *        아래 "+ {플랫폼} 계정 연동" — h48 **점선** 테두리 · brand 14·semibold
+ *   ④ "저장하기" h48 브랜드 버튼 (화면 안쪽, 하단 고정 아님)
  *
- *   프로필 사진        → 3.6 POST /stores/{id}/logo   (multipart, 가게당 1장)
- *   매장 이름·카테고리  → 3.1 PATCH /stores/{id}
- *   Instagram·YouTube → 16.1 (연동은 SnsConnect 화면으로 보냄. 여기선 상태만)
- *   내 이름·전화번호    → 1.5 PATCH /users/me
+ * ⚠️ "내 정보(이름·전화번호)" 는 **뺐습니다** (2026-08-26 확인).
+ *    시안 v3 어디에도 없는 항목이라 사장님 확인을 받고 지웠습니다.
+ *    1.5 PATCH /users/me 는 명세에 남아 있고 훅(useUpdateMe)도 그대로라,
+ *    나중에 계정 화면이 생기면 거기서 그대로 쓰면 됩니다.
  *
- * 왜 사용자 정보(1.5)까지 여기 있나
- *   명세 1.5 가 이렇게 안내합니다 — "가게 정보를 고치는 것이면 3.1,
- *   사용자 계정 정보면 1.5". 사장님 입장에서 '내 정보'는 한 곳이어야 해서
- *   화면은 하나로 두고 저장할 때만 갈라 보냅니다.
- *
- * ⚠️ 3.1 PATCH 로 name·category 를 바꿀 수 있는지 BE 확인 중입니다.
- *    명세 Body 예시에는 business_hours·brand_tone·brand_color 만 있습니다.
- *    400 이 나면 이 블록만 읽기 전용으로 바꾸면 됩니다.
- *
- * ⚠️ SNS 계정 추가/삭제는 여기서 하지 않습니다.
- *    OAuth 는 브라우저를 열고 돌아오는 흐름이라 폼 화면과 섞으면
- *    작성 중이던 입력이 날아갑니다. 연동 화면으로 보냅니다.
+ * ⚠️ 저장은 두 곳으로 갈립니다.
+ *    매장 이름·카테고리 → 3.1 PATCH /stores/{id}   (실서버 스키마에 name·category 있음)
+ *    SNS 연동/해제      → 16.1 (브라우저 OAuth 라 SnsConnect 화면으로 보냅니다)
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, Linking, Pressable, StyleSheet, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, ChevronRight, Plus } from 'lucide-react-native';
+import { Camera, Check, Plus, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
-import { BottomAction, Button } from '../../../ui/Button';
 import { Field } from '../../../ui/Field';
 import { Banner } from '../../../ui/Feedback';
+import { BrandMark } from '../../../ui/BrandMark';
+import { pressTap } from '../../../ui/press';
+import { API } from '../../../api/endpoints';
+import { BASE_URL } from '../../../api/http';
 import { useAppState } from '../../../lib/appState';
 import { useStore, useUpdateStore, useUploadLogo } from '../../../api/queries/store';
-import { useMe, useUpdateMe } from '../../../api/queries/auth';
-import { useSnsConnections } from '../../../api/queries/edit';
-import theme, { color, radius, space, text, sizing } from '../../../design/theme';
-import type { MyStackParamList } from '../../../navigation/types';
+import { useDisconnectSns, useSnsConnections } from '../../../api/queries/edit';
+import theme, { color, radius, space, text } from '../../../design/theme';
+import type { MyStackParamList, RootStackParamList } from '../../../navigation/types';
 
-type Nav = NativeStackNavigationProp<MyStackParamList>;
+type Nav = NativeStackNavigationProp<RootStackParamList & MyStackParamList>;
+
+const PLATFORMS = [
+  { key: 'INSTAGRAM' as const, label: 'Instagram', mark: 'instagram' as const },
+  { key: 'YOUTUBE' as const, label: 'YouTube', mark: 'youtube' as const },
+];
 
 export default function EditProfileScreen() {
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
 
   const { data: store } = useStore(storeId ?? undefined);
-  const { data: me } = useMe();
   const { data: connections } = useSnsConnections();
 
   const updateStore = useUpdateStore(storeId ?? 0);
-  const updateMe = useUpdateMe();
   const uploadLogo = useUploadLogo(storeId ?? 0);
+  const disconnect = useDisconnectSns();
 
-  const [form, setForm] = useState({ name: '', category: '', myName: '', phone: '' });
+  const [form, setForm] = useState({ name: '', category: '' });
+  const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // 서버 값이 오면 폼을 채웁니다. 사장님이 입력 중이면 덮지 않습니다.
+  // 서버 값이 오면 채웁니다. 사장님이 입력 중이면 덮지 않습니다.
   useEffect(() => {
-    if (store) setForm((p) => (p.name ? p : { ...p, name: store.name, category: store.category }));
-  }, [store]);
-  useEffect(() => {
-    if (me) setForm((p) => (p.myName ? p : { ...p, myName: me.name, phone: me.phone ?? '' }));
-  }, [me]);
+    if (dirty) return;
+    setForm({ name: store?.name ?? '', category: store?.category ?? '' });
+  }, [store, dirty]);
 
-  const set = (k: keyof typeof form) => (v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const set = (k: keyof typeof form) => (v: string) => {
+    setDirty(true);
+    setSaved(false);
+    setForm((p) => ({ ...p, [k]: v }));
+  };
 
-  /** 사진 권한은 이 버튼을 누른 순간에만 요청합니다 (묶어 요청하지 않음). */
-  const pickLogo = async () => {
+  const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('사진 권한이 필요합니다', '사진을 고르려면 설정에서 권한을 켜 주세요.');
+      Alert.alert('사진 권한이 필요합니다', '설정에서 사진 접근을 켜 주세요.');
       return;
     }
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (res.canceled || !res.assets[0]) return;
     uploadLogo.mutate(res.assets[0].uri);
   };
 
   const save = () => {
-    if (!storeId) return;
-    setSaved(false);
-
-    // 가게 정보와 계정 정보는 다른 API 입니다. 바뀐 쪽만 보냅니다.
-    const storeChanged =
-      form.name.trim() !== (store?.name ?? '') || form.category.trim() !== (store?.category ?? '');
-    const meChanged =
-      form.myName.trim() !== (me?.name ?? '') || form.phone.trim() !== (me?.phone ?? '');
-
-    if (storeChanged) {
-      updateStore.mutate({ name: form.name.trim(), category: form.category.trim() });
-    }
-    if (meChanged) {
-      updateMe.mutate({ name: form.myName.trim(), phone: form.phone.trim() || undefined });
-    }
-    if (!storeChanged && !meChanged) {
-      setSaved(true);
-      return;
-    }
+    updateStore.mutate({ name: form.name.trim(), category: form.category.trim() });
     setSaved(true);
+    setDirty(false);
   };
 
-  const busy = updateStore.isPending || updateMe.isPending;
-  const failed = updateStore.isError || updateMe.isError;
-
   return (
-    <Screen
-      footer={
-        <BottomAction>
-          <Button label="저장하기" onPress={save} loading={busy} />
-        </BottomAction>
-      }
-    >
+    // Screen 기본 하단 여백(40)까지 붙으면 시안(pb-8=32)보다 아래가 비어 헛스크롤이 생깁니다.
+    <Screen padded={false} contentStyle={{ paddingTop: 0, paddingBottom: 0, gap: 0 }}>
       <AppBar onBack={() => nav.goBack()} title="프로필 수정" />
 
-      {failed && (
-        <Banner
-          tone="warn"
-          title="저장하지 못했습니다"
-          description="신호를 확인하고 다시 시도해 주세요."
-        />
-      )}
-      {saved && !busy && !failed && (
-        <Banner tone="done" title="저장했습니다" description="바뀐 내용이 반영됐어요." />
-      )}
-
-      {/* ── 프로필 사진 (3.6) ── */}
-      <View style={styles.photoWrap}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="프로필 사진 변경"
-          onPress={pickLogo}
-          style={({ pressed }) => [pressed && { opacity: theme.opacity.pressed }]}
-        >
-          {store?.logoUrl ? (
-            <Image source={{ uri: store.logoUrl }} style={styles.photo} />
-          ) : (
-            <View style={[styles.photo, styles.photoEmpty]}>
-              <Text style={[text.caption, { color: color.ink[400] }]}>사진 없음</Text>
-            </View>
-          )}
-          <View style={styles.cameraDot}>
-            <Camera size={16} strokeWidth={2} color={color.paper} />
-          </View>
-        </Pressable>
-        <Pressable onPress={pickLogo} accessibilityRole="button">
-          <Text style={[text.bodySmall, { color: color.brand[600] }]}>
-            {uploadLogo.isPending ? '올리는 중…' : '프로필 사진 변경'}
-          </Text>
-        </Pressable>
-        {uploadLogo.isError && (
-          <Text style={[text.caption, { color: color.danger[500] }]}>
-            사진을 올리지 못했습니다. 다시 시도해 주세요.
-          </Text>
-        )}
-      </View>
-
-      {/* ── 가게 정보 (3.1) ── */}
-      <Field label="매장 이름" value={form.name} onChangeText={set('name')} />
-      <Field label="카테고리" value={form.category} onChangeText={set('category')} />
-
-      {/* ── SNS 계정 (16.1) — 상태만 보여주고 연동은 전용 화면에서 ── */}
-      {(['INSTAGRAM', 'YOUTUBE'] as const).map((platform) => {
-        const linked = connections?.find((c) => c.snsPlatform === platform);
-        return (
-          <View key={platform} style={{ gap: space[2] }}>
-            <Text style={text.micro}>{platform === 'INSTAGRAM' ? 'Instagram' : 'YouTube'} 계정</Text>
+      <View style={styles.body}>
+        {/* ① 아바타 */}
+        <View style={styles.avatarWrap}>
+          <View>
             <Pressable
               accessibilityRole="button"
-              onPress={() => nav.navigate('SnsConnect')}
-              style={({ pressed }) => [styles.snsRow, pressed && { backgroundColor: color.surface }]}
+              accessibilityLabel="프로필 사진 선택"
+              onPress={pickImage}
+              style={({ pressed }) => [pressed && { transform: [{ scale: 0.98 }] }]}
             >
-              {linked ? (
-                <Text style={[text.body, { flex: 1 }]}>{linked.snsAccountName}</Text>
+              {store?.logoUrl ? (
+                <Image source={{ uri: store.logoUrl }} style={styles.avatar} />
               ) : (
-                <View style={styles.addRow}>
-                  <Plus size={16} strokeWidth={2} color={color.brand[600]} />
-                  <Text style={[text.body, { color: color.brand[600] }]}>계정 추가</Text>
+                <View style={[styles.avatar, styles.avatarEmpty]}>
+                  <Text style={[text.caption, { color: color.ink[400] }]}>사진 없음</Text>
                 </View>
               )}
-              <ChevronRight size={20} strokeWidth={2} color={color.ink[300]} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="사진 변경"
+              onPress={pickImage}
+              style={({ pressed }) => [styles.cameraBtn, pressTap(pressed, 'icon')]}
+            >
+              <Camera size={16} strokeWidth={2} color={color.paper} />
             </Pressable>
           </View>
-        );
-      })}
+          <Pressable accessibilityRole="button" onPress={pickImage} hitSlop={6}>
+            <Text style={styles.changePhoto}>프로필 사진 변경</Text>
+          </Pressable>
+        </View>
 
-      {/* ── 내 계정 정보 (1.5) ── */}
-      <Text style={[text.micro, { marginTop: space[3] }]}>내 정보</Text>
-      <Field label="이름" value={form.myName} onChangeText={set('myName')} />
-      <Field
-        label="전화번호"
-        value={form.phone}
-        onChangeText={set('phone')}
-        keyboardType="phone-pad"
-        hint="숫자만 입력해 주세요"
-      />
-      <Text style={[text.caption, { color: color.ink[400] }]}>
-        이메일{me?.email ? ` (${me.email})` : ''}은 로그인에 쓰는 값이라 바꿀 수 없습니다.
-      </Text>
+        {uploadLogo.isError && (
+          <View style={{ marginTop: space[4] }}>
+            <Banner tone="danger" title="사진을 올리지 못했습니다" description="잠시 후 다시 시도해 주세요." />
+          </View>
+        )}
+
+        {/* ② 매장 이름 · 카테고리 */}
+        <View style={styles.fields}>
+          {/* 시안: 라벨 mb-1.5(6) — 이 화면만 좁습니다 */}
+          <Field
+            label="매장 이름"
+            labelGap={6}
+            value={form.name}
+            onChangeText={set('name')}
+            placeholder="매장 이름"
+            style={styles.input}
+          />
+          <Field
+            label="카테고리"
+            labelGap={6}
+            value={form.category}
+            onChangeText={set('category')}
+            placeholder="예: 카페"
+            style={styles.input}
+          />
+        </View>
+
+        {/* ③ SNS 계정 */}
+        <View style={styles.snsWrap}>
+          {PLATFORMS.map((p) => {
+            const linked = (connections ?? []).filter((c) => c.snsPlatform === p.key);
+            return (
+              <View key={p.key}>
+                <View style={styles.snsLabelRow}>
+                  <BrandMark kind={p.mark} size={14} boxed />
+                  <Text style={styles.snsLabel}>{p.label} 계정</Text>
+                </View>
+
+                <View style={{ gap: space[2] }}>
+                  {linked.map((c) => (
+                    <View key={c.id} style={styles.account}>
+                      <View style={styles.accountLeft}>
+                        <Text style={styles.handle} numberOfLines={1}>
+                          @{c.snsAccountName}
+                        </Text>
+                        <View style={styles.linkedBadge}>
+                          <Check size={10} strokeWidth={3} color={color.done[500]} />
+                          <Text style={styles.linkedText}>연동됨</Text>
+                        </View>
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${c.snsAccountName} 연동 해제`}
+                        hitSlop={8}
+                        onPress={() =>
+                          Alert.alert('연결을 끊을까요?', '이 계정의 조회수와 반응을 더 이상 받아오지 못합니다.', [
+                            { text: '취소', style: 'cancel' },
+                            { text: '연결 끊기', style: 'destructive', onPress: () => disconnect.mutate(c.id) },
+                          ])
+                        }
+                        style={({ pressed }) => [styles.removeBtn, pressTap(pressed, 'icon')]}
+                      >
+                        <X size={16} strokeWidth={2} color={color.ink[500]} />
+                      </Pressable>
+                    </View>
+                  ))}
+
+                  {/* 시안: 점선 테두리 + brand 글자 */}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      /*
+                       * 시안 V4 에는 SNS 연결 전용 화면이 없습니다.
+                       * 16.1 은 브라우저 OAuth 라 이 자리에서 바로 엽니다.
+                       */
+                      void Linking.openURL(`${BASE_URL}${API.snsAuthorize(p.key)}`).catch(() => {});
+                    }}
+                    style={({ pressed }) => [styles.addBtn, pressTap(pressed, 'card')]}
+                  >
+                    <Plus size={17} strokeWidth={2} color={color.brand[600]} />
+                    <Text style={styles.addText}>{p.label} 계정 연동</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* ④ 저장 */}
+        <Pressable
+          accessibilityRole="button"
+          onPress={save}
+          style={({ pressed }) => [styles.saveBtn, pressTap(pressed, 'card')]}
+        >
+          <Text style={styles.saveText}>저장하기</Text>
+        </Pressable>
+
+        {saved && (
+          <View style={{ marginTop: space[3] }}>
+            <Banner tone="done" title="저장했습니다" />
+          </View>
+        )}
+
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  photoWrap: { alignItems: 'center', gap: space[2] },
-  photo: { width: 92, height: 92, borderRadius: radius.pill, backgroundColor: color.ink[100] },
-  photoEmpty: { alignItems: 'center', justifyContent: 'center' },
-  cameraDot: {
+  // 시안: px-5 pb-8
+  body: { paddingHorizontal: space[5], paddingBottom: space[8] },
+
+  avatarWrap: { alignItems: 'center' },
+  // 시안: h-24 w-24 + ring-1 hairline
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.ink[100],
+  },
+  avatarEmpty: { alignItems: 'center', justifyContent: 'center' },
+  // 시안: -bottom-1 -right-1 · h-8 w-8 · border-2 canvas
+  cameraBtn: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
+    bottom: -4,
+    right: -4,
     width: 32,
     height: 32,
     borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: color.canvas,
     backgroundColor: color.brand[600],
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: color.paper,
   },
-  snsRow: {
-    minHeight: sizing.inputHeight,
+  changePhoto: {
+    ...theme.text.caption,
+    marginTop: space[3],
+    fontFamily: theme.text.chipLabel.fontFamily,
+    fontWeight: theme.text.chipLabel.fontWeight,
+    color: color.brand[600],
+  },
+
+  // 시안: mt-6 gap-4
+  fields: { marginTop: space[6], gap: space[4] },
+  // 시안 입력: h-12 · bg-panel(흰색)
+  input: { height: 48, backgroundColor: color.paper },
+
+  // 시안: mt-7(28) gap-5(20)
+  snsWrap: { marginTop: space[7], gap: space[5] },
+  snsLabelRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginBottom: space[2] },
+  snsLabel: {
+    ...theme.text.caption,
+    fontFamily: theme.text.chipLabel.fontFamily,
+    fontWeight: theme.text.chipLabel.fontWeight,
+    color: color.ink[500],
+  },
+
+  // 시안: h-12 rounded-xl border-hairline bg-panel px-4
+  account: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 48,
     paddingHorizontal: space[4],
     borderRadius: radius.md,
     borderWidth: theme.border.hairline,
     borderColor: color.ink[200],
     backgroundColor: color.paper,
   },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: space[1], flex: 1 },
+  accountLeft: { flexDirection: 'row', alignItems: 'center', gap: space[2], flex: 1, minWidth: 0 },
+  handle: { ...theme.text.body, flexShrink: 1 },
+  linkedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(16,185,129,0.1)',
+  },
+  linkedText: {
+    ...theme.text.nano,
+    fontFamily: theme.text.chipLabel.fontFamily,
+    fontWeight: theme.text.chipLabel.fontWeight,
+    color: color.done[500],
+  },
+  removeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    backgroundColor: color.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // 시안: 점선 테두리
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderStyle: 'dashed',
+    borderColor: color.ink[200],
+  },
+  addText: {
+    ...theme.text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.brand[600],
+  },
+
+  // 시안: mt-8 h-12 rounded-xl bg-brand
+  saveBtn: {
+    height: 48,
+    marginTop: space[8],
+    borderRadius: radius.md,
+    backgroundColor: color.brand[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveText: { ...theme.text.button, color: color.paper },
+
 });

@@ -69,13 +69,28 @@ export interface PlaceResult {
   latitude: number;
   longitude: number;
   category: string;
-  distanceM?: number;
+  /** 기준 좌표(2.1 Param lat·lng)를 안 보내면 null 로 옵니다. 0 이 아닙니다. */
+  distanceM?: number | null;
   /**
    * 명세 2.1 추가 (2026-08-21 합의).
    * 검색 결과를 골라 등록할 때 2.2 body 의 external_channel_url 로 그대로 넘깁니다.
    * 이게 없으면 BE 가 외부 데이터를 다시 찾아야 합니다.
    */
   externalChannelUrl?: string;
+  /**
+   * 명세 2.1 추가 (2026-08-25). **카카오 후보에만** 값이 있고 네이버는 null 입니다.
+   *
+   * ⚠️ 화면에 보여줄 값이 아닙니다. 2.2 등록 때 그대로 돌려보내면 BE 가
+   *    가게 대표메뉴 자동 수집을 트리거하는 데만 씁니다. 저장되지 않고,
+   *    3.2 메뉴 조회 응답에도 나타나지 않습니다.
+   *
+   * external_channel_url 과 따로 둔 이유(명세):
+   *   그 필드는 NAVER·KAKAO 어느 쪽이든 채울 수 있어 병합 때 카카오 링크가
+   *   밀려 사라질 수 있습니다. 이 필드는 카카오만 채우므로 그 충돌이 없습니다.
+   *
+   * 숫자처럼 보이지만 **문자열**입니다("98765").
+   */
+  kakaoPlaceId?: string | null;
 }
 
 export type ImportStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
@@ -98,6 +113,23 @@ export interface CreateStoreBody {
   phone?: string;
   infoSource: PlaceSource | 'MANUAL';
   externalChannelUrl?: string;
+  /**
+   * 명세 2.2 추가 (2026-08-23). 선택입니다.
+   * 2.1 검색 결과의 좌표를 그대로 넘기면 stores 에 저장됩니다.
+   * 직접입력 경로(StoreManual)는 좌표를 모르므로 생략합니다.
+   */
+  latitude?: number;
+  longitude?: number;
+  /**
+   * 명세 2.2 추가 (2026-08-25). 선택입니다.
+   * 2.1 응답의 같은 필드를 **그대로 돌려보냅니다** — 프론트가 값을 계산하거나
+   * 다시 조회하지 않습니다. 사장님이 고른 후보 객체를 되돌려주는 것뿐입니다.
+   *
+   * 없어도 등록에는 지장이 없습니다(그 경우 대표메뉴는 3.2 에서 직접 입력).
+   * 저장되지 않고 대표메뉴 자동 수집 트리거에만 쓰이고 버려지므로,
+   * Store 타입에는 넣지 않습니다.
+   */
+  kakaoPlaceId?: string | null;
 }
 
 export interface CreateStoreResponse {
@@ -127,12 +159,14 @@ export interface Me {
 /**
  * 명세 15.2 완성 숏폼 (2026-08-23 신설) — 마이페이지 그리드.
  *
- * ⚠️ 제목 컬럼이 없습니다. BE 명세에도 "프로젝트에는 제목 개념이 없다" 고
- *    적혀 있어, 카드 라벨은 promotion_purpose 를 씁니다 (BE 문의 중).
+ * ✅ 2026-08-26: project_title 이 4.1·4.3·15.2 에 모두 추가됐습니다.
+ *    (문의해 두었던 "제목 컬럼 없음" 건의 답입니다 — 이제 있습니다.)
  */
 export interface StoreShort {
   videoOutputId: Id;
   shortsProjectId: Id;
+  /** 명세 15.2 (2026-08-26). 렌더까지 끝난 항목이라 보통 값이 있습니다. */
+  projectTitle?: string | null;
   promotionPurpose: string;
   videoUrl: string;
   coverImageUrl?: string;
@@ -172,10 +206,17 @@ export interface Menu {
   isSoldOut?: boolean;
 }
 
+/**
+ * 명세 3.3 사진 분류. 실서버 PhotoCategory enum 그대로입니다 (2026-08-26 대조).
+ * ⚠️ '음식' 이 아니라 '메뉴' 입니다. 예전 값으로 올리면 422 입니다.
+ */
+export const PHOTO_CATEGORIES = ['간판', '외관', '내부', '메뉴', '제조·시술', '인물', '기타'] as const;
+export type PhotoCategory = (typeof PHOTO_CATEGORIES)[number];
+
 export interface StorePhoto {
   id: Id;
   fileUrl: string;
-  category: string;
+  category: PhotoCategory | string;
   hasSensitiveInfo: boolean;
   createdAt: string;
 }
@@ -219,14 +260,16 @@ export interface Insight {
 // R04 캠페인 설정
 // ══════════════════════════════════════════════════
 
-/** 명세: DRAFT → ... → 게시 완료까지의 프로젝트 상태 */
-export type ShortsStatus =
-  | 'DRAFT'
-  | 'PLANNING'
-  | 'SHOOTING'
-  | 'EDITING'
-  | 'READY'
-  | 'PUBLISHED';
+/**
+ * 프로젝트 상태.
+ *
+ * ⚠️ 2026-08-26 실서버(OpenAPI) 대조로 **3개로 정정**했습니다.
+ *    이전에는 DRAFT/PLANNING/SHOOTING/EDITING/READY/PUBLISHED 6개로 적어 뒀는데
+ *    서버 ShortsStatus enum 은 아래 셋뿐입니다. 없는 값을 비교하던 코드는
+ *    영원히 거짓이 되므로(조용한 실패) 타입을 서버에 맞춥니다.
+ *    세부 단계는 9.3 draft 의 current_step 이 따로 들고 있습니다.
+ */
+export type ShortsStatus = 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED';
 
 /**
  * 명세 4.1 body.
@@ -278,6 +321,13 @@ export type FaceExposureMode = '전체노출' | '일부노출' | '비노출';
 
 export interface ShortsProject {
   id: Id;
+  /**
+   * 명세 4.3 추가 (2026-08-26). AI 가 7.1 기획 때 지어주는 제목입니다.
+   *
+   * ⚠️ **7.1 이전에는 null 입니다.** 사장님이 직접 입력하는 값이 아닙니다.
+   *    화면에서는 {@link projectLabel} 로 promotionPurpose 폴백을 거쳐 쓰세요.
+   */
+  projectTitle?: string | null;
   storeId: Id;
   videoFormatId?: Id | null;
   storeTargetCustomerId?: Id | null;
@@ -295,6 +345,8 @@ export interface ShortsProject {
 
 export interface ProjectListItem {
   id: Id;
+  /** 명세 4.1·4.3·15.2 (2026-08-26). {@link projectLabel} 로 표시하세요. */
+  projectTitle?: string | null;
   promotionPurpose: PromotionPurpose;
   shortsStatus: ShortsStatus;
   updatedAt: string;
@@ -468,11 +520,15 @@ export type GuideType = 'OVERLAY' | 'DANCE' | 'BROLL';
  * 안무 가이드 참고 영상 (명세 9.1).
  *
  * 명세: "프로젝트가 선택한 video_formats.reference_url·source_platform 을
- *        그대로 재사용합니다. 배속·구간반복 등 재생 제어는 프론트에서
- *        YouTube IFrame Player API 로 처리하고 서버는 영상 링크·출처만 내려줍니다."
+ *        그대로 재사용합니다. 재생 제어는 프론트에서 처리하고 서버는 영상 링크·출처만
+ *        내려줍니다."
+ *
+ * 2026-08-26: 그 "프론트 처리" 를 **유튜브 자체 컨트롤에 위임**하는 것으로 바꿨습니다.
+ *             배속은 유튜브 설정 메뉴가, 탐색은 진행바가 담당합니다.
  *
  * ⚠️ start_sec / end_sec 는 없습니다.
- *    구간반복 범위는 사장님이 화면에서 직접 잡습니다.
+ *    구간반복 기능도 없습니다 — 유튜브 임베드가 제공하지 않는 기능이라
+ *    우리가 흉내 내던 것을 걷어냈습니다(2026-08-26). 되감기는 진행바로 합니다.
  */
 export interface GuideReferenceVideo {
   referenceUrl: string;
@@ -490,7 +546,8 @@ export interface TaskGuide {
   } | null;
 }
 
-export type FootageType = 'VIDEO' | 'PHOTO' | 'AUDIO';
+/** ⚠️ 서버 enum 은 PHOTO 가 아니라 IMAGE 입니다 (2026-08-26 실서버 대조). */
+export type FootageType = 'VIDEO' | 'IMAGE' | 'AUDIO';
 
 export interface FootageResponse {
   taskId: Id;
@@ -580,7 +637,11 @@ export interface EditResult {
 }
 
 export interface ReviseBody {
-  requestType: 'quick_button' | 'free_text';
+  /**
+   * ⚠️ 자연어 요청의 값은 'free_text' 가 **아니라** 'natural_language' 입니다
+   *    (2026-08-26 실서버 ReviseRequestType enum 대조). 예전 값으로 보내면 422 입니다.
+   */
+  requestType: 'quick_button' | 'natural_language';
   action: string;
 }
 
@@ -644,10 +705,18 @@ export interface OutputsResponse {
 // R16 SNS 연동·게시
 // ══════════════════════════════════════════════════
 
-export type SnsPlatform = 'INSTAGRAM' | 'YOUTUBE' | 'NAVER';
+/**
+ * 게시·연동 플랫폼.
+ *
+ * ⚠️ 서버 SnsPlatform enum 은 **INSTAGRAM·YOUTUBE 둘뿐**입니다 (2026-08-26 실서버 대조).
+ *    BE 공지에는 NAVER Clip·TikTok 도 게시 가능하다고 적혀 있지만 아직 배포 전이라,
+ *    타입은 실제로 받아주는 값에 맞춥니다. 열리면 여기에 추가하면 됩니다.
+ */
+export type SnsPlatform = 'INSTAGRAM' | 'YOUTUBE';
 /** 명세 16.2: HANDOFF = 앱을 열어주고 사장님이 직접 올림 */
 export type PublishMode = 'HANDOFF' | 'DIRECT';
-export type PostStatus = 'PENDING_LINK' | 'LINKED' | 'FAILED';
+/** ⚠️ 서버 enum 에 FAILED 는 없습니다 (2026-08-26 실서버 대조). */
+export type PostStatus = 'PENDING_LINK' | 'LINKED';
 
 export interface SnsConnection {
   id: Id;

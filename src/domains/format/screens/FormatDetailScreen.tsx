@@ -2,7 +2,8 @@
  * S07.1.1 공식 임베드 + S07.2.1 핵심 포인트 · 명세 5.2
  *
  * 영상 위에는 아무것도 올리지 않습니다(YouTube 약관).
- * 배속·구간반복은 GuidePlayer 가 플레이어 아래 바깥에 그립니다.
+ * 재생·진행바·배속은 **유튜브 자체 컨트롤**을 씁니다 (2026-08-26 전환) —
+ * 우리가 만든 바깥 버튼은 자주 안 먹어서 걷어냈습니다. ui/GuidePlayer 머리말 참고.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -17,7 +18,7 @@ import { FeasibilityBadges } from '../../../ui/FeasibilityBadges';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
 import theme, { space, text } from '../../../design/theme';
-import { useVideoFormat } from '../../../api/queries/project';
+import { useCreatePlan, useVideoFormat } from '../../../api/queries/project';
 import { seconds } from '../../../lib/format';
 import type { CreateStackParamList } from '../../../navigation/types';
 
@@ -34,6 +35,7 @@ const TIMELINE = [
 export default function FormatDetailScreen({ navigation, route }: Props) {
   const { projectId, formatId } = route.params;
   const { data: format, isLoading, isError, refetch } = useVideoFormat(formatId);
+  const createPlan = useCreatePlan(projectId ?? 0);
 
   if (isError || (!isLoading && !format)) {
     return (
@@ -66,15 +68,22 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
         <BottomAction>
           <Button
             label="이 방식으로 만들기"
+            loading={createPlan.isPending}
             onPress={() => {
               if (!projectId) {
                 // 둘러보기로 들어왔으면 목적 선택부터 시작합니다.
                 navigation.navigate('PurposeSelect');
                 return;
               }
-              // 명세 확정 (2026-08-23): 포맷 저장은 7.1 POST /plan 이 유일한 경로입니다.
-              // 4.2 PATCH video_format_id 는 명세에서 빠졌습니다.
-              navigation.navigate('PlanSummary', { projectId, formatId });
+              /*
+               * 명세 확정 (2026-08-23): 포맷 저장은 7.1 POST /plan 이 유일한 경로입니다.
+               * 시안 V4 는 기획 확인 화면 없이 바로 촬영으로 갑니다 — 여기서 기획을
+               * 만들고, 응답의 첫 태스크부터 찍습니다.
+               */
+              createPlan.mutate(formatId, {
+                // 어느 컷부터 찍을지는 카메라가 정합니다(8.1 로 목록을 읽습니다).
+                onSuccess: () => navigation.replace('Camera', { projectId }),
+              });
             }}
           />
         </BottomAction>
@@ -88,12 +97,12 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
         참고 영상. 위에 겹치는 요소 없음 (YouTube 약관).
 
         ⚠️ GuidePlayer 는 YouTube 전용입니다.
-           Instagram·TikTok 은 재생 제어 API 가 없어 배속·구간반복이 불가능합니다.
+           Instagram·TikTok 은 임베드 재생 자체를 지원하지 않아 썸네일로 대체합니다.
            명세상 현재 카탈로그는 전부 YouTube 라 실질 이슈는 없지만,
            다른 플랫폼이 오면 썸네일과 원본 링크만 보여줍니다.
       */}
       {!format.sourcePlatform || format.sourcePlatform === 'YOUTUBE' ? (
-        <GuidePlayer url={format.referenceUrl} />
+        <GuidePlayer url={format.referenceUrl} fullBleed />
       ) : (
         <>
           <VideoThumbnail

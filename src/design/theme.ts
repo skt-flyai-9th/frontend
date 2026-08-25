@@ -27,6 +27,10 @@ export const color = {
   warn: tokens.color.warn,
   danger: tokens.color.danger,
   overlay: tokens.color.overlay,
+  /** 시안 --card-border: hairline 80%. 흰 카드 위 흰 카드를 가르는 선 */
+  cardBorder: tokens.color.cardBorder,
+  /** 시안 border-hairline/60: 앱바·탭바 구분선 */
+  hairlineSoft: tokens.color.hairlineSoft,
 } as const;
 
 export const space = tokens.space;
@@ -80,55 +84,53 @@ function weight(w: TextStyle['fontWeight']): TextStyle['fontWeight'] {
   return USE_CUSTOM_FONTS ? undefined : w;
 }
 
-export const text: Record<
-  | 'display'
-  | 'title'
-  | 'heading'
-  | 'subheading'
-  | 'body'
-  | 'bodyStrong'
-  | 'bodySmall'
-  | 'caption'
-  | 'micro'
-  | 'button'
-  | 'chipLabel',
-  TextStyle
-> = {
+/**
+ * 시안 --ls-title: -0.02em — 굵은 제목 전부에 걸립니다.
+ * RN 의 letterSpacing 은 px 단위라 크기별로 환산해 둡니다.
+ */
+function tightEm(size: number): number {
+  return Math.round(size * font.letterSpacing.titleEm * 100) / 100;
+}
+
+export const text = {
+  /** 24 · bold — 시안 최대 크기. 요금 같은 단일 숫자에만 씁니다. */
   display: {
-    fontWeight: weight('800'),
-    fontFamily: family(font.family.black),
+    fontWeight: weight('700'),
+    fontFamily: family(font.family.bold),
     fontSize: font.size.display,
     lineHeight: font.lineHeight.display,
-    letterSpacing: font.letterSpacing.tight,
+    letterSpacing: tightEm(font.size.display),
     color: color.ink[900],
   },
+  /** 22 · bold — 화면 헤드라인(h1/h2) */
   title: {
     fontWeight: weight('700'),
     fontFamily: family(font.family.bold),
     fontSize: font.size.title,
     lineHeight: font.lineHeight.title,
-    letterSpacing: font.letterSpacing.tight,
+    letterSpacing: tightEm(font.size.title),
     color: color.ink[900],
   },
+  /** 18 · bold — 앱바 타이틀·가게명 */
   heading: {
     fontWeight: weight('700'),
     fontFamily: family(font.family.bold),
     fontSize: font.size.heading,
     lineHeight: font.lineHeight.heading,
-    letterSpacing: font.letterSpacing.normal,
+    letterSpacing: tightEm(font.size.heading),
     color: color.ink[900],
   },
+  /** 16 · semibold — 카드 안 섹션 제목 */
   subheading: {
     fontWeight: weight('600'),
     fontFamily: family(font.family.semibold),
     fontSize: font.size.subheading,
     lineHeight: font.lineHeight.subheading,
-    letterSpacing: font.letterSpacing.normal,
+    letterSpacing: tightEm(font.size.subheading),
     color: color.ink[900],
   },
+  /** 15 · medium — 본문. 시안에서 가장 많이 쓰이는 크기입니다. */
   body: {
-    // 가이드라인 §2.2: 프로토타입은 regular 를 거의 쓰지 않습니다(medium 46 / semibold 71 / bold 38).
-    // 본문을 medium 으로 올려야 전체 인상이 맞습니다.
     fontWeight: weight('500'),
     fontFamily: family(font.family.medium),
     fontSize: font.size.body,
@@ -136,6 +138,7 @@ export const text: Record<
     letterSpacing: font.letterSpacing.normal,
     color: color.ink[800],
   },
+  /** 15 · semibold — 강조 본문·목록 행 */
   bodyStrong: {
     fontWeight: weight('600'),
     fontFamily: family(font.family.semibold),
@@ -144,6 +147,7 @@ export const text: Record<
     letterSpacing: font.letterSpacing.normal,
     color: color.ink[900],
   },
+  /** 14 · medium — 설명·보조 문장 */
   bodySmall: {
     fontWeight: weight('500'),
     fontFamily: family(font.family.medium),
@@ -152,6 +156,7 @@ export const text: Record<
     letterSpacing: font.letterSpacing.normal,
     color: color.ink[700],
   },
+  /** 13 · medium — 도움말·메타 */
   caption: {
     fontWeight: weight('500'),
     fontFamily: family(font.family.medium),
@@ -160,7 +165,7 @@ export const text: Record<
     letterSpacing: font.letterSpacing.normal,
     color: color.ink[500],
   },
-  /** 칩 전용 13px (디자인 1차수정) */
+  /** 13 · semibold — 칩 전용 */
   chipLabel: {
     fontWeight: weight('600'),
     fontFamily: family(font.family.semibold),
@@ -169,23 +174,42 @@ export const text: Record<
     letterSpacing: font.letterSpacing.normal,
     color: color.ink[700],
   },
+  /** 12 · semibold — 필드 라벨·카드 라벨 (시안 --fs-label) */
+  label: {
+    fontWeight: weight('600'),
+    fontFamily: family(font.family.semibold),
+    fontSize: font.size.label,
+    lineHeight: font.lineHeight.label,
+    letterSpacing: font.letterSpacing.normal,
+    color: color.ink[500],
+  },
+  /** 11 · medium — 배지·해시태그·축 라벨 */
   micro: {
     fontWeight: weight('500'),
     fontFamily: family(font.family.medium),
     fontSize: font.size.micro,
     lineHeight: font.lineHeight.micro,
-    letterSpacing: font.letterSpacing.wide,
+    letterSpacing: font.letterSpacing.normal,
     color: color.ink[500],
   },
+  /** 10 · semibold — 미디어 위 최소 배지 */
+  nano: {
+    fontWeight: weight('600'),
+    fontFamily: family(font.family.semibold),
+    fontSize: font.size.nano,
+    lineHeight: font.lineHeight.nano,
+    letterSpacing: font.letterSpacing.normal,
+    color: color.ink[500],
+  },
+  /** 15 · semibold — 버튼 */
   button: {
-    // 디자인 1차수정: 15 · semibold (시안 PrimaryButton)
     fontWeight: weight('600'),
     fontFamily: family(font.family.semibold),
     fontSize: font.size.button,
     lineHeight: font.lineHeight.button,
     letterSpacing: font.letterSpacing.normal,
   },
-};
+} satisfies Record<string, TextStyle>;
 
 export const theme = {
   color,

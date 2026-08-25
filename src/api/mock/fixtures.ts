@@ -31,6 +31,13 @@ export const loginResponse = {
   user: { id: 1, email: 'boss01@example.com', name: '김사장' },
 };
 
+/**
+ * 2.1 검색 후보.
+ *
+ * ⚠️ kakao_place_id 는 **카카오 후보에만** 값이 있고 네이버는 null 입니다
+ *    (명세 2026-08-25). 세 후보 중 하나만 값이 있는 이 구성이 곧 표본입니다 —
+ *    전부 채워두면 "네이버일 때 null" 경로를 한 번도 안 타게 됩니다.
+ */
 const PLACES = [
   {
     source: 'NAVER',
@@ -42,6 +49,7 @@ const PLACES = [
     category: '한식',
     distance_m: 120,
     external_channel_url: 'https://map.naver.com/p/entry/place/11111',
+    kakao_place_id: null,
   },
   {
     source: 'KAKAO',
@@ -53,6 +61,8 @@ const PLACES = [
     category: '분식',
     distance_m: 140,
     external_channel_url: 'https://place.map.kakao.com/22222',
+    // 명세 예시처럼 external_channel_url 끝자리와 같은 값을 씁니다(문자열입니다).
+    kakao_place_id: '22222',
   },
   {
     source: 'NAVER',
@@ -64,6 +74,7 @@ const PLACES = [
     category: '한식',
     distance_m: 480,
     external_channel_url: 'https://map.naver.com/p/entry/place/33333',
+    kakao_place_id: null,
   },
 ];
 
@@ -86,7 +97,12 @@ export const store = {
   business_hours: '평일 10:00-20:30 (일요일 휴무, 브레이크 15:00-16:30)',
   brand_tone: '30년 손맛, 정직하고 푸근한 동네 국숫집',
   brand_color: '#D93E12',
-  logo_url: null,
+  /**
+   * 프로필 사진. 시안 V4 의 store/profile-default.svg 원본을 그대로 PNG 로 구워 넣습니다.
+   * (RN <Image> 는 SVG 를 못 읽습니다 — 안드로이드 미지원 + 웹에서도 빈 원)
+   * 회색 팔레트: track(#CBD5E1) 배경 + surface(#F8FAFC) 75% 실루엣.
+   */
+  logo_url: 'data:image/png;base64,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',
   info_source: 'NAVER',
   external_channel_url: 'https://map.naver.com/p/entry/place/12345',
   updated_at: '2026-08-18T08:10:00Z',
@@ -215,6 +231,8 @@ export const insights = [
 
 export const project = {
   id: 1001,
+  // 명세 4.3 (2026-08-26): 7.1 기획 전에는 null 입니다. POST /plan 이 채웁니다.
+  project_title: null,
   store_id: 10,
   video_format_id: null,
   store_target_customer_id: null,
@@ -232,6 +250,8 @@ export const project = {
 export const projectList = [
   {
     id: 1000,
+    // 촬영 단계라 기획(7.1)을 이미 지났습니다 → 제목이 있습니다.
+    project_title: '신메뉴 로제떡볶이 가격 맞히기',
     promotion_purpose: '메뉴소개',
     shorts_status: 'SHOOTING',
     updated_at: '2026-08-19T14:20:00Z',
@@ -583,6 +603,8 @@ export const storeShorts = [
   {
     video_output_id: 501,
     shorts_project_id: 300,
+    // 명세 15.2 (2026-08-26)
+    project_title: "이 국물 진짜 30년이래요",
     promotion_purpose: '메뉴소개',
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
     cover_image_url: 'https://picsum.photos/seed/reals501/720/1280',
@@ -593,6 +615,8 @@ export const storeShorts = [
   {
     video_output_id: 502,
     shorts_project_id: 301,
+    // 명세 15.2 (2026-08-26)
+    project_title: "손만두 빚는 아침 5시",
     promotion_purpose: '이벤트알리기',
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     cover_image_url: 'https://picsum.photos/seed/reals502/720/1280',
@@ -603,6 +627,9 @@ export const storeShorts = [
   {
     video_output_id: 503,
     shorts_project_id: 302,
+    // 명세 15.2 (2026-08-26)
+   // 기획 전이라 null — 화면이 목적으로 대체하는 경로를 검증합니다.
+    project_title: null,
     promotion_purpose: '가게소개',
     video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
     cover_image_url: 'https://picsum.photos/seed/reals503/720/1280',
@@ -612,3 +639,74 @@ export const storeShorts = [
     created_at: '2026-08-20T18:40:00Z',
   },
 ];
+
+/**
+ * 알림 3건 — 시안 v3 `NOTICES` 원문 그대로입니다.
+ *
+ * ⚠️ 명세에 알림 API 가 없어 **mock 에만** 존재합니다.
+ *    실서버 모드에서는 이 값이 쓰이지 않고 화면이 빈 상태가 됩니다
+ *    (없는 숫자를 사장님에게 보여주지 않기 위해).
+ */
+export const notices = [
+  {
+    id: 'n1',
+    icon: 'trending-up',
+    tone: 'brand',
+    title: '지난주 조회수가 32% 늘었어요',
+    body: '크로플 단면 숏폼이 가장 많이 재생됐어요.',
+    time: '2시간 전',
+    unread: true,
+  },
+  {
+    id: 'n2',
+    icon: 'sparkles',
+    tone: 'brand',
+    title: '새 추천 숏폼 3개가 도착했어요',
+    body: '여름 신메뉴에 맞는 레퍼런스를 골라봤어요.',
+    time: '어제',
+    unread: true,
+  },
+  {
+    id: 'n3',
+    icon: 'circle-check',
+    tone: 'verified',
+    title: '영상 내보내기가 완료됐어요',
+    body: '인스타그램 릴스로 공유되었습니다.',
+    time: '3일 전',
+  },
+];
+
+/**
+ * 매장 인사이트 지표 — 시안 v3 `INSIGHT_KPIS` · `WEEK_VIEWS` · `LOCAL_ANALYSIS` 원문.
+ *
+ * ⚠️ 계정 단위 집계 API 가 없습니다(17.1 은 게시물 단위라 주간 합산을 못 만듭니다).
+ *    그래서 **mock 에만** 존재합니다. 실서버 모드에서는 KPI 가 "—", 차트는
+ *    빈 상태가 됩니다 — 사장님에게 가짜 숫자가 가지 않게 하려는 구분입니다.
+ *    알림(notices)과 같은 방식입니다.
+ */
+export const insightKpis = [
+  { label: '이번 주 총 조회수', value: '3,820회', delta: '+12%', icon: 'trending-up' },
+  { label: '플레이스 유입 전환', value: '142회', delta: '+8%', icon: 'map-pin' },
+  { label: '저장 및 공유', value: '89회', icon: 'bookmark' },
+  { label: '주 타깃', value: '여성 20~30대', icon: 'users' },
+];
+
+export const weekViews = [
+  { day: '월', value: 320 },
+  { day: '화', value: 480 },
+  { day: '수', value: 410 },
+  { day: '목', value: 620 },
+  { day: '금', value: 580 },
+  { day: '토', value: 780 },
+  { day: '일', value: 630 },
+];
+
+/** 시안 색: 진한 브랜드 → 옅은 브랜드 → 회색 순으로 비중을 표현합니다. */
+export const localAnalysis = [
+  { label: '매장 반경 1km 이내 주민', value: 58, color: '#2563eb' },
+  { label: '인근 직장인 유입', value: 27, color: '#60a5fa' },
+  { label: '타지역 방문객', value: 15, color: '#cbd5e1' },
+];
+
+/** 주간 추이 카드 우측에 붙는 증감. KPI 조회수와 같은 값입니다. */
+export const weekViewsDelta = '+12%';

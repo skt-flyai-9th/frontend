@@ -20,6 +20,29 @@ export type RootStackParamList = {
    *    (2026-08-24 실기기 확인). 그래서 Root 에 둡니다.
    */
   MyVideo: { videoOutputId?: number } | undefined;
+  /**
+   * 알림 (시안 HomeHeader 의 벨).
+   *
+   * 탭 안이 아니라 Root 에 둡니다 — 홈 탭에서 열리는데 마이 탭 스택에 넣으면
+   * 여는 순간 탭이 바뀌어 버립니다. 뒤로가기로 홈에 그대로 돌아와야 합니다.
+   */
+  Notifications: undefined;
+  /** 매장 인사이트 분석 — 시안에 탭바가 없어 탭 밖입니다. */
+  Insight: undefined;
+  /**
+   * 프로필 수정 — 3.1(가게) + 3.6(로고) + 16.1(SNS) + 1.5(계정) 을 한 화면에.
+   * 시안에 하단 탭바가 없고 저장하기 버튼이 화면 맨 아래에 옵니다.
+   * 탭 안에 두면 탭바가 그 자리를 먹어 저장하기가 화면 밖으로 밀립니다.
+   */
+  EditProfile: undefined;
+  /** 플랜 안내 — 정적 화면(플랜 API 없음). 시안에 탭바가 없어 탭 밖입니다. */
+  Plans: undefined;
+  /**
+   * 자주 묻는 질문 — 탭 **밖**입니다.
+   * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
+   * 시안과 어긋납니다(알림 화면과 같은 이유).
+   */
+  Faq: undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   StoreSetup: NavigatorScreenParams<StoreSetupStackParamList>;
@@ -29,7 +52,6 @@ export type RootStackParamList = {
 
 /** 최초 실행 안내 */
 export type OnboardingStackParamList = {
-  Intro: undefined;
   /**
    * mode 가 없으면 최초 가입 흐름(동의를 받고 로그인으로 넘어감).
    * 'read' 면 설정에서 다시 보는 읽기 전용입니다 — 동의를 다시 받지 않습니다.
@@ -46,8 +68,6 @@ export type AuthStackParamList = {
 /** 가게 등록 (최초 1회) */
 export type StoreSetupStackParamList = {
   StoreSearch: undefined;
-  StoreManual: undefined;
-  StoreConfirm: { storeId: number };
 };
 
 /**
@@ -70,26 +90,11 @@ export type MainTabParamList = {
  */
 export type MyStackParamList = {
   MyPage: undefined;
-  // ── 기존 StoreStack 6개 (지우지 않고 옮김) ──
-  StoreOverview: undefined;
-  StoreEdit: undefined;
-  MenuManage: undefined;
-  PhotoManage: undefined;
-  TargetManage: undefined;
-  SnsConnect: undefined;
-  // ── 기존 탭에서 옮겨온 것 ──
-  Performance: undefined;
   Settings: undefined;
   // ── 신규 ──
-  Insight: undefined;
-  Faq: undefined;
   PermissionsInfo: undefined;
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
-  /** 프로필 수정 — 3.1(가게) + 3.6(로고) + 16.1(SNS) + 1.5(계정) 을 한 화면에 */
-  EditProfile: undefined;
-  /** 플랜 안내 — 정적 화면 (플랜 API 없음) */
-  Plans: undefined;
 };
 
 /** 숏폼 만들기 — 목적부터 게시까지 하나의 긴 흐름 */
@@ -101,54 +106,20 @@ export type CreateStackParamList = {
    * PathChoice 를 건너뛰고 곧장 PlanSummary 로 갑니다.
    */
   PurposeSelect: { formatId?: number } | undefined;
-  /** 명세 4.2 (2026-08-21) — 목적별 상세 정보 */
-  PromotionDetail: { projectId: number; formatId?: number };
-  TargetSelect: { projectId: number; formatId?: number };
-  ShootCondition: { projectId: number; formatId?: number };
 
-  // 갈림길
-  PathChoice: { projectId: number };
-
-  // R06 질문형
-  Quiz: { projectId: number };
-  QuizResult: { projectId: number };
-
-  // R05 직접 고르기
-  FormatFeed: { projectId: number };
   /** projectId 가 없으면 '둘러보기' 모드입니다. 홈에서 바로 들어옵니다. */
   FormatDetail: { projectId?: number; formatId: number };
-
-  // R07 기획
-  PlanSummary: { projectId: number; formatId: number };
-  Storyboard: { projectId: number };
-  SubtitleEdit: { projectId: number };
-
-  // R08~R13 촬영
-  TaskBoard: { projectId: number };
-  TaskGuide: { projectId: number; taskId: number };
-  Camera: { projectId: number; taskId: number };
+  /** taskId 를 안 주면 카메라가 아직 안 찍은 첫 컷부터 시작합니다 (시안 V4). */
+  Camera: { projectId: number; taskId?: number };
   /** 안무 태스크 전용 — 참고 영상(위) + 카메라(아래). YouTube 참고 영상일 때만. */
   DanceCamera: { projectId: number; taskId: number };
-  TakeReview: { projectId: number; taskId: number; uri: string; durationSec: number };
-  Evaluation: { projectId: number; taskId: number };
 
   // R14~R15 편집·출력
   /** 명세 14.1 target_platform. 안 주면 화면에서 고르게 합니다. */
   Render: { projectId: number; platform?: 'INSTAGRAM' | 'YOUTUBE' | 'NAVER' };
   EditResult: { projectId: number };
-  Outputs: { projectId: number };
-
-  // R16 게시
-  Publish: { projectId: number; outputId: number };
-  PostLink: { postId: number; platform: 'INSTAGRAM' | 'YOUTUBE' | 'NAVER' };
 };
 
 /** 가게 정보 관리 — 탭 안에서 쌓입니다 */
 export type StoreStackParamList = {
-  StoreOverview: undefined;
-  StoreEdit: undefined;
-  MenuManage: undefined;
-  PhotoManage: undefined;
-  TargetManage: undefined;
-  SnsConnect: undefined;
 };
