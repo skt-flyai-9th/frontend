@@ -360,8 +360,6 @@ export interface ProjectListItem {
 export type FormatType = '밈' | '잔잔한 소개' | '정보형' | '챌린지';
 /** 명세: 상 / 중 / 하 */
 export type Difficulty = '상' | '중' | '하';
-/** 명세: 높음 / 보통 / 낮음 */
-export type FaceExposureLevel = '높음' | '보통' | '낮음';
 
 /**
  * 명세 5.1 목록 / 5.2 상세 공통.
@@ -378,7 +376,8 @@ export interface VideoFormat {
   formatType: FormatType;
   expectedDurationSec: number;
   shootingDifficulty: Difficulty;
-  faceExposureLevel: FaceExposureLevel;
+  /** 얼굴 촬영이 포맷 재현에 필수인지 여부. */
+  requiresFace?: boolean;
   /** 5.1 전용. 왜 추천했는지. 점수가 아니라 이유를 보여줍니다. */
   recommendReasons?: string[];
   /**
@@ -434,7 +433,7 @@ export interface QuizAlternative {
    */
   expectedDurationSec?: number;
   shootingDifficulty?: Difficulty;
-  faceExposureLevel?: FaceExposureLevel;
+  requiresFace?: boolean;
 }
 
 // ══════════════════════════════════════════════════

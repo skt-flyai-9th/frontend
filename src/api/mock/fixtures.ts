@@ -265,7 +265,7 @@ export const videoFormats = [
     format_type: '정보형',
     expected_duration_sec: 24,
     shooting_difficulty: '하',
-    face_exposure_level: '낮음',
+    requires_face: false,
     recommend_reasons: [
       '얼굴을 비추지 않아도 됩니다',
       '한 장면이 4~5초라 손님 없을 때 짬짬이 찍을 수 있습니다',
@@ -282,7 +282,7 @@ export const videoFormats = [
     format_type: '잔잔한 소개',
     expected_duration_sec: 30,
     shooting_difficulty: '하',
-    face_exposure_level: '낮음',
+    requires_face: false,
     recommend_reasons: ['처음 오는 손님의 부담을 줄입니다', '혼자서도 촬영할 수 있습니다'],
     reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     // 지금 트렌드 클러스터 3건은 대표·가이드가 같은 주소입니다. 달라질 수 있습니다.
@@ -295,7 +295,7 @@ export const videoFormats = [
     format_type: '밈',
     expected_duration_sec: 15,
     shooting_difficulty: '중',
-    face_exposure_level: '보통',
+    requires_face: true,
     recommend_reasons: ['가장 빨리 끝납니다', '공유가 잘 일어납니다'],
     reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     // 지금 트렌드 클러스터 3건은 대표·가이드가 같은 주소입니다. 달라질 수 있습니다.
@@ -365,7 +365,7 @@ export const quizAlternatives = [
     format_type: '잔잔한 소개',
     expected_duration_sec: 30,
     shooting_difficulty: '중',
-    face_exposure_level: '낮음',
+    requires_face: false,
     reason: '공간 위주로 촬영해 얼굴 노출이 필요 없음',
   },
   {
@@ -373,7 +373,7 @@ export const quizAlternatives = [
     format_type: '밈',
     expected_duration_sec: 20,
     shooting_difficulty: '하',
-    face_exposure_level: '보통',
+    requires_face: true,
     reason: '가장 짧게 끝나지만 얼굴이 한 컷 필요함',
   },
 ];

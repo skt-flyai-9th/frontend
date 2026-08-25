@@ -75,7 +75,7 @@ export const API = {
   project: (projectId: number) => `/shorts-projects/${projectId}`,   // 4.2 PATCH / 4.3 GET
 
   // ── R05 숏폼 포맷 탐색 ──────────────────────────────────
-  videoFormats: (query?: Record<string, string | number | undefined>) => {
+  videoFormats: (query?: Record<string, string | number | boolean | undefined>) => {
     const q = Object.entries(query ?? {})
       .filter(([, v]) => v !== undefined && v !== '')
       .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)

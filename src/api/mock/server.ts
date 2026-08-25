@@ -546,13 +546,13 @@ export async function mockRequest<T>(
     return send({ ...f, is_favorite: favoriteSet.has(f.id as number) });
   }
   if (p === '/video-formats') {
-    const level = query(path, 'face_exposure_level');
+    const requiresFace = query(path, 'requires_face');
     const type = query(path, 'format_type');
     const keyword = query(path, 'keyword');
     const sort = query(path, 'sort');
 
     let list = fx.videoFormats;
-    if (level) list = list.filter((f) => f.face_exposure_level === level);
+    if (requiresFace) list = list.filter((f) => f.requires_face === (requiresFace === 'true'));
     if (type) list = list.filter((f) => f.format_type === type);
     if (keyword) {
       list = list.filter(
