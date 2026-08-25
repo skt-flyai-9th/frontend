@@ -1,65 +1,137 @@
-/** S02.1.1 가게 통합검색 + S02.1.2 후보 비교 · 명세 2.1 */
-import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { BottomAction, Button } from '../../../ui/Button';
-import { Screen } from '../../../ui/Screen';
+/**
+ * StoreSearchScreen — **시안 V4 `store-sync` 대조 이식** (2026-08-26). 명세 2.1, 2.2.
+ *
+ * 시안 구조 (위에서부터)
+ *   헤더    뒤로가기 + "매장 등록"
+ *   ①      "매장 정보를 등록해 주세요" 22·bold + mt-2 안내 14·slate
+ *   ②      mt-6 초록 버튼 h56 rounded-full "네이버 스마트플레이스 연동으로 채우기"
+ *            누르면 불러오는 중 → 연동 완료 (아이콘도 loader → check)
+ *   ③      mt-6 구분선 "또는 직접 입력"
+ *   ④      mt-5 gap-5 — 매장 이름(h52) / 업종 카테고리 칩 10개 / 지역·주소
+ *            주소는 검색창(h52) + 후보 목록 + 고르면 지도와 주소 카드
+ *   ⑤      mt-auto pt-8 "시작하기" (셋 다 채워야 켜집니다)
+ *
+ * ⚠️ 시안의 연동 버튼은 1.5초 뒤 값이 채워지는 목업입니다.
+ *    우리는 2.1 검색이 그 일을 합니다 — 매장 이름으로 찾아 첫 후보의 이름·업종·주소·좌표를
+ *    그대로 채웁니다. 이름을 안 적었으면 무엇으로 찾을지 알 수 없으므로 먼저 적어 달라고 합니다.
+ *
+ * ⚠️ 시안 주소 검색은 도로명·지번을 가진 자체 목록입니다. 우리 2.1 은 가게를 찾아
+ *    이름·주소·좌표를 주므로, 후보에는 주소를 크게 이름을 작게 보여 줍니다.
+ *    지번은 API 에 없어 넣지 않습니다 — 없는 값을 지어내지 않습니다.
+ */
+import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Check, Link2, MapPin, Search, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAppState } from '../../../lib/appState';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import { Button } from '../../../ui/Button';
+import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
-import { Card } from '../../../ui/Card';
-import { Badge } from '../../../ui/Chip';
-import { EmptyState, ErrorState, Loading } from '../../../ui/Feedback';
-import { Field } from '../../../ui/Field';
-import { color, space, text } from '../../../design/theme';
+import { Banner, Spinner } from '../../../ui/Feedback';
+import { MapPreview } from '../../../ui/MapPreview';
+import { pressTap } from '../../../ui/press';
+import { useAppState } from '../../../lib/appState';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
+import theme, { color, radius, sizing, space, text } from '../../../design/theme';
 import type { PlaceResult } from '../../../api/schema/types';
 import type { RootStackParamList, StoreSetupStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<StoreSetupStackParamList, 'StoreSearch'>;
 
+/** 시안 SYNC_CATEGORIES 원문 */
+const CATEGORIES = [
+  '카페',
+  '식당',
+  '미용',
+  '운동',
+  '의류',
+  '꽃집',
+  '반려동물',
+  '공방',
+  '학원',
+  '직접입력',
+];
+
 export default function StoreSearchScreen({ navigation }: Props) {
   const setStoreId = useAppState((st) => st.setStoreId);
-  // 가게 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
+  // 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [input, setInput] = useState('');
-  const [keyword, setKeyword] = useState('');
-  const { data, isFetching, isError, refetch } = useStoreSearch(keyword);
+
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
+  const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState<PlaceResult | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [synced, setSynced] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
   const createStore = useCreateStore();
 
-  // 디바운스 — 글자마다 서버를 부르지 않습니다.
+  // 주소 검색 — 글자마다 서버를 부르지 않도록 350ms 늦춥니다.
+  const [keyword, setKeyword] = useState('');
   useEffect(() => {
-    const t = setTimeout(() => setKeyword(input), 350);
+    const t = setTimeout(() => setKeyword(query), 350);
     return () => clearTimeout(t);
-  }, [input]);
+  }, [query]);
+  const { data: results, isFetching, isError } = useStoreSearch(keyword);
 
-  const pick = (place: PlaceResult) => {
+  // 이미 고른 주소를 그대로 다시 후보로 보여 주지 않습니다.
+  const candidates = useMemo(
+    () => (picked && picked.address === query ? [] : (results ?? []).slice(0, 5)),
+    [results, picked, query]
+  );
+
+  // 연동으로 채우기 — 이름으로 2.1 을 찾아 첫 후보를 그대로 씁니다.
+  const { data: syncHits } = useStoreSearch(syncing ? name.trim() : '');
+  useEffect(() => {
+    if (!syncing || syncHits === undefined) return;
+    const hit = syncHits[0];
+    setSyncing(false);
+    if (!hit) {
+      setNotice('그 이름으로 찾지 못했습니다. 직접 입력해 주세요.');
+      return;
+    }
+    setName(hit.name);
+    setCategory(CATEGORIES.includes(hit.category) ? hit.category : '직접입력');
+    if (!CATEGORIES.includes(hit.category)) setCustomCategory(hit.category);
+    setPicked(hit);
+    setQuery(hit.address);
+    setSynced(true);
+  }, [syncing, syncHits]);
+
+  const startSync = () => {
+    setNotice(null);
+    if (name.trim().length < 2) {
+      setNotice('매장 이름을 먼저 적어 주세요. 그 이름으로 찾아 채웁니다.');
+      return;
+    }
+    setSyncing(true);
+  };
+
+  const resolvedCategory = category === '직접입력' ? customCategory.trim() : category;
+  const complete = !!name.trim() && !!resolvedCategory && !!picked;
+
+  const submit = () => {
+    if (!picked) return;
     createStore.mutate(
       {
-        name: place.name,
-        category: place.category,
-        address: place.address,
-        phone: place.phone,
-        infoSource: place.source,
-        // 명세 2.1 → 2.2 로 그대로 전달합니다.
-        externalChannelUrl: place.externalChannelUrl,
+        name: name.trim(),
+        category: resolvedCategory,
+        address: picked.address,
+        phone: picked.phone,
+        // 연동으로 채웠으면 그 출처를, 직접 적었으면 MANUAL 입니다.
+        infoSource: synced ? picked.source : 'MANUAL',
+        externalChannelUrl: picked.externalChannelUrl,
         // 2.2 (2026-08-23): 검색이 준 좌표를 버리지 않고 그대로 저장시킵니다.
-        latitude: place.latitude,
-        longitude: place.longitude,
-        /**
-         * 2.2 (2026-08-25): 카카오 후보면 값이 있고 네이버면 null 입니다.
-         * 우리가 만들거나 고르는 값이 아니라 2.1 이 준 걸 되돌려주는 것뿐입니다.
-         * BE 가 이걸로 대표메뉴 자동 수집을 겁니다(저장은 안 됨).
-         */
-        kakaoPlaceId: place.kakaoPlaceId,
+        latitude: picked.latitude,
+        longitude: picked.longitude,
+        // 2.2 (2026-08-25): 카카오 후보면 값이 있고 네이버면 null 입니다.
+        kakaoPlaceId: picked.kakaoPlaceId,
       },
       {
-        /*
-         * 시안 V4 store-sync 는 한 화면입니다. 확인 화면을 따로 두지 않고
-         * 등록되는 즉시 이 가게로 정하고 홈으로 갑니다.
-         */
         onSuccess: (res) => {
           setStoreId(res.id);
           rootNav.replace('Main', { screen: 'HomeFeed' });
@@ -68,66 +140,335 @@ export default function StoreSearchScreen({ navigation }: Props) {
     );
   };
 
-  const searching = keyword.trim().length >= 2;
-
   return (
-    <Screen
-    >
-      <AppBar />
-      <View style={{ gap: space[2] }}>
-        <Text style={text.title}>가게를 찾아 주세요</Text>
-        <Text style={text.bodySmall}>
-          상호나 주소를 넣으면 메뉴와 영업시간을 자동으로 채워 드립니다.
-        </Text>
-      </View>
+    /*
+     * 시안은 이 화면에서 하단 안전영역을 따로 잡지 않습니다 — pb-6 이 그 몫까지 합니다.
+     * bottom edge 까지 켜면 34 를 더 먹어 "시작하기" 가 그만큼 위로 뜹니다.
+     */
+    <Screen padded={false} scroll={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>
+      <AppBar onBack={() => navigation.goBack()} title="매장 등록" />
 
-      <Field
-        label="가게 이름"
-        value={input}
-        onChangeText={setInput}
-        placeholder="예: 난곡신사 손칼국수"
-        autoCorrect={false}
-        returnKeyType="search"
-      />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ① */}
+        <Text style={text.title}>매장 정보를 등록해 주세요</Text>
+        <Text style={styles.lead}>네이버 스마트플레이스를 연동하거나 직접 입력할 수 있어요.</Text>
 
-      {searching && isFetching && <Loading label="가게를 찾는 중" />}
+        {/* ② 시안: h56 rounded-full · 네이버 초록 */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ busy: syncing }}
+          disabled={syncing}
+          onPress={startSync}
+          style={({ pressed }) => [styles.syncBtn, pressTap(pressed, 'button')]}
+        >
+          {syncing ? (
+            <Spinner size={20} tint={color.paper} />
+          ) : synced ? (
+            <Check size={20} strokeWidth={2.5} color={color.paper} />
+          ) : (
+            <Link2 size={20} strokeWidth={2} color={color.paper} />
+          )}
+          <Text style={styles.syncText}>
+            {synced ? '연동 완료' : syncing ? '불러오는 중...' : '네이버 스마트플레이스 연동으로 채우기'}
+          </Text>
+        </Pressable>
 
-      {searching && isError && (
-        <ErrorState
-          title="검색 서버에서 응답이 없습니다"
-          description="직접 입력으로도 등록할 수 있습니다."
-          onRetry={() => refetch()}
-        />
-      )}
+        {notice ? (
+          <View style={{ marginTop: space[3] }}>
+            <Banner tone="warn" title={notice} />
+          </View>
+        ) : null}
 
-      {searching && !isFetching && data?.length === 0 && (
-        <EmptyState
-          title="찾는 가게가 없습니다"
-          description="상호를 조금 다르게 쓰거나, 직접 입력으로 등록해 주세요."
-          actionLabel="직접 입력하기"
-        />
-      )}
+        {/* ③ */}
+        <View style={styles.divider}>
+          <View style={styles.line} />
+          <Text style={styles.dividerText}>또는 직접 입력</Text>
+          <View style={styles.line} />
+        </View>
 
-      {data?.map((place, i) => (
-        <Card key={`${place.source}_${i}`} onPress={() => pick(place)}>
-          <View style={{ gap: space[2] }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space[3] }}>
-              <Text style={[text.subheading, { flex: 1 }]}>{place.name}</Text>
-              <Badge label={place.source === 'NAVER' ? '네이버' : '카카오'} />
+        {/* ④ */}
+        <View style={styles.fields}>
+          <View>
+            <Text style={styles.label}>매장 이름</Text>
+            <TextInput
+              value={name}
+              onChangeText={(v) => {
+                setName(v);
+                setSynced(false);
+                setNotice(null);
+              }}
+              placeholder="매장 이름을 입력해 주세요"
+              placeholderTextColor={color.ink[500]}
+              accessibilityLabel="매장 이름"
+              style={styles.input}
+            />
+          </View>
+
+          <View>
+            <Text style={styles.label}>업종 카테고리</Text>
+            <View style={styles.chips}>
+              {CATEGORIES.map((c) => {
+                const on = category === c;
+                return (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => {
+                      setCategory(c);
+                      if (c !== '직접입력') setCustomCategory('');
+                    }}
+                    style={({ pressed }) => [styles.chip, on && styles.chipOn, pressTap(pressed, 'button')]}
+                  >
+                    <Text style={[styles.chipText, on && { color: color.paper }]}>{c}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
-            <Text style={text.bodySmall}>{place.address}</Text>
-            <Text style={text.caption}>
-              {place.category}
-              {place.phone ? ` · ${place.phone}` : ''}
-              {place.distanceM ? ` · ${place.distanceM}m` : ''}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-            <Text style={[text.caption, { color: color.brand[600] }]}>이 가게가 맞아요</Text>
-            <ChevronRight size={14} strokeWidth={2} color={color.brand[600]} />
+            {category === '직접입력' && (
+              <TextInput
+                value={customCategory}
+                onChangeText={setCustomCategory}
+                placeholder="업종을 직접 입력해 주세요"
+                placeholderTextColor={color.ink[500]}
+                accessibilityLabel="업종 직접 입력"
+                style={[styles.input, { marginTop: 10 }]}
+              />
+            )}
           </View>
+
+          <View>
+            <Text style={styles.label}>지역 / 주소</Text>
+            <View style={styles.searchBox}>
+              <Search size={18} strokeWidth={2} color={color.ink[500]} />
+              <TextInput
+                value={query}
+                onChangeText={(v) => {
+                  setQuery(v);
+                  setPicked(null);
+                }}
+                placeholder="도로명 · 지번으로 검색 (예: 테헤란로)"
+                placeholderTextColor={color.ink[500]}
+                accessibilityLabel="주소 검색"
+                style={styles.searchInput}
+              />
+              {query.length > 0 && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="검색어 지우기"
+                  hitSlop={8}
+                  onPress={() => {
+                    setQuery('');
+                    setPicked(null);
+                  }}
+                >
+                  <X size={16} strokeWidth={2} color={color.ink[500]} />
+                </Pressable>
+              )}
+            </View>
+
+            {isError && !picked ? (
+              <Text style={styles.hint}>주소를 찾지 못했습니다. 잠시 후 다시 시도해 주세요.</Text>
+            ) : null}
+            {isFetching && candidates.length === 0 && !picked ? (
+              <Text style={styles.hint}>찾는 중…</Text>
+            ) : null}
+
+            {candidates.length > 0 && (
+              <View style={styles.results}>
+                {candidates.map((r, i) => (
+                  <Pressable
+                    key={`${r.name}-${r.address}`}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setPicked(r);
+                      setQuery(r.address);
+                      if (!name.trim()) setName(r.name);
+                    }}
+                    style={({ pressed }) => [
+                      styles.resultRow,
+                      i < candidates.length - 1 && styles.resultDivider,
+                      pressed && { backgroundColor: color.paper },
+                    ]}
+                  >
+                    <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
+                    <View style={styles.flexMin}>
+                      <Text style={styles.resultTitle} numberOfLines={1}>
+                        {r.address}
+                      </Text>
+                      <Text style={styles.resultSub} numberOfLines={1}>
+                        {r.name}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {picked && (
+              <View style={styles.mapCard}>
+                <MapPreview latitude={picked.latitude} longitude={picked.longitude} />
+                <View style={styles.mapAddr}>
+                  <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
+                  <View style={styles.flexMin}>
+                    <Text style={styles.resultTitle} numberOfLines={1}>
+                      {picked.address}
+                    </Text>
+                    <Text style={styles.resultSub} numberOfLines={1}>
+                      {picked.name}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
-        </Card>
-      ))}
+        </View>
+
+        {createStore.isError && (
+          <View style={{ marginTop: space[4] }}>
+            <Banner
+              tone="danger"
+              title="가게를 등록하지 못했습니다"
+              description="입력하신 내용은 그대로 있습니다. 다시 눌러 주세요."
+            />
+          </View>
+        )}
+
+        {/* ⑤ */}
+        <View style={styles.cta}>
+          <Button
+            label="시작하기"
+            disabled={!complete}
+            loading={createStore.isPending}
+            onPress={submit}
+          />
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  // 시안: px-6 pb-6
+  body: { flexGrow: 1, paddingHorizontal: space[6], paddingBottom: space[6], paddingTop: space[3] },
+
+  lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
+
+  // 시안: mt-6 · h56 · rounded-full · 네이버 초록
+  syncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[2],
+    height: 56,
+    marginTop: space[6],
+    borderRadius: radius.pill,
+    backgroundColor: color.naver,
+  },
+  syncText: { ...text.button, color: color.paper },
+
+  // 시안: mt-6 · 양옆 hairline 선 + 12 문구
+  divider: { flexDirection: 'row', alignItems: 'center', gap: space[3], marginTop: space[6] },
+  line: { flex: 1, height: theme.border.hairline, backgroundColor: color.ink[200] },
+  dividerText: { ...text.label, color: color.ink[500] },
+
+  // 시안: mt-5 gap-5
+  fields: { marginTop: space[5], gap: space[5] },
+  // 시안: mb-1.5 pl-1 · 12 · slate
+  label: { ...text.label, marginBottom: 6, paddingLeft: 4, color: color.ink[500] },
+  input: {
+    ...text.body,
+    height: sizing.inputHeight,
+    paddingHorizontal: space[4],
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+    color: color.ink[900],
+  },
+
+  // 시안: 칩 rounded-full px-4 py-2 · 14 semibold
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  chip: {
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+  },
+  chipOn: { borderColor: color.brand[600], backgroundColor: color.brand[600] },
+  chipText: {
+    ...text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[800],
+  },
+
+  // 시안: h52 검색창 (아이콘 + 입력 + 지우기)
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: sizing.inputHeight,
+    paddingHorizontal: space[4],
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+  },
+  searchInput: { ...text.body, flex: 1, height: '100%', color: color.ink[900], padding: 0 },
+  hint: { ...text.caption, marginTop: space[2], paddingLeft: 4, color: color.ink[500] },
+
+  // 시안: mt-2 후보 목록 (rounded-xl · 행마다 hairline)
+  results: {
+    marginTop: space[2],
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+    overflow: 'hidden',
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+  },
+  resultDivider: { borderBottomWidth: theme.border.hairline, borderBottomColor: color.hairlineSoft },
+  pinIcon: { marginTop: 2 },
+  flexMin: { flex: 1, minWidth: 0 },
+  resultTitle: {
+    ...text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+  },
+  resultSub: { ...text.label, color: color.ink[500] },
+
+  // 시안: mt-3 rounded-2xl · 지도 + 주소
+  mapCard: {
+    marginTop: space[3],
+    borderRadius: radius.lg,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    overflow: 'hidden',
+  },
+  mapAddr: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space[2],
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+    backgroundColor: color.surface,
+  },
+
+  // 시안: mt-auto pt-8
+  cta: { marginTop: 'auto', paddingTop: space[8] },
+});
