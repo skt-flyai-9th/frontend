@@ -286,10 +286,10 @@ const styles = StyleSheet.create({
   },
 
   // 시안: mt-7(28) gap-2.5(10)
-  steps: { marginTop: 28, gap: 10 },
+  steps: { marginTop: space[7], gap: 10 },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   stepLabel: { ...theme.text.bodyStrong, flexShrink: 1 },
 
   // 시안: mt-auto pb-8(32)
-  cta: { marginTop: 'auto', paddingBottom: space[7] },
+  cta: { marginTop: 'auto', paddingBottom: space[8] },
 });

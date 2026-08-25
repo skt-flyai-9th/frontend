@@ -80,6 +80,12 @@ interface Props {
    * 튀어나가면 카메라가 가려집니다.
    */
   compact?: boolean;
+  /**
+   * 시안 V4: 촬영 준비(포맷)·안무 가이드의 참고 영상 자리는 **좌우 여백 없는 3:4** 입니다.
+   * 유튜브 영상 자체는 16:9 라 3:4 로 늘리면 잘립니다. 그래서 3:4 는 **자리(검은 판)** 가
+   * 갖고, 영상은 그 안에서 16:9 를 지킨 채 가운데에 놓입니다.
+   */
+  fullBleed?: boolean;
 }
 
 /** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
@@ -87,7 +93,7 @@ type PageMsg = { t: 'boot' } | { t: 'ready' } | { t: 'err'; c: number | string }
 
 type Phase = 'loading' | 'ready' | 'apiFailed' | 'embedBlocked' | 'videoBad';
 
-export function GuidePlayer({ url, startSec, compact = false }: Props) {
+export function GuidePlayer({ url, startSec, compact = false, fullBleed = false }: Props) {
   const { width } = useWindowDimensions();
   const videoId = extractVideoId(url);
 
@@ -95,11 +101,14 @@ export function GuidePlayer({ url, startSec, compact = false }: Props) {
   /** 마지막 플레이어 오류 코드 — 화면에 그대로 보여 다음 진단을 한 줄로 만듭니다. */
   const [errCode, setErrCode] = useState<number | null>(null);
 
-  const playerWidth = Math.max(200, width - space[5] * 2);
-  // compact: 16:9 폭 기준 높이가 화면을 다 먹으므로 상한을 둡니다.
-  const playerHeight = compact
+  // fullBleed 는 화면 폭을 그대로 씁니다(시안: -mx-5 로 좌우 여백을 없앰).
+  const playerWidth = fullBleed ? width : Math.max(200, width - space[5] * 2);
+  // 영상 자체는 언제나 16:9 입니다. compact 는 화면을 카메라와 나눠 쓰므로 상한을 둡니다.
+  const videoHeight = compact
     ? Math.min(210, Math.round((playerWidth * 9) / 16))
     : Math.max(200, Math.round((playerWidth * 9) / 16));
+  // 시안 V4 의 3:4 자리. 그 안에서 영상은 16:9 를 지키고 위아래가 검게 남습니다.
+  const playerHeight = fullBleed ? Math.round((playerWidth * 4) / 3) : videoHeight;
 
   /**
    * 재생할 주소는 **서버(DB)가 준 url 하나뿐**입니다.
@@ -193,7 +202,14 @@ export function GuidePlayer({ url, startSec, compact = false }: Props) {
   }
 
   return (
-    <View style={[styles.playerBox, { width: playerWidth, height: playerHeight }]}>
+    <View
+      style={[
+        styles.playerBox,
+        { width: playerWidth, height: playerHeight },
+        // 3:4 자리 안에 16:9 영상을 가운데 두려면 바깥이 그만큼 커야 합니다.
+        fullBleed && styles.fullBleedBox,
+      ]}
+    >
       <WebView
         /*
          * ⚠️ baseUrl 은 필수입니다. 이게 없으면 문서 origin 이 null 이 되어
@@ -212,7 +228,7 @@ export function GuidePlayer({ url, startSec, compact = false }: Props) {
         allowsFullscreenVideo={!compact}
         setSupportMultipleWindows={false}
         androidLayerType="hardware"
-        style={styles.web}
+        style={[styles.web, { width: playerWidth, height: videoHeight }]}
         // 유튜브 로고 등을 눌러 밖으로 나가려 하면 외부 브라우저로 보냅니다.
         onShouldStartLoadWithRequest={(req) => {
           const u = req.url;
@@ -253,7 +269,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: color.mediaBlack,
     alignSelf: 'center',
+    justifyContent: 'center',
   },
+  // 시안: 화면 끝까지 붙으므로 모서리를 둥글리지 않습니다.
+  fullBleedBox: { borderRadius: 0 },
   web: { backgroundColor: color.mediaBlack },
   loading: {
     position: 'absolute',

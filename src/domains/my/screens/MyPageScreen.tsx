@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   cellImage: { width: '100%', height: '100%', backgroundColor: color.ink[100] },
   cellSkeleton: { width: '32%', aspectRatio: 3 / 4, margin: GAP / 2 },
   cellEmpty: { opacity: 0.6 },
-  emptyGrid: { paddingHorizontal: space[4], paddingVertical: space[8] },
+  emptyGrid: { paddingHorizontal: space[4], paddingVertical: space[10] },
 
   menu: {
     marginTop: space[4],

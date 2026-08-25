@@ -207,16 +207,16 @@ export default function SignUpScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   // 시안: px-6 pb-8 · 헤더(98) 아래로 pt-[110px] → 12 만큼 띄웁니다
-  body: { flex: 1, paddingHorizontal: space[6], paddingTop: space[3], paddingBottom: space[7] },
+  body: { flex: 1, paddingHorizontal: space[6], paddingTop: space[3], paddingBottom: space[8] },
 
   // 시안: mt-2 · 14 · slate-muted · leading-relaxed
   lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
 
   // 시안: mt-7(28) gap-3.5(14)
-  fields: { marginTop: 28, gap: 14 },
+  fields: { marginTop: space[7], gap: space['3.5'] },
 
   // 시안: mt-auto pt-8(32)
-  cta: { marginTop: 'auto', paddingTop: space[7], gap: space[3] },
+  cta: { marginTop: 'auto', paddingTop: space[8], gap: space[3] },
   serverErrorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
   serverErrorText: { ...text.caption, flex: 1, color: color.danger[500] },
 

@@ -244,13 +244,13 @@ export function Skeleton({ style }: { style?: ViewStyle | ViewStyle[] }) {
 }
 
 const styles = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', gap: space[3], paddingVertical: space[8] },
+  center: { alignItems: 'center', justifyContent: 'center', gap: space[3], paddingVertical: space[10] },
   centerText: { textAlign: 'center' },
   block: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space[7],
-    paddingVertical: space[8],
+    paddingHorizontal: space[8],
+    paddingVertical: space[10],
     gap: space[2],
   },
   tile: {

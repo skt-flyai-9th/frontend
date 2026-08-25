@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   // 시안: mt-2 · 15 · medium · slate-muted
   tagline: { ...text.body, marginTop: space[2], color: color.ink[500] },
 
-  // 시안: mt-9(36) gap-3(12) — space 스케일에 36 이 없어 숫자로 둡니다.
+  // 시안: mt-9(36) gap-3(12). 36 은 원본 스케일에도 없어 그대로 둡니다.
   fields: { marginTop: 36, gap: space[3] },
 
   // 시안: pl-1 gap-1.5 · 13 · medium · heart

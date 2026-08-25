@@ -45,7 +45,6 @@ interface Topic {
   id: string;
   label: string;
   icon: typeof Sparkles;
-  desc: string;
   prompt: string;
   placeholder: string;
   multiline?: boolean;
@@ -62,7 +61,6 @@ const TOPICS: Topic[] = [
     id: 'new',
     label: '신메뉴',
     icon: Sparkles,
-    desc: '새로 출시한 메뉴',
     prompt: '어떤 신메뉴를 홍보할까요?',
     placeholder: '예: 흑임자 크림 라떼',
     purpose: '메뉴소개',
@@ -72,7 +70,6 @@ const TOPICS: Topic[] = [
     id: 'existing',
     label: '기존메뉴',
     icon: Coffee,
-    desc: '대표·인기 메뉴',
     prompt: '어떤 메뉴를 소개할까요?',
     placeholder: '예: 시그니처 아메리카노',
     purpose: '메뉴소개',
@@ -82,7 +79,6 @@ const TOPICS: Topic[] = [
     id: 'event',
     label: '이벤트',
     icon: Tag,
-    desc: '할인·혜택 안내',
     prompt: '어떤 이벤트인가요?',
     placeholder: '예: 여름 아메리카노 3,500원 (8/31까지, 오후 2~5시 방문)',
     multiline: true,
@@ -92,7 +88,6 @@ const TOPICS: Topic[] = [
     id: 'store',
     label: '매장홍보',
     icon: Store,
-    desc: '공간·분위기',
     prompt: '무엇을 보여주고 싶으세요?',
     placeholder: '예: 통창으로 햇빛이 잘 드는 좌석',
     chips: ['매장 분위기', '인테리어', '뷰/전망', '편의시설'],
@@ -218,7 +213,6 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
                     />
                   </View>
                   <Text style={styles.tileLabel}>{t.label}</Text>
-                  <Text style={styles.tileDesc}>{t.desc}</Text>
                 </Pressable>
               </View>
             );
@@ -303,7 +297,6 @@ const styles = StyleSheet.create({
   tileIconOn: { backgroundColor: color.brand[600] },
   tileIconOff: { backgroundColor: color.brand[50] },
   tileLabel: { ...theme.text.bodyStrong, fontFamily: theme.text.heading.fontFamily, fontWeight: theme.text.heading.fontWeight },
-  tileDesc: { ...theme.text.label, fontFamily: theme.text.caption.fontFamily, fontWeight: theme.text.caption.fontWeight, color: color.ink[500] },
 
   answer: { marginTop: space[6] },
   // 시안: mb-2 pl-1 · 15·semibold

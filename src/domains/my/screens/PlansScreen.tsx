@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   },
 
   // 시안: px-4 pb-10
-  body: { paddingHorizontal: space[4], paddingBottom: space[8] },
+  body: { paddingHorizontal: space[4], paddingBottom: space[10] },
 
   // 시안: rounded-2xl p-5 (그라디언트는 위 주석 참고)
   hero: { borderRadius: radius.lg, padding: space[5], backgroundColor: color.brand[600] },
@@ -193,7 +193,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   // 시안: 머리행 py-3(12) · 본문행 py-3.5(14)
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space[4], paddingVertical: 14 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: space[4],
+    paddingVertical: space['3.5'],
+  },
   headRow: { backgroundColor: color.surface, paddingVertical: space[3] },
   headCell: {
     ...text.label,

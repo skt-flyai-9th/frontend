@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   videoWrap: { flex: 1, backgroundColor: color.mediaBlack },
   badge: {
     position: 'absolute',
-    top: space[9],
+    top: space[14],
     alignSelf: 'center',
     backgroundColor: color.overlay.cameraChrome,
     paddingHorizontal: space[4],

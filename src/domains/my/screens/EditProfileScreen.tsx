@@ -233,7 +233,7 @@ export default function EditProfileScreen() {
 
 const styles = StyleSheet.create({
   // 시안: px-5 pb-8
-  body: { paddingHorizontal: space[5], paddingBottom: space[7] },
+  body: { paddingHorizontal: space[5], paddingBottom: space[8] },
 
   avatarWrap: { alignItems: 'center' },
   // 시안: h-24 w-24 + ring-1 hairline
@@ -273,8 +273,8 @@ const styles = StyleSheet.create({
   // 시안 입력: h-12 · bg-panel(흰색)
   input: { height: 48, backgroundColor: color.paper },
 
-  // 시안: mt-7(28) gap-5(20). space 스케일에 28 이 없어 숫자로 둡니다.
-  snsWrap: { marginTop: 28, gap: space[5] },
+  // 시안: mt-7(28) gap-5(20)
+  snsWrap: { marginTop: space[7], gap: space[5] },
   snsLabelRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginBottom: space[2] },
   snsLabel: {
     ...theme.text.caption,
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   // 시안: mt-8 h-12 rounded-xl bg-brand
   saveBtn: {
     height: 48,
-    marginTop: space[7],
+    marginTop: space[8],
     borderRadius: radius.md,
     backgroundColor: color.brand[600],
     alignItems: 'center',

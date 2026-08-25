@@ -73,7 +73,7 @@ export default function NotificationsScreen() {
       </View>
 
       {list.length === 0 ? (
-        <View style={{ paddingTop: space[10] }}>
+        <View style={{ paddingTop: space[16] }}>
           <StateBlock
             icon={Bell}
             tone="muted"

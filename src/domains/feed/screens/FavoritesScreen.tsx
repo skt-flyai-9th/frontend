@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
    * 시안 pt-[86px] — 안전영역(54) 안쪽 기준으로는 32 입니다.
    * 헤더(44)보다 12 적어, 첫 줄 위 12 가 헤더 아래로 들어갑니다.
    */
-  grid: { paddingTop: 32, paddingHorizontal: GAP, paddingBottom: space[8] },
+  grid: { paddingTop: 32, paddingHorizontal: GAP, paddingBottom: space[10] },
   // 폭은 화면에서 계산해 넣습니다(위 cellWidth 주석 참고). 시안 aspect-[3/4].
   cell: { aspectRatio: 3 / 4 },
   thumb: { width: '100%', height: '100%', borderRadius: radius.tile },

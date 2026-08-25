@@ -76,7 +76,7 @@ export default function TaskGuideScreen({ navigation, route }: Props) {
 
       {playable ? (
         /* 재생·진행바·배속은 유튜브 플레이어 자체 컨트롤로 조작합니다 */
-        <GuidePlayer url={video!.referenceUrl} />
+        <GuidePlayer url={video!.referenceUrl} fullBleed />
       ) : (
         <>
           <VideoThumbnail url={video!.referenceUrl} platform={video!.sourcePlatform} />

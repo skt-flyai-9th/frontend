@@ -94,7 +94,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
            다른 플랫폼이 오면 썸네일과 원본 링크만 보여줍니다.
       */}
       {!format.sourcePlatform || format.sourcePlatform === 'YOUTUBE' ? (
-        <GuidePlayer url={format.referenceUrl} />
+        <GuidePlayer url={format.referenceUrl} fullBleed />
       ) : (
         <>
           <VideoThumbnail

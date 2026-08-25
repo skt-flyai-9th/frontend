@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
 
   // 시안: px-4 · 카드 사이 gap-2.5(10)
-  list: { paddingHorizontal: space[4], paddingBottom: space[8], gap: 10 },
+  list: { paddingHorizontal: space[4], paddingBottom: space[10], gap: 10 },
 
   card: {
     borderRadius: radius.lg,

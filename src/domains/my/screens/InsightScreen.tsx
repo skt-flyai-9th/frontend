@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { paddingHorizontal: space[4], paddingBottom: space[8] },
+  body: { paddingHorizontal: space[4], paddingBottom: space[10] },
 
   // 시안: grid-cols-2 gap-3
   // 카드 바깥으로 6씩 빼서 좌우 정렬을 유지합니다(안쪽 여백이 gap 12 를 대신).

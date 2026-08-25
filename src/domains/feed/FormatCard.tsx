@@ -23,7 +23,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Heart, Play } from 'lucide-react-native';
-import { LensGlyph } from '../../ui/LensGlyph';
+import { SlateGlyph } from '../../ui/SlateGlyph';
 
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { Skeleton } from '../../ui/Feedback';
@@ -110,7 +110,8 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
           style={({ pressed }) => [styles.iconBtn, pressed && { transform: [{ scale: 0.9 }] }]}
         >
           {/* v3: 클래퍼보드 → 카메라 렌즈. 색도 브랜드 파랑이 아니라 slate 입니다. */}
-          <LensGlyph size={22} />
+          {/* 시안 V4: 렌즈 → 슬레이트(클랩보드) */}
+          <SlateGlyph size={24} />
         </Pressable>
       </View>
     </View>

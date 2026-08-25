@@ -93,7 +93,8 @@ export default function EvaluationScreen({ navigation, route }: Props) {
         </BottomAction>
       }
     >
-      <AppBar onBack={() => navigation.replace('TaskBoard', { projectId })} title="찍은 영상 확인" />
+      {/* 시안 V4: 뒤로가기는 목적지를 정하지 않고 **직전 화면** 으로 갑니다 */}
+      <AppBar onBack={() => navigation.goBack()} title="찍은 영상 확인" />
 
       {waiting && (
         <Card>

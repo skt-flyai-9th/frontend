@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { paddingHorizontal: space[4], paddingBottom: space[8] },
+  body: { paddingHorizontal: space[4], paddingBottom: space[10] },
 
   planCard: {
     flexDirection: 'row',
