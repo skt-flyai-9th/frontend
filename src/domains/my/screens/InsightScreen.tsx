@@ -26,7 +26,7 @@
  * 인사이트 종류별 내용은 각 섹션 안으로 들어갔습니다(기능 축소 없음).
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { Animated, Easing, View, Text, Pressable, StyleSheet, type ViewStyle, ScrollView } from 'react-native';
 import {
   Bookmark,
   Camera,
@@ -38,6 +38,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -140,6 +141,7 @@ function ShareBar({ value, tint, index }: { value: number; tint: string; index: 
 }
 
 export default function InsightScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
   const insights = useInsights(storeId ?? undefined);
@@ -158,9 +160,19 @@ export default function InsightScreen() {
   const foldable = !!local && hasShares;
 
   return (
+    /*
+     * ⚠️ `scroll={false}` + 안쪽 ScrollView 입니다.
+     *    시안은 헤더가 스크롤 영역 **밖**에 있어 내려도 제자리입니다
+     *    (`<header>` 다음에 `overflow-y-auto` 인 div 가 따로 옵니다).
+     *    `Screen` 에 스크롤을 맡기면 헤더가 같이 밀려 올라갑니다 —
+     *    스크롤 하단 캡처에서 앱만 제목이 사라져 있었습니다.
+     */
     <Screen
       background={color.surface}
       padded={false}
+      scroll={false}
+      // 하단 안전영역은 아래 ScrollView 가 직접 다룹니다 (여기서 먹으면 40 위에 34 가 더 붙습니다)
+      edges={['top']}
       // 시안: 화면 맨 위에서 헤더까지 62 (= 상태바 54 + 8)
       contentStyle={{ paddingTop: space[2], gap: 0 }}
     >
@@ -177,7 +189,15 @@ export default function InsightScreen() {
         <Text style={text.heading}>매장 인사이트 분석</Text>
       </View>
 
-      <View style={styles.body}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.body,
+          // 시안 pb-10(40). 안전영역이 더 크면 그쪽을 씁니다(기기 홈 인디케이터).
+          { paddingBottom: Math.max(insets.bottom, space[10]) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ② KPI 2열 그리드 */}
         <View style={styles.kpiGrid}>
           {(metrics.data?.kpis ?? []).map((kpi, i) => {
@@ -335,7 +355,7 @@ export default function InsightScreen() {
             </Pressable>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -356,7 +376,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { paddingHorizontal: space[4], paddingBottom: space[10] },
+  flex: { flex: 1 },
+  // 시안: px-4 pb-10 (하단은 화면에서 안전영역과 함께 계산)
+  body: { paddingHorizontal: space[4] },
 
   /*
    * 시안: grid-cols-2 gap-3.

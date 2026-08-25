@@ -34,6 +34,7 @@ import {
   Alert,
   AppState,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Check, Plus, ShieldCheck, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -82,6 +83,7 @@ const PLATFORMS = [
 type Platform = (typeof PLATFORMS)[number];
 
 export default function EditProfileScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
 
@@ -191,11 +193,22 @@ export default function EditProfileScreen() {
   };
 
   return (
-    // Screen 기본 하단 여백(40)까지 붙으면 시안(pb-8=32)보다 아래가 비어 헛스크롤이 생깁니다.
-    <Screen padded={false} contentStyle={{ paddingTop: 0, paddingBottom: 0, gap: 0 }}>
+    /*
+     * ⚠️ `edges={['top']}` 이 필요합니다.
+     *    footer 가 없으면 `Screen` 의 SafeAreaView 가 하단 안전영역(34)을 먹는데,
+     *    여기에 body 의 `paddingBottom: 32` 가 더해져 **66** 이 됐습니다
+     *    (시안은 pb-8 = 32. 스크롤 하단 캡처 실측으로 확인).
+     *    안전영역은 여기서 직접 다뤄야 저장하기 버튼 아래가 시안만큼만 남습니다.
+     */
+    <Screen
+      padded={false}
+      scroll
+      edges={['top']}
+      contentStyle={{ paddingTop: 0, paddingBottom: 0, gap: 0 }}
+    >
       <AppBar onBack={() => nav.goBack()} title="프로필 수정" />
 
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingBottom: Math.max(insets.bottom, space[8]) }]}>
         {/* ① 아바타 */}
         <View style={styles.avatarWrap}>
           <View>
@@ -436,8 +449,8 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  // 시안: px-5 pb-8
-  body: { paddingHorizontal: space[5], paddingBottom: space[8] },
+  // 시안: px-5 pb-8. 하단 여백은 화면에서 안전영역과 함께 계산합니다(위 주석).
+  body: { paddingHorizontal: space[5] },
 
   avatarWrap: { alignItems: 'center' },
   // 시안: h-24 w-24 + ring-1 hairline

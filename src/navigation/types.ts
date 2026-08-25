@@ -56,6 +56,14 @@ export type RootStackParamList = {
    * 시안에 탭바가 없어 탭 밖입니다.
    */
   Legal: { focus?: 'privacy' } | undefined;
+  /**
+   * 최초 실행 튜토리얼 — 앱을 처음 켰을 때 **딱 한 번**만 보입니다.
+   *
+   * 스택 안이 아니라 Root 에 둡니다. 이 화면은 어느 흐름에도 속하지 않고
+   * 그 앞에 한 번 서는 것이라, 어디에 넣어도 뒤로가기로 돌아올 수 있게 됩니다.
+   * 다시 뜨지 않게 하는 값은 `lib/appState.ts` 의 `tutorialSeen` 입니다.
+   */
+  Tutorial: undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   StoreSetup: NavigatorScreenParams<StoreSetupStackParamList>;

@@ -35,6 +35,7 @@ import {
   Shield,
   TriangleAlert,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -55,6 +56,7 @@ const WITHDRAW_LOSES = [
 ];
 
 export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
   const logout = useLogout();
   const withdraw = useWithdraw();
@@ -97,7 +99,7 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <Screen scroll={false} padded={false} background={color.surface}>
+    <Screen scroll={false} padded={false} edges={['top']} background={color.surface}>
       {/* ① 시안: px-4 pb-3 pt-[62px] — 62 중 54 는 상태바(SafeAreaView)가 먹습니다 */}
       <View style={styles.header}>
         <Pressable
@@ -115,7 +117,11 @@ export default function SettingsScreen() {
       {/* 시안 스크롤 영역: px-4 pb-10. 카드가 헤더 바로 아래 붙습니다(pt 없음) */}
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          // 시안 pb-10(40). 안전영역이 더 크면 그쪽을 씁니다 — Screen 이 먹으면 40 위에 34 가 더 붙습니다.
+          { paddingBottom: Math.max(insets.bottom, space[10]) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* ② Free 플랜 카드 */}
@@ -345,7 +351,8 @@ const styles = StyleSheet.create({
   },
 
   // 시안: px-4 pb-10 (카드가 헤더 바로 아래 110pt 에서 시작)
-  scroll: { paddingHorizontal: space[4], paddingBottom: space[10] },
+  // 시안: px-4 pb-10 (하단은 화면에서 안전영역과 함께 계산)
+  scroll: { paddingHorizontal: space[4] },
 
   // 시안: rounded-2xl border-brand-border bg-brand-tint p-4 (실측 높이 77.5pt)
   planCard: {

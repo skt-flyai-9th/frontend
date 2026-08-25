@@ -29,6 +29,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -95,6 +96,7 @@ const LEGAL_SECTIONS = {
 const EFFECTIVE_DATE = '시행일 2026년 1월 1일';
 
 export default function TermsScreen() {
+  const insets = useSafeAreaInsets();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   /*
    * 시안 LegalScreen 의 variant 자리입니다. 이 컴포넌트는 두 경로에 걸려 있습니다.
@@ -120,7 +122,7 @@ export default function TermsScreen() {
     nav.canGoBack() ? nav.goBack() : nav.replace('Auth', { screen: 'SignIn' });
 
   return (
-    <Screen scroll={false} padded={false} background={color.surface}>
+    <Screen scroll={false} padded={false} edges={['top']} background={color.surface}>
       {/* 시안: px-4 pb-3 pt-[62px] — 62 중 54 는 상태바(SafeAreaView)가 먹습니다 */}
       <View style={styles.header}>
         <Pressable
@@ -138,7 +140,11 @@ export default function TermsScreen() {
       {/* 시안: px-4 pb-10 */}
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[
+          styles.scroll,
+          // 시안 pb-10(40). 안전영역이 더 크면 그쪽을 씁니다 — Screen 이 먹으면 40 위에 34 가 더 붙습니다.
+          { paddingBottom: Math.max(insets.bottom, space[10]) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* 시안: mb-4 · 12 · #94A3B8 */}
@@ -178,7 +184,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  scroll: { paddingHorizontal: space[4], paddingBottom: space[10] },
+  // 시안: px-4 pb-10 (하단은 화면에서 안전영역과 함께 계산)
+  scroll: { paddingHorizontal: space[4] },
 
   // 시안: text-[12px] text-[#94A3B8] mb-4 (leading-normal 18)
   effective: { ...text.micro, fontSize: 12, lineHeight: 18, color: color.ink[400], marginBottom: space[4] },
