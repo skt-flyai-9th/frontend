@@ -161,12 +161,7 @@ export default function TermsScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
 
-  /*
-   * 시안: px-4 pb-3 pt-[62px] · gap-2 · 뒤로가기 36
-   * ⚠️ 음수 여백을 넣지 마세요. 공용 `TopHeader`(가운데 제목)에는 `-ml-1.5` 가 있지만
-   *    이 화면처럼 **제목이 좌측 정렬인 자체 헤더**(legal·faq·choreo)에는 없습니다.
-   *    -6 을 같이 가져오면 뒤로가기와 제목이 통째로 6pt 왼쪽으로 갑니다(실측 확인).
-   */
+  // 시안: px-4 pb-3 pt-[62px] · gap-2 · 뒤로가기 36 (음수 여백 없음 — FaqScreen 의 헤더 규칙 주석 참고)
   header: {
     flexDirection: 'row',
     alignItems: 'center',

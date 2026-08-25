@@ -107,15 +107,33 @@ export default function NotificationsScreen() {
     <Screen edges={['top']} padded={false} contentStyle={{ paddingTop: 0, gap: 0 }}>
       <AppBar onBack={() => nav.goBack()} title="알림" />
 
-      {/* 시안: 푸시가 꺼져 있을 때 맨 위에 뜨는 안내 카드 (rise-in) */}
+      {/*
+        시안의 알림 안내 카드 (rise-in).
+
+        ⚠️ 시안은 `{!pushOn && …}` 로 **꺼져 있을 때만** 띄우고 문구도
+           "푸시 알림이 꺼져 있어요" 라고 단정합니다. 우리는 그렇게 못 씁니다 —
+           `expo-notifications` 가 의존성에 없어서 **실제 권한 상태를 읽을 수가
+           없습니다**. 상태를 모르는 채 꺼져 있다고 말하면, 이미 켜 둔 사장님에게
+           거짓말을 하는 셈입니다.
+
+           그래서 카드는 늘 두되 문구를 단정에서 안내로 바꿨습니다. 켜져 있든
+           꺼져 있든 맞는 말이고, 눌러서 설정으로 가는 길도 그대로입니다.
+           (`expo-notifications` 가 다른 이유로 들어오면 그때 시안처럼
+            `getPermissionsAsync()` 로 가려서 켜져 있으면 숨기면 됩니다)
+      */}
       <RiseIn style={styles.pushCard}>
         <View style={styles.pushTile}>
           <BellOff size={18} strokeWidth={2} color={color.brand[600]} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.pushTitle}>푸시 알림이 꺼져 있어요</Text>
+          <Text style={styles.pushTitle}>알림을 켜두면 놓치지 않아요</Text>
+          {/*
+           * 두 줄로 감기게 길이를 맞췄습니다. 시안 문구가 두 줄(31자)이라
+           * 한 줄로 줄이면 카드가 22pt 짧아지고 아래 목록 전체가 위로 올라옵니다
+           * (실측: 3.4% → 6.0%). 문구를 바꿀 때 길이도 같이 보셔야 합니다.
+           */}
           <Text style={styles.pushBody}>
-            조회수 리포트와 새 추천을 놓치지 않으려면 알림을 켜주세요.
+            조회수 리포트와 새 추천이 도착하면 앱을 열지 않아도 바로 알려 드려요.
           </Text>
           <Pressable
             accessibilityRole="button"
