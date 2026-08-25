@@ -11,13 +11,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { X, Check, Eye, EyeOff, SunMedium, RotateCcw } from 'lucide-react-native';
+import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
 import { CameraGuideOverlay, type GuideShape } from '../../../ui/CameraGuideOverlay';
-import { SpineStrip } from '../../../ui/ProgressSpine';
 import { Shutter } from '../../../ui/Shutter';
+import { pressTap } from '../../../ui/press';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
 import { JobProgress } from '../../../ui/Feedback';
 import {
@@ -66,18 +66,23 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   const { data: guide } = useTaskGuide(taskId);
 
+  /*
+   * 안무 컷(9.1 DANCE)은 참고 영상을 보면서 찍어야 해서 전용 화면이 따로 있습니다.
+   * 촬영 목록 화면을 없애면서 그리로 가는 길이 끊겨 있었습니다 — 여기서 잇습니다.
+   */
+  useEffect(() => {
+    if (!taskId || guide?.guideType !== 'DANCE') return;
+    navigation.replace('DanceCamera', { projectId, taskId });
+  }, [taskId, guide?.guideType, navigation, projectId]);
+
   const guideVisible = useAppState((s) => s.guideVisible);
   const guideOpacity = useAppState((s) => s.guideOpacity);
-  const toggleGuide = useAppState((s) => s.toggleGuide);
-  const setGuideOpacity = useAppState((s) => s.setGuideOpacity);
   const task = tasks.find((t) => t.id === taskId);
-  const orderIndex = task ? tasks.findIndex((t) => t.id === taskId) + 1 : 1;
 
   const [camPermission, requestCam] = useCameraPermissions();
   const [micPermission, requestMic] = useMicrophonePermissions();
 
   const [facing, setFacing] = useState<'back' | 'front'>('back');
-  const [torch, setTorch] = useState(false);
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -205,7 +210,6 @@ export default function CameraScreen({ navigation, route }: Props) {
         style={StyleSheet.absoluteFill}
         facing={facing}
         mode="video"
-        enableTorch={torch}
         videoQuality="1080p"
         mute={!needsMic}
         onCameraReady={() => setReady(true)}
@@ -224,6 +228,7 @@ export default function CameraScreen({ navigation, route }: Props) {
 
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         <View style={styles.topBar}>
+          {/* 시안 카메라 상단에는 뒤로가기 하나뿐입니다. */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="촬영 그만두기"
@@ -231,33 +236,8 @@ export default function CameraScreen({ navigation, route }: Props) {
             hitSlop={12}
             style={styles.chromeButton}
           >
-            <X size={22} strokeWidth={2} color={color.paper} />
+            <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
           </Pressable>
-
-          <View style={styles.taskLabel}>
-            <Text style={styles.taskOrder}>
-              {orderIndex}번째 · {tasks.length}개 중
-            </Text>
-            <Text style={styles.taskTitle}>{task?.taskTitle}</Text>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={guideVisible ? '가이드 숨기기' : '가이드 보이기'}
-            onPress={toggleGuide}
-            hitSlop={12}
-            style={styles.chromeButton}
-          >
-            {guideVisible ? (
-              <Eye size={22} strokeWidth={2} color={color.paper} />
-            ) : (
-              <EyeOff size={22} strokeWidth={2} color={color.paper} />
-            )}
-          </Pressable>
-        </View>
-
-        <View style={styles.stripWrap}>
-          <SpineStrip total={tasks.length} current={orderIndex} />
         </View>
       </SafeAreaView>
 
@@ -306,18 +286,11 @@ export default function CameraScreen({ navigation, route }: Props) {
           })}
         </View>
 
+        {/*
+          시안: 셔터 영역 h150 가운데 셔터, 오른쪽 26 에 전환 버튼 52.
+          가이드 밝기·불빛 버튼은 시안에 없어 걷어냈습니다.
+        */}
         <View style={styles.controls}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="가이드 진하기 조절"
-            onPress={() => setGuideOpacity(guideOpacity > 0.5 ? 0.35 : 0.9)}
-            style={styles.sideButton}
-            disabled={recording}
-          >
-            <SunMedium size={24} strokeWidth={2} color={color.paper} />
-            <Text style={styles.sideLabel}>가이드</Text>
-          </Pressable>
-
           <Shutter
             recording={recording}
             disabled={!ready || countdown !== null}
@@ -335,17 +308,13 @@ export default function CameraScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel="앞뒤 카메라 바꾸기"
             onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
-            style={styles.sideButton}
+            style={({ pressed }) => [styles.flipBtn, pressTap(pressed, 'icon')]}
             disabled={recording}
           >
-            <RotateCcw size={24} strokeWidth={2} color={color.paper} />
-            <Text style={styles.sideLabel}>전환</Text>
+            <SwitchCamera size={23} strokeWidth={2} color={color.paper} />
           </Pressable>
         </View>
 
-        <Pressable onPress={() => setTorch((t) => !t)} style={styles.torchRow} disabled={recording}>
-          <Text style={styles.torchText}>{torch ? '불빛 끄기' : '어두우면 불빛 켜기'}</Text>
-        </Pressable>
       </SafeAreaView>
 
       {/*
@@ -401,6 +370,17 @@ const styles = StyleSheet.create({
   black: { flex: 1, backgroundColor: color.mediaBlack },
 
   // 시안: 셔터 위 컷 칩 줄 (rounded-full · 12 semibold · 완료 verified)
+  // 시안: 셔터 영역 오른쪽 26 · 52 원 · ink 45%
+  flipBtn: {
+    position: 'absolute',
+    right: 26,
+    width: 52,
+    height: 52,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: CHROME,
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -513,6 +493,4 @@ const styles = StyleSheet.create({
   sideLabel: { ...text.micro, color: 'rgba(255,255,255,0.8)' },
 
 
-  torchRow: { alignSelf: 'center', paddingVertical: space[2], paddingHorizontal: space[4] },
-  torchText: { ...text.bodySmall, color: 'rgba(255,255,255,0.85)' },
 });
