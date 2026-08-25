@@ -5,6 +5,9 @@ import { ChevronRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomAction, Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useAppState } from '../../../lib/appState';
 import { AppBar } from '../../../ui/AppBar';
 import { Card } from '../../../ui/Card';
 import { Badge } from '../../../ui/Chip';
@@ -13,11 +16,14 @@ import { Field } from '../../../ui/Field';
 import { color, space, text } from '../../../design/theme';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
 import type { PlaceResult } from '../../../api/schema/types';
-import type { StoreSetupStackParamList } from '../../../navigation/types';
+import type { RootStackParamList, StoreSetupStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<StoreSetupStackParamList, 'StoreSearch'>;
 
 export default function StoreSearchScreen({ navigation }: Props) {
+  const setStoreId = useAppState((st) => st.setStoreId);
+  // 가게 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [input, setInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const { data, isFetching, isError, refetch } = useStoreSearch(keyword);
@@ -49,7 +55,16 @@ export default function StoreSearchScreen({ navigation }: Props) {
          */
         kakaoPlaceId: place.kakaoPlaceId,
       },
-      { onSuccess: (res) => navigation.replace('StoreConfirm', { storeId: res.id }) }
+      {
+        /*
+         * 시안 V4 store-sync 는 한 화면입니다. 확인 화면을 따로 두지 않고
+         * 등록되는 즉시 이 가게로 정하고 홈으로 갑니다.
+         */
+        onSuccess: (res) => {
+          setStoreId(res.id);
+          rootNav.replace('Main', { screen: 'HomeFeed' });
+        },
+      }
     );
   };
 
@@ -57,15 +72,6 @@ export default function StoreSearchScreen({ navigation }: Props) {
 
   return (
     <Screen
-      footer={
-        <BottomAction>
-          <Button
-            label="검색 안 하고 직접 입력하기"
-            variant="secondary"
-            onPress={() => navigation.navigate('StoreManual')}
-          />
-        </BottomAction>
-      }
     >
       <AppBar />
       <View style={{ gap: space[2] }}>
@@ -99,7 +105,6 @@ export default function StoreSearchScreen({ navigation }: Props) {
           title="찾는 가게가 없습니다"
           description="상호를 조금 다르게 쓰거나, 직접 입력으로 등록해 주세요."
           actionLabel="직접 입력하기"
-          onAction={() => navigation.navigate('StoreManual')}
         />
       )}
 

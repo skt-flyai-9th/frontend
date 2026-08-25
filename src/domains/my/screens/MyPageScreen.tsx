@@ -126,7 +126,7 @@ export default function MyPageScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="인스타그램 연동"
-              onPress={() => nav.navigate('SnsConnect')}
+              onPress={() => nav.navigate('EditProfile')}
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
               <BrandMark kind="instagram" />
@@ -135,7 +135,7 @@ export default function MyPageScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="유튜브 연동"
-              onPress={() => nav.navigate('SnsConnect')}
+              onPress={() => nav.navigate('EditProfile')}
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
               <BrandMark kind="youtube" />
@@ -176,7 +176,7 @@ export default function MyPageScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={() =>
-              nav.navigate('Create', { screen: 'TaskBoard', params: { projectId: resume.id } })
+              nav.navigate('Create', { screen: 'Camera', params: { projectId: resume.id } })
             }
             style={({ pressed }) => [styles.resume, pressTap(pressed, 'card')]}
           >
@@ -228,9 +228,6 @@ export default function MyPageScreen() {
       {/* 진입점 목록 — 시안에 없는 기능. 그리드 아래로 내려 상단 구성을 가리지 않게 */}
       <View style={styles.infoPad}>
         <View style={styles.menu}>
-          <MenuRow label="반응 보기" hint="게시한 숏폼 성과" onPress={() => nav.navigate('Performance')} />
-          <MenuRow label="가게 정보 관리" hint="메뉴·사진·손님 정보" onPress={() => nav.navigate('StoreOverview')} />
-          <MenuRow label="SNS 연동" hint="인스타그램·유튜브 계정" onPress={() => nav.navigate('SnsConnect')} />
           <MenuRow label="플랜 안내" hint="Free · Pro 요금제" onPress={() => nav.navigate('Plans')} />
           <MenuRow label="자주 묻는 질문" onPress={() => nav.navigate('Faq')} />
           <MenuRow label="앱 권한 안내" onPress={() => nav.navigate('PermissionsInfo')} />

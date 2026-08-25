@@ -52,7 +52,6 @@ export type RootStackParamList = {
 
 /** 최초 실행 안내 */
 export type OnboardingStackParamList = {
-  Intro: undefined;
   /**
    * mode 가 없으면 최초 가입 흐름(동의를 받고 로그인으로 넘어감).
    * 'read' 면 설정에서 다시 보는 읽기 전용입니다 — 동의를 다시 받지 않습니다.
@@ -69,8 +68,6 @@ export type AuthStackParamList = {
 /** 가게 등록 (최초 1회) */
 export type StoreSetupStackParamList = {
   StoreSearch: undefined;
-  StoreManual: undefined;
-  StoreConfirm: { storeId: number };
 };
 
 /**
@@ -93,15 +90,6 @@ export type MainTabParamList = {
  */
 export type MyStackParamList = {
   MyPage: undefined;
-  // ── 기존 StoreStack 6개 (지우지 않고 옮김) ──
-  StoreOverview: undefined;
-  StoreEdit: undefined;
-  MenuManage: undefined;
-  PhotoManage: undefined;
-  TargetManage: undefined;
-  SnsConnect: undefined;
-  // ── 기존 탭에서 옮겨온 것 ──
-  Performance: undefined;
   Settings: undefined;
   // ── 신규 ──
   PermissionsInfo: undefined;
@@ -118,64 +106,20 @@ export type CreateStackParamList = {
    * PathChoice 를 건너뛰고 곧장 PlanSummary 로 갑니다.
    */
   PurposeSelect: { formatId?: number } | undefined;
-  /**
-   * 명세 4.2 (2026-08-21) — 목적별 상세 정보.
-   *
-   * topicTag·topicText 는 시안 v3 촬영 준비 화면에서 이미 고른 주제와 내용입니다.
-   * 여기까지 들고 와야 같은 걸 두 번 묻지 않습니다.
-   */
-  PromotionDetail: {
-    projectId: number;
-    formatId?: number;
-    topicTag?: string;
-    topicText?: string;
-  };
-  TargetSelect: { projectId: number; formatId?: number };
-  ShootCondition: { projectId: number; formatId?: number };
 
-  // 갈림길
-  PathChoice: { projectId: number };
-
-  // R06 질문형
-  Quiz: { projectId: number };
-  QuizResult: { projectId: number };
-
-  // R05 직접 고르기
-  FormatFeed: { projectId: number };
   /** projectId 가 없으면 '둘러보기' 모드입니다. 홈에서 바로 들어옵니다. */
   FormatDetail: { projectId?: number; formatId: number };
-
-  // R07 기획
-  PlanSummary: { projectId: number; formatId: number };
-  Storyboard: { projectId: number };
-  SubtitleEdit: { projectId: number };
-
-  // R08~R13 촬영
-  TaskBoard: { projectId: number };
-  TaskGuide: { projectId: number; taskId: number };
-  Camera: { projectId: number; taskId: number };
+  /** taskId 를 안 주면 카메라가 아직 안 찍은 첫 컷부터 시작합니다 (시안 V4). */
+  Camera: { projectId: number; taskId?: number };
   /** 안무 태스크 전용 — 참고 영상(위) + 카메라(아래). YouTube 참고 영상일 때만. */
   DanceCamera: { projectId: number; taskId: number };
-  TakeReview: { projectId: number; taskId: number; uri: string; durationSec: number };
-  Evaluation: { projectId: number; taskId: number };
 
   // R14~R15 편집·출력
   /** 명세 14.1 target_platform. 안 주면 화면에서 고르게 합니다. */
   Render: { projectId: number; platform?: 'INSTAGRAM' | 'YOUTUBE' | 'NAVER' };
   EditResult: { projectId: number };
-  Outputs: { projectId: number };
-
-  // R16 게시
-  Publish: { projectId: number; outputId: number };
-  PostLink: { postId: number; platform: 'INSTAGRAM' | 'YOUTUBE' | 'NAVER' };
 };
 
 /** 가게 정보 관리 — 탭 안에서 쌓입니다 */
 export type StoreStackParamList = {
-  StoreOverview: undefined;
-  StoreEdit: undefined;
-  MenuManage: undefined;
-  PhotoManage: undefined;
-  TargetManage: undefined;
-  SnsConnect: undefined;
 };

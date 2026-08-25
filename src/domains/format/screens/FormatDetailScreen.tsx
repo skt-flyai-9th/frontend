@@ -18,7 +18,7 @@ import { FeasibilityBadges } from '../../../ui/FeasibilityBadges';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
 import theme, { space, text } from '../../../design/theme';
-import { useVideoFormat } from '../../../api/queries/project';
+import { useCreatePlan, useVideoFormat } from '../../../api/queries/project';
 import { seconds } from '../../../lib/format';
 import type { CreateStackParamList } from '../../../navigation/types';
 
@@ -35,6 +35,7 @@ const TIMELINE = [
 export default function FormatDetailScreen({ navigation, route }: Props) {
   const { projectId, formatId } = route.params;
   const { data: format, isLoading, isError, refetch } = useVideoFormat(formatId);
+  const createPlan = useCreatePlan(projectId ?? 0);
 
   if (isError || (!isLoading && !format)) {
     return (
@@ -67,15 +68,22 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
         <BottomAction>
           <Button
             label="이 방식으로 만들기"
+            loading={createPlan.isPending}
             onPress={() => {
               if (!projectId) {
                 // 둘러보기로 들어왔으면 목적 선택부터 시작합니다.
                 navigation.navigate('PurposeSelect');
                 return;
               }
-              // 명세 확정 (2026-08-23): 포맷 저장은 7.1 POST /plan 이 유일한 경로입니다.
-              // 4.2 PATCH video_format_id 는 명세에서 빠졌습니다.
-              navigation.navigate('PlanSummary', { projectId, formatId });
+              /*
+               * 명세 확정 (2026-08-23): 포맷 저장은 7.1 POST /plan 이 유일한 경로입니다.
+               * 시안 V4 는 기획 확인 화면 없이 바로 촬영으로 갑니다 — 여기서 기획을
+               * 만들고, 응답의 첫 태스크부터 찍습니다.
+               */
+              createPlan.mutate(formatId, {
+                // 어느 컷부터 찍을지는 카메라가 정합니다(8.1 로 목록을 읽습니다).
+                onSuccess: () => navigation.replace('Camera', { projectId }),
+              });
             }}
           />
         </BottomAction>

@@ -115,17 +115,17 @@ export default function RenderScreen({ navigation, route }: Props) {
           <BottomAction>
             {incomplete ? (
               <Button
-                label="남은 장면 찍으러 가기"
-                onPress={() => navigation.replace('TaskBoard', { projectId })}
+                label="남은 컷 찍으러 가기"
+                onPress={() => navigation.replace('Camera', { projectId })}
               />
             ) : (
               <>
                 <Button label="다시 시도" onPress={begin} />
                 <Button
-                  label="촬영 목록으로"
+                  label="촬영으로 돌아가기"
                   variant="quiet"
                   size="small"
-                  onPress={() => navigation.replace('TaskBoard', { projectId })}
+                  onPress={() => navigation.replace('Camera', { projectId })}
                 />
               </>
             )}

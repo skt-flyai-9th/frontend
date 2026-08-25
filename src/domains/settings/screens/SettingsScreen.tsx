@@ -88,7 +88,7 @@ export default function SettingsScreen() {
           withdraw.mutate('사용자 요청', {
             onSettled: () => {
               reset();
-              nav.reset({ index: 0, routes: [{ name: 'Onboarding', params: { screen: 'Intro' } }] });
+              nav.reset({ index: 0, routes: [{ name: 'Auth', params: { screen: 'SignIn' } }] });
             },
           }),
       },

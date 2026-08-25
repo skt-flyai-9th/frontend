@@ -28,7 +28,7 @@ import { Button } from '../../../ui/Button';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { Loading } from '../../../ui/Feedback';
 import { Shutter } from '../../../ui/Shutter';
-import { useTaskGuide } from '../../../api/queries/shoot';
+import { useTaskGuide, useUpdateTask, useUploadFootage } from '../../../api/queries/shoot';
 import { color, space, radius, text, sizing } from '../../../design/theme';
 import type { CreateStackParamList } from '../../../navigation/types';
 
@@ -36,6 +36,8 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'DanceCamera'>;
 
 export default function DanceCameraScreen({ route, navigation }: Props) {
   const { projectId, taskId } = route.params;
+  const upload = useUploadFootage(projectId);
+  const markTask = useUpdateTask(projectId);
   const insets = useSafeAreaInsets();
 
   const { data: guide, isLoading } = useTaskGuide(taskId);
@@ -73,18 +75,24 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
       const video = await cameraRef.current.recordAsync({ maxDuration: 60 });
       setRecording(false);
       if (video?.uri) {
-        navigation.replace('TakeReview', {
-          projectId,
-          taskId,
-          uri: video.uri,
-          durationSec: elapsed || 5,
-        });
+        /*
+         * 시안 V4: 검수 화면이 따로 없습니다. 찍은 컷을 바로 올리고
+         * 남은 컷이 있으면 카메라로, 없으면 편집으로 갑니다.
+         * (다시 찍기는 이 화면에 그대로 있으므로 되돌아올 길이 막히지 않습니다)
+         */
+        const uri = video.uri;
+        const durationSec = elapsed || 5;
+        markTask.mutate({ taskId, taskStatus: 'IN_PROGRESS' });
+        upload.mutate(
+          { taskId, uri, durationSec },
+          { onSuccess: () => navigation.replace('Camera', { projectId }) }
+        );
       }
     } catch (e) {
       setRecording(false);
       console.warn('[dance-camera] 녹화 실패', e);
     }
-  }, [elapsed, navigation, projectId, taskId]);
+  }, [elapsed, navigation, projectId, taskId, markTask, upload]);
 
   // ── 권한: 이 화면에서 필요할 때 즉석 요청 (한 번에 묶어 요청하지 않음) ──
   if (!camPermission || !micPermission || isLoading) {

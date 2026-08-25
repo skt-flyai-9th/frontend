@@ -11,13 +11,15 @@
  *
  * 둘 다 제공합니다. 버튼으로 안 되는 요청이 반드시 나오기 때문입니다.
  */
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { BottomAction, Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
+import { useCreateOutputs, useOutputs } from '../../../api/queries/edit';
+import { useSaveToGallery } from '../../../lib/useSaveToGallery';
 import { AppBar } from '../../../ui/AppBar';
 import { Card } from '../../../ui/Card';
 import { Badge, Chip } from '../../../ui/Chip';
@@ -39,6 +41,23 @@ export default function EditResultScreen({ navigation, route }: Props) {
 
   const { data: result, isLoading, isError, refetch } = useEditResult(projectId);
   const revise = useRevise(projectId);
+
+  /*
+   * 시안 V4: 내보내기가 이 화면에서 끝납니다(옛 Outputs·게시 화면 없음).
+   * 15.1 파일은 편집이 끝나면 바로 만들어 두고, 사장님은 받거나 공유하기만 합니다.
+   */
+  const createOutputs = useCreateOutputs(projectId);
+  const { data: outputs } = useOutputs(projectId);
+  const { saving, saved, save } = useSaveToGallery();
+  const ready = outputs?.outputs?.find((o) => o.renderStatus === 'COMPLETED');
+  const kit = outputs?.publishKit;
+  const requested = useRef(false);
+  useEffect(() => {
+    if (requested.current || !result || (outputs?.outputs?.length ?? 0) > 0) return;
+    requested.current = true;
+    createOutputs.mutate(['INSTAGRAM']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, outputs?.outputs?.length]);
 
   const [picked, setPicked] = useState<string[]>([]);
   const [freeText, setFreeText] = useState('');
@@ -125,10 +144,28 @@ export default function EditResultScreen({ navigation, route }: Props) {
               loading={revise.isPending}
             />
           ) : (
-            <Button
-              label="이대로 올리러 가기"
-              onPress={() => navigation.navigate('Outputs', { projectId })}
-            />
+            /*
+             * 시안 V4 export: 다운로드와 내보내기 두 갈래로 끝납니다.
+             * 앱이 대신 게시하던 화면(16.x)은 시안에 없어 없앴습니다 —
+             * 사장님이 파일을 받아 직접 올립니다.
+             */
+            <View style={styles.exportRow}>
+              <Button
+                label={saved ? '저장됨' : '기기에 다운로드'}
+                variant="secondary"
+                loading={saving}
+                onPress={() => ready && save(ready.videoUrl)}
+                disabled={!ready}
+              />
+              <Button
+                label="내보내기"
+                disabled={!ready}
+                onPress={() =>
+                  ready &&
+                  Share.share({ message: kit?.caption ?? '', url: ready.videoUrl }).catch(() => {})
+                }
+              />
+            </View>
           )}
         </BottomAction>
       }
@@ -235,6 +272,7 @@ export default function EditResultScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  exportRow: { flexDirection: 'row', gap: space[3] },
   previewWrap: {
     aspectRatio: 9 / 14,
     backgroundColor: color.mediaBlack,

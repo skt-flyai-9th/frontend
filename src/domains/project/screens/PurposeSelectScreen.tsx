@@ -37,7 +37,9 @@ import theme, { color, radius, space, sizing, text } from '../../../design/theme
 import { useCreateProject, useProjects } from '../../../api/queries/project';
 import { useCurrentStore } from '../../../lib/appState';
 import type { MenuDetailTag, PromotionPurpose } from '../../../api/schema/types';
-import type { CreateStackParamList } from '../../../navigation/types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { CreateStackParamList, RootStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'PurposeSelect'>;
 
@@ -96,6 +98,7 @@ const TOPICS: Topic[] = [
 ];
 
 export default function PurposeSelectScreen({ navigation, route }: Props) {
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   /**
    * 홈 피드에서 포맷을 먼저 고른 흐름이면 formatId 가 들어옵니다.
    * (BE 확정: 포맷 선택 → 목적 선택 → 4.1 생성 → 7.1 기획)
@@ -117,22 +120,26 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
 
   const next = () => {
     if (!topic || !storeId) return;
-    const params = {
-      formatId,
-      // 시안에서 고른 주제·내용을 다음 화면이 이어받습니다(다시 묻지 않기 위해).
-      topicTag: topic.detailTag,
-      topicText: value.trim(),
+    /*
+     * 시안 V4: 주제를 고르면 곧바로 포맷(촬영 방식)으로 갑니다.
+     * 4.1 이 요구하는 값은 storeId·promotionPurpose 둘뿐이라 여기서 다 채워집니다.
+     * 홍보 상세·타깃·촬영 조건을 따로 묻던 화면들은 시안에 없어 없앴습니다.
+     */
+    const go = (projectId: number) => {
+      if (formatId) navigation.replace('FormatDetail', { projectId, formatId });
+      // 시안 V4 에는 포맷 목록 화면이 따로 없습니다 — 홈 피드에서 고르고 들어옵니다.
+      else rootNav.navigate('Main', { screen: 'HomeFeed' });
     };
 
     const reusable = projects?.find((d) => d.promotionPurpose === topic.purpose);
     if (reusable) {
-      navigation.replace('PromotionDetail', { projectId: reusable.id, ...params });
+      go(reusable.id);
       return;
     }
 
     createProject.mutate(
       { storeId, promotionPurpose: topic.purpose },
-      { onSuccess: (p) => navigation.replace('PromotionDetail', { projectId: p.id, ...params }) }
+      { onSuccess: (p) => go(p.id) }
     );
   };
 

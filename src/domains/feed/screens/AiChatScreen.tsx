@@ -205,7 +205,8 @@ export default function AiChatScreen() {
     };
     submit.mutate(body, {
       onSuccess: () =>
-        nav.navigate('Create', { screen: 'QuizResult', params: { projectId } }),
+        // 시안 V4: 추천 결과는 홈 피드에서 고릅니다(별도 결과 화면 없음).
+        nav.navigate('Main', { screen: 'HomeFeed' }),
       onError: () => {
         // 빠져나갈 길을 둡니다 — 다시 시도할 수 있게 질문 단계로 되돌립니다.
         setStep('questions');

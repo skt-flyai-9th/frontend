@@ -24,21 +24,12 @@ import type {
 } from './types';
 
 // 온보딩·계정
-import IntroScreen from '../domains/auth/screens/IntroScreen';
 import TermsScreen from '../domains/auth/screens/TermsScreen';
 import SignInScreen from '../domains/auth/screens/SignInScreen';
 import SignUpScreen from '../domains/auth/screens/SignUpScreen';
 
 // 가게
 import StoreSearchScreen from '../domains/store/screens/StoreSearchScreen';
-import StoreManualScreen from '../domains/store/screens/StoreManualScreen';
-import StoreConfirmScreen from '../domains/store/screens/StoreConfirmScreen';
-import StoreInfoScreen from '../domains/store/screens/StoreInfoScreen';
-import StoreEditScreen from '../domains/store/screens/StoreEditScreen';
-import MenuManageScreen from '../domains/store/screens/MenuManageScreen';
-import PhotoManageScreen from '../domains/store/screens/PhotoManageScreen';
-import TargetManageScreen from '../domains/store/screens/TargetManageScreen';
-import SnsConnectScreen from '../domains/store/screens/SnsConnectScreen';
 
 // 탭 4개 (2026-08-23 프로토타입 확정) — 홈피드·관심목록·AI추천·마이
 import HomeFeedScreen from '../domains/feed/screens/HomeFeedScreen';
@@ -53,35 +44,17 @@ import MyVideoScreen from '../domains/my/screens/MyVideoScreen';
 import NotificationsScreen from '../domains/my/screens/NotificationsScreen';
 import PlansScreen from '../domains/my/screens/PlansScreen';
 import LegalScreen from '../domains/my/screens/LegalScreen';
-import PerformanceScreen from '../domains/analytics/screens/PerformanceScreen';
 import SettingsScreen from '../domains/settings/screens/SettingsScreen';
 // 구 홈(가게 분석 + 만들기 CTA)은 파일을 지우지 않고 진입만 끊었습니다.
 // 카드뉴스는 인사이트로, 이어하기는 마이로 이사했습니다 (인수인계 §2).
 
 // 만들기 흐름
 import PurposeSelectScreen from '../domains/project/screens/PurposeSelectScreen';
-import PromotionDetailScreen from '../domains/project/screens/PromotionDetailScreen';
-import TargetSelectScreen from '../domains/project/screens/TargetSelectScreen';
-import ShootConditionScreen from '../domains/project/screens/ShootConditionScreen';
-import PathChoiceScreen from '../domains/project/screens/PathChoiceScreen';
-import QuizScreen from '../domains/quiz/screens/QuizScreen';
-import QuizResultScreen from '../domains/quiz/screens/QuizResultScreen';
-import FormatFeedScreen from '../domains/format/screens/FormatFeedScreen';
 import FormatDetailScreen from '../domains/format/screens/FormatDetailScreen';
-import PlanSummaryScreen from '../domains/plan/screens/PlanSummaryScreen';
-import StoryboardScreen from '../domains/plan/screens/StoryboardScreen';
-import SubtitleEditScreen from '../domains/plan/screens/SubtitleEditScreen';
-import TaskBoardScreen from '../domains/shoot/screens/TaskBoardScreen';
-import TaskGuideScreen from '../domains/shoot/screens/TaskGuideScreen';
 import CameraScreen from '../domains/shoot/screens/CameraScreen';
 import DanceCameraScreen from '../domains/shoot/screens/DanceCameraScreen';
-import TakeReviewScreen from '../domains/shoot/screens/TakeReviewScreen';
-import EvaluationScreen from '../domains/shoot/screens/EvaluationScreen';
 import RenderScreen from '../domains/edit/screens/RenderScreen';
 import EditResultScreen from '../domains/edit/screens/EditResultScreen';
-import OutputsScreen from '../domains/publish/screens/OutputsScreen';
-import PublishScreen from '../domains/publish/screens/PublishScreen';
-import PostLinkScreen from '../domains/publish/screens/PostLinkScreen';
 
 const Root = createNativeStackNavigator<RootStackParamList>();
 const Onboard = createNativeStackNavigator<OnboardingStackParamList>();
@@ -100,13 +73,6 @@ function MyStack() {
   return (
     <My.Navigator screenOptions={noHeader}>
       <My.Screen name="MyPage" component={MyPageScreen} />
-      <My.Screen name="StoreOverview" component={StoreInfoScreen} />
-      <My.Screen name="StoreEdit" component={StoreEditScreen} />
-      <My.Screen name="MenuManage" component={MenuManageScreen} />
-      <My.Screen name="PhotoManage" component={PhotoManageScreen} />
-      <My.Screen name="TargetManage" component={TargetManageScreen} />
-      <My.Screen name="SnsConnect" component={SnsConnectScreen} />
-      <My.Screen name="Performance" component={PerformanceScreen} />
       <My.Screen name="Settings" component={SettingsScreen} />
       <My.Screen name="PermissionsInfo" component={PermissionsInfoScreen} />
       <My.Screen name="Legal" component={LegalScreen} />
@@ -119,7 +85,6 @@ const noHeader = { headerShown: false } as const;
 function OnboardingStack() {
   return (
     <Onboard.Navigator screenOptions={noHeader}>
-      <Onboard.Screen name="Intro" component={IntroScreen} />
       <Onboard.Screen name="Terms" component={TermsScreen} />
     </Onboard.Navigator>
   );
@@ -138,8 +103,6 @@ function StoreSetupStack() {
   return (
     <StoreSetup.Navigator screenOptions={noHeader}>
       <StoreSetup.Screen name="StoreSearch" component={StoreSearchScreen} />
-      <StoreSetup.Screen name="StoreManual" component={StoreManualScreen} />
-      <StoreSetup.Screen name="StoreConfirm" component={StoreConfirmScreen} />
     </StoreSetup.Navigator>
   );
 }
@@ -166,27 +129,15 @@ function CreateStack() {
     <Create.Navigator screenOptions={noHeader}>
       {/* R04 설정 */}
       <Create.Screen name="PurposeSelect" component={PurposeSelectScreen} />
-      <Create.Screen name="PromotionDetail" component={PromotionDetailScreen} />
-      <Create.Screen name="TargetSelect" component={TargetSelectScreen} />
-      <Create.Screen name="ShootCondition" component={ShootConditionScreen} />
-      <Create.Screen name="PathChoice" component={PathChoiceScreen} />
 
       {/* R06 질문형 */}
-      <Create.Screen name="Quiz" component={QuizScreen} />
-      <Create.Screen name="QuizResult" component={QuizResultScreen} />
 
       {/* R05 직접 고르기 */}
-      <Create.Screen name="FormatFeed" component={FormatFeedScreen} />
       <Create.Screen name="FormatDetail" component={FormatDetailScreen} />
 
       {/* R07 기획 */}
-      <Create.Screen name="PlanSummary" component={PlanSummaryScreen} />
-      <Create.Screen name="Storyboard" component={StoryboardScreen} />
-      <Create.Screen name="SubtitleEdit" component={SubtitleEditScreen} />
 
       {/* R08~R13 촬영 */}
-      <Create.Screen name="TaskBoard" component={TaskBoardScreen} />
-      <Create.Screen name="TaskGuide" component={TaskGuideScreen} />
       {/* 녹화 중 제스처로 빠져나가는 사고를 막습니다 */}
       <Create.Screen
         name="Camera"
@@ -198,17 +149,12 @@ function CreateStack() {
         component={DanceCameraScreen}
         options={{ gestureEnabled: false, animation: 'fade' }}
       />
-      <Create.Screen name="TakeReview" component={TakeReviewScreen} options={{ animation: 'fade' }} />
-      <Create.Screen name="Evaluation" component={EvaluationScreen} />
 
       {/* R14~R15 편집·출력 */}
       <Create.Screen name="Render" component={RenderScreen} options={{ gestureEnabled: false }} />
       <Create.Screen name="EditResult" component={EditResultScreen} />
-      <Create.Screen name="Outputs" component={OutputsScreen} />
 
       {/* R16 게시 */}
-      <Create.Screen name="Publish" component={PublishScreen} />
-      <Create.Screen name="PostLink" component={PostLinkScreen} />
     </Create.Navigator>
   );
 }

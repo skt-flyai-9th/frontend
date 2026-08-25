@@ -20,7 +20,7 @@
  *    SNS 연동/해제      → 16.1 (브라우저 OAuth 라 SnsConnect 화면으로 보냅니다)
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, Linking, Pressable, StyleSheet, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Check, Plus, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -32,6 +32,8 @@ import { Field } from '../../../ui/Field';
 import { Banner } from '../../../ui/Feedback';
 import { BrandMark } from '../../../ui/BrandMark';
 import { pressTap } from '../../../ui/press';
+import { API } from '../../../api/endpoints';
+import { BASE_URL } from '../../../api/http';
 import { useAppState } from '../../../lib/appState';
 import { useStore, useUpdateStore, useUploadLogo } from '../../../api/queries/store';
 import { useDisconnectSns, useSnsConnections } from '../../../api/queries/edit';
@@ -196,10 +198,13 @@ export default function EditProfileScreen() {
                   {/* 시안: 점선 테두리 + brand 글자 */}
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() =>
-                      // 이 화면은 탭 밖(Root)이고 SnsConnect 는 마이 탭 안이라 경로를 짚어 줍니다.
-                      nav.navigate('Main', { screen: 'My', params: { screen: 'SnsConnect' } })
-                    }
+                    onPress={() => {
+                      /*
+                       * 시안 V4 에는 SNS 연결 전용 화면이 없습니다.
+                       * 16.1 은 브라우저 OAuth 라 이 자리에서 바로 엽니다.
+                       */
+                      void Linking.openURL(`${BASE_URL}${API.snsAuthorize(p.key)}`).catch(() => {});
+                    }}
                     style={({ pressed }) => [styles.addBtn, pressTap(pressed, 'card')]}
                   >
                     <Plus size={17} strokeWidth={2} color={color.brand[600]} />
