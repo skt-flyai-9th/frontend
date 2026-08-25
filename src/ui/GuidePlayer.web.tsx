@@ -39,7 +39,7 @@ interface Props {
   portrait?: boolean;
 }
 
-export function GuidePlayer({ compact = false, fullBleed = false, width: fixedWidth, portrait = false }: Props) {
+export function GuidePlayer({ url, compact = false, fullBleed = false, width: fixedWidth, portrait = false }: Props) {
   const { width } = useWindowDimensions();
   // fullBleed 는 화면 폭을 그대로 쓰고 3:4 자리를 차지합니다(원본과 같은 규칙).
   const playerWidth = fixedWidth ?? (fullBleed ? width : Math.max(200, width - space[5] * 2));
@@ -53,6 +53,13 @@ export function GuidePlayer({ compact = false, fullBleed = false, width: fixedWi
 
   return (
     <View
+      /*
+       * 어떤 영상이 걸렸는지 확인할 수 있게 id 를 달아 둡니다. 자리표시자라 화면에는
+       * 안 보이고(픽셀 변화 없음), 대표/가이드 주소가 화면별로 제대로 갈리는지
+       * 캡처 스크립트가 이걸로 확인합니다. **이 파일은 웹 디자인 QA 전용**이라
+       * 실제 앱에는 나가지 않습니다.
+       */
+      testID={`guide-player:${extractVideoId(url) ?? 'none'}`}
       style={[styles.box, { width: playerWidth, height: playerHeight }, fullBleed && { borderRadius: 0 }]}
     >
       <Text style={[text.bodySmall, { color: color.ink[500] }]}>유튜브 임베딩 영상</Text>

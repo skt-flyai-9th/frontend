@@ -381,8 +381,18 @@ export interface VideoFormat {
   faceExposureLevel: FaceExposureLevel;
   /** 5.1 전용. 왜 추천했는지. 점수가 아니라 이유를 보여줍니다. */
   recommendReasons?: string[];
-  /** 참고 영상 주소. 목록·상세 모두 제공됩니다. */
+  /**
+   * **대표 영상** 주소 — 이 유행이 어떤 건지 보여주는 영상입니다. 홈·관심 목록 카드가 씁니다.
+   * 목록·상세 모두 제공됩니다.
+   */
   referenceUrl?: string;
+  /**
+   * **가이드 영상** 주소 — 따라 찍을 때 보는 영상입니다. 촬영 준비·촬영 중 PiP 가 씁니다.
+   *
+   * 대표 영상과 다를 수 있습니다(AI 트렌드 클러스터가 두 주소를 따로 갖습니다).
+   * 트렌드 연동 전에 들어온 포맷에는 없습니다 — 고를 때는 `api/formatVideo.ts` 를 쓰세요.
+   */
+  guideVideoUrl?: string;
   /** 썸네일 추출 방식이 플랫폼마다 달라 함께 받습니다. */
   sourcePlatform?: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK';
   /** 5.3 (2026-08-23): 이 계정이 찜했는지. 5.1·5.2 응답에 포함됩니다. */
@@ -519,7 +529,7 @@ export type GuideType = 'OVERLAY' | 'DANCE' | 'BROLL';
 /**
  * 안무 가이드 참고 영상 (명세 9.1).
  *
- * 명세: "프로젝트가 선택한 video_formats.reference_url·source_platform 을
+ * 명세: "프로젝트가 선택한 video_formats 의 영상 주소·source_platform 을
  *        그대로 재사용합니다. 재생 제어는 프론트에서 처리하고 서버는 영상 링크·출처만
  *        내려줍니다."
  *
@@ -531,6 +541,11 @@ export type GuideType = 'OVERLAY' | 'DANCE' | 'BROLL';
  *    우리가 흉내 내던 것을 걷어냈습니다(2026-08-26). 되감기는 진행바로 합니다.
  */
 export interface GuideReferenceVideo {
+  /**
+   * ⚠️ 이름은 reference 지만 **가이드 영상**이 와야 하는 자리입니다 — 촬영 중에 트는
+   *    영상이라서입니다. 서버가 아직 대표 영상을 보낼 수 있어, 화면에서는 이 값이
+   *    없을 때 `formatVideo.guideVideoUrl(format)` 으로 떨어집니다.
+   */
   referenceUrl: string;
   sourcePlatform: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK';
 }

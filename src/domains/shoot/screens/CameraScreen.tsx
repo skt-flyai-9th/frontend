@@ -21,6 +21,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
 import { PipGuide } from '../../../ui/PipGuide';
+import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
@@ -71,7 +72,12 @@ export default function CameraScreen({ navigation, route }: Props) {
    */
   const { data: project } = useProject(projectId);
   const { data: format } = useVideoFormat(project?.videoFormatId ?? undefined);
-  const pipUrl = guide?.referenceVideo?.referenceUrl ?? format?.referenceUrl;
+  /*
+   * 촬영 중에 따라 보는 화면이라 **가이드 영상** 입니다.
+   * 9.1 이 주는 값이 먼저고, 없으면 포맷의 가이드 영상으로 떨어집니다
+   * (그마저 없으면 대표 영상 — `api/formatVideo.ts`).
+   */
+  const pipUrl = guide?.referenceVideo?.referenceUrl ?? guideVideoUrl(format);
 
   /*
    * 안무 컷(9.1 DANCE)은 참고 영상을 보면서 찍어야 해서 전용 화면이 따로 있습니다.

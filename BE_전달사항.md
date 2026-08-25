@@ -258,3 +258,34 @@ AI 편집이 원곡의 특정 구간을 잘라 쓰는 구조라면 필요하고,
 - `AI추론` 출처는 "AI 추측" 배지로 실제 데이터와 구분
 - 저장(POST/PATCH/DELETE)은 Mock 에서도 **상태를 실제로 바꾸고**, 재조회 반영까지 테스트합니다
 - 화면 코드에 URL·snake_case·hex 색상을 쓰지 않습니다
+
+---
+
+## 부록 C. 대표 영상 / 가이드 영상 (2026-08-26)
+
+AI 트렌드 클러스터가 챌린지마다 영상 주소를 **두 개** 갖고 있습니다
+(`representative_youtube_url` / `guide_youtube_url`). 백엔드 PR
+[skt-flyai-9th/backend#64](https://github.com/skt-flyai-9th/backend/pull/64) 로
+`video_formats.reference_url`(대표) · `guide_video_url`(가이드) 두 필드가 됩니다.
+
+프론트는 이렇게 씁니다 (`src/api/formatVideo.ts` 한 곳에서만 고릅니다).
+
+| 화면 | 쓰는 주소 |
+| --- | --- |
+| 홈 피드 카드 · 관심 목록 | **대표** `reference_url` |
+| 촬영 준비(5.2) · 카메라 PiP · 안무 카메라 | **가이드** `guide_video_url` |
+
+### 확인 부탁드릴 것 두 가지
+
+1. **9.1 `reference_video.reference_url` 에는 가이드 영상을 넣어 주세요.**
+   명세에 "`video_formats.reference_url` 을 그대로 재사용" 이라고 돼 있는데,
+   촬영 중에 따라 보는 영상이라 **가이드 영상**이 맞습니다. 대표 영상이 오면
+   사장님이 따라 출 안무 대신 유행 소개 영상을 보게 됩니다.
+   지금은 프론트가 값이 없을 때만 포맷의 가이드 영상으로 떨어뜨리고 있어,
+   서버가 대표 영상을 보내면 그대로 대표가 재생됩니다.
+
+2. **배지 4개 값이 전부 `null` 입니다.**
+   `format_type` · `expected_duration_sec` · `shooting_difficulty` ·
+   `face_exposure_level` — 트렌드 클러스터에 없는 값이라 백엔드도 비워 두고 있습니다.
+   카드 아래 `#완성24초 #난이도하 #얼굴노출없음` 줄이 통째로 비어 나옵니다.
+   AI 가 줄 수 있는 값인지, 아니면 사람이 채우는 값인지 알려 주세요.

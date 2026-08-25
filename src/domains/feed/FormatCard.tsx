@@ -26,6 +26,7 @@ import { Heart, Play } from 'lucide-react-native';
 import { SlateGlyph } from '../../ui/SlateGlyph';
 
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
+import { representativeVideoUrl } from '../../api/formatVideo';
 import { Skeleton } from '../../ui/Feedback';
 import theme, { color, space, radius, sizing } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
@@ -58,7 +59,12 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
         style={styles.thumbWrap}
       >
         {/* 세로 숏폼 비율. 카드가 화면을 거의 채우는 프로토타입 느낌을 냅니다. */}
-        <VideoThumbnail url={format.referenceUrl} platform={format.sourcePlatform} aspectRatio={4 / 5} />
+        {/* 홈 카드는 **대표 영상** 입니다 (가이드 영상 아님 — api/formatVideo.ts) */}
+        <VideoThumbnail
+          url={representativeVideoUrl(format)}
+          platform={format.sourcePlatform}
+          aspectRatio={4 / 5}
+        />
         {format.sourcePlatform ? (
           // 가이드라인 §5.10: 흰 배지 + 빨간 Play + 대문자 라벨
           <View style={styles.platformBadge}>
