@@ -1,5 +1,10 @@
 /**
- * NotificationsScreen — **시안 v3 `NotificationsScreen` 대조 이식** (2026-08-26).
+ * NotificationsScreen — **시안 V4 `NotificationsScreen` 대조 이식** (2026-08-26).
+ *
+ * V4 재대조 (비교 이미지 @2x 픽셀 측정): 배치는 이미 맞습니다 —
+ * 헤더 구분선 y196, 푸시 카드 x[54,731], 버튼 x[162,441] h72 가 시안과 동일하고
+ * 행 구분선도 1~2 안입니다. 고친 것은 안 읽은 행의 **틴트 농도**와
+ * 빈 상태 위 여백, 그리고 시안 등장 애니메이션입니다.
  *
  * 시안 사양 (원문 수치 그대로)
  *   헤더     TopHeader variant="back" · 중앙 타이틀 "알림"
@@ -15,8 +20,17 @@
  *    그래서 목록은 mock 픽스처에서만 옵니다 — 실서버 연결 시에는 빈 상태가 됩니다.
  *    화면 구조는 시안 그대로라, API 가 생기면 데이터 출처만 바꾸면 됩니다.
  */
-import React, { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { Bell, BellOff, CircleCheck, ExternalLink, Sparkles, TrendingUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -36,6 +50,48 @@ const ICONS = {
   'circle-check': CircleCheck,
 } as const;
 
+/**
+ * 시안 `rise-in` — `@keyframes rise{from{opacity:0;transform:translateY(14px)}}`
+ * `.3s cubic-bezier(.16,1,.3,1)`. 목록 행은 `animationDelay: i*0.05` 로 계단식입니다.
+ *
+ * 알림이 한꺼번에 나타나면 어느 것이 새 것인지 안 보입니다. 위에서부터 차례로
+ * 들어와야 읽는 순서가 생깁니다.
+ */
+function RiseIn({
+  delay = 0,
+  style,
+  children,
+}: {
+  delay?: number;
+  style?: ViewStyle;
+  children: React.ReactNode;
+}) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: 300,
+      delay,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [t, delay]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: t,
+          transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 export default function NotificationsScreen() {
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { data } = useNotifications();
@@ -51,8 +107,8 @@ export default function NotificationsScreen() {
     <Screen edges={['top']} padded={false} contentStyle={{ paddingTop: 0, gap: 0 }}>
       <AppBar onBack={() => nav.goBack()} title="알림" />
 
-      {/* 시안: 푸시가 꺼져 있을 때 맨 위에 뜨는 안내 카드 */}
-      <View style={styles.pushCard}>
+      {/* 시안: 푸시가 꺼져 있을 때 맨 위에 뜨는 안내 카드 (rise-in) */}
+      <RiseIn style={styles.pushCard}>
         <View style={styles.pushTile}>
           <BellOff size={18} strokeWidth={2} color={color.brand[600]} />
         </View>
@@ -70,10 +126,11 @@ export default function NotificationsScreen() {
             <ExternalLink size={14} strokeWidth={2} color={color.paper} />
           </Pressable>
         </View>
-      </View>
+      </RiseIn>
 
       {list.length === 0 ? (
-        <View style={{ paddingTop: space[16] }}>
+        // 시안 pt-24(96). space 에 24 가 없어 값으로 씁니다.
+        <View style={{ paddingTop: 96 }}>
           <StateBlock
             icon={Bell}
             tone="muted"
@@ -83,38 +140,40 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <View>
-          {list.map((n) => {
+          {list.map((n, i) => {
             const Icon = ICONS[n.icon] ?? Bell;
             const verified = n.tone === 'verified';
             return (
-              <Pressable
-                key={n.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${n.title}. ${n.body}`}
-                onPress={() => markRead(n.id)}
-                style={({ pressed }) => [
-                  styles.row,
-                  // 시안: 안 읽은 알림은 브랜드 틴트가 옅게 깔립니다
-                  n.unread && styles.rowUnread,
-                  pressed && { backgroundColor: color.surface },
-                ]}
-              >
-                <View style={[styles.tile, verified ? styles.tileDone : styles.tileBrand]}>
-                  <Icon
-                    size={18}
-                    strokeWidth={2}
-                    color={verified ? color.done[500] : color.brand[600]}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={styles.titleRow}>
-                    <Text style={styles.title}>{n.title}</Text>
-                    {n.unread ? <View style={styles.dot} /> : null}
+              /* 시안: rise-in · animationDelay i*0.05 */
+              <RiseIn key={n.id} delay={50 * i}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${n.title}. ${n.body}`}
+                  onPress={() => markRead(n.id)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    // 시안: 안 읽은 알림은 브랜드 틴트가 옅게 깔립니다
+                    n.unread && styles.rowUnread,
+                    pressed && { backgroundColor: color.surface },
+                  ]}
+                >
+                  <View style={[styles.tile, verified ? styles.tileDone : styles.tileBrand]}>
+                    <Icon
+                      size={18}
+                      strokeWidth={2}
+                      color={verified ? color.done[500] : color.brand[600]}
+                    />
                   </View>
-                  <Text style={styles.body}>{n.body}</Text>
-                  <Text style={styles.time}>{n.time}</Text>
-                </View>
-              </Pressable>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.title}>{n.title}</Text>
+                      {n.unread ? <View style={styles.dot} /> : null}
+                    </View>
+                    <Text style={styles.body}>{n.body}</Text>
+                    <Text style={styles.time}>{n.time}</Text>
+                  </View>
+                </Pressable>
+              </RiseIn>
             );
           })}
 
@@ -180,8 +239,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: theme.border.hairline,
     borderBottomColor: color.hairlineSoft,
   },
-  // 시안 bg-brand-tint/40 — brand.50 을 40% 로 깐 것과 같습니다
-  rowUnread: { backgroundColor: 'rgba(239,246,255,0.6)' },
+  /*
+   * 시안 `bg-brand-tint/40` — brand.50(#EFF6FF)을 **40%** 로 깐 값입니다.
+   * 0.6 으로 돼 있어 시안보다 진했습니다 (@2x 측정: 시안 rgb(249,251,255) /
+   * 앱 rgb(245,250,255)). 안 읽은 행이 화면의 5분의 1을 덮어 차이가 그대로 드러납니다.
+   */
+  rowUnread: { backgroundColor: 'rgba(239,246,255,0.4)' },
   tile: {
     marginTop: 2,
     width: 36,

@@ -43,7 +43,6 @@ import EditProfileScreen from '../domains/my/screens/EditProfileScreen';
 import MyVideoScreen from '../domains/my/screens/MyVideoScreen';
 import NotificationsScreen from '../domains/my/screens/NotificationsScreen';
 import PlansScreen from '../domains/my/screens/PlansScreen';
-import LegalScreen from '../domains/my/screens/LegalScreen';
 import SettingsScreen from '../domains/settings/screens/SettingsScreen';
 // 구 홈(가게 분석 + 만들기 CTA)은 파일을 지우지 않고 진입만 끊었습니다.
 // 카드뉴스는 인사이트로, 이어하기는 마이로 이사했습니다 (인수인계 §2).
@@ -73,7 +72,6 @@ function MyStack() {
   return (
     <My.Navigator screenOptions={noHeader}>
       <My.Screen name="MyPage" component={MyPageScreen} />
-      <My.Screen name="Legal" component={LegalScreen} />
     </My.Navigator>
   );
 }
@@ -187,6 +185,17 @@ export default function RootNavigator() {
       <Root.Screen name="Plans" component={PlansScreen} />
       <Root.Screen name="PermissionsInfo" component={PermissionsInfoScreen} />
       <Root.Screen name="Settings" component={SettingsScreen} />
+      {/*
+       * 개인정보 처리방침 — 시안은 이용약관과 **같은 컴포넌트**(LegalScreen variant)라
+       * TermsScreen 을 focus='privacy' 로 재사용합니다. 문구가 두 벌이 되면
+       * 법무 확정본 교체 때 한쪽을 빠뜨립니다.
+       * 탭 안(MyStack)에 있었는데 시안에는 탭바가 없어 Root 로 옮겼습니다.
+       */}
+      <Root.Screen
+        name="Legal"
+        component={TermsScreen}
+        initialParams={{ focus: 'privacy' }}
+      />
       <Root.Screen
         name="MyVideo"
         component={MyVideoScreen}

@@ -50,6 +50,12 @@ export type RootStackParamList = {
    * 시안과 어긋납니다(알림 화면과 같은 이유).
    */
   Faq: undefined;
+  /**
+   * 개인정보 처리방침 본문 — 시안 `LegalScreen(variant="privacy")`.
+   * 이용약관(Onboarding/Terms)과 **같은 화면**을 focus 만 바꿔 씁니다.
+   * 시안에 탭바가 없어 탭 밖입니다.
+   */
+  Legal: { focus?: 'privacy' } | undefined;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   StoreSetup: NavigatorScreenParams<StoreSetupStackParamList>;
@@ -97,9 +103,6 @@ export type MainTabParamList = {
  */
 export type MyStackParamList = {
   MyPage: undefined;
-  // ── 신규 ──
-  /** 약관·정책 목록 (시안 legal) */
-  Legal: undefined;
 };
 
 /** 숏폼 만들기 — 목적부터 게시까지 하나의 긴 흐름 */

@@ -77,8 +77,9 @@ export default function SettingsScreen() {
 
   /**
    * 시안 SETTINGS_ITEMS 순서·아이콘 그대로.
-   * 시안은 이용약관과 처리방침을 **서로 다른 화면**으로 보냅니다(LegalScreen variant).
-   * 우리 대응 화면은 27_terms = Onboarding/Terms, 28_privacy = My/Legal 입니다.
+   * 시안은 이용약관과 처리방침을 같은 컴포넌트의 다른 variant 로 보냅니다(LegalScreen).
+   * 우리도 TermsScreen 하나가 둘 다 그립니다 —
+   * 27_terms = Onboarding/Terms(focus:'terms'), 28_privacy = Root/Legal(focus:'privacy').
    */
   const items: { icon: typeof Bell; label: string; go: () => void }[] = [
     { icon: CircleHelp, label: '자주 묻는 질문', go: () => nav.navigate('Faq') },

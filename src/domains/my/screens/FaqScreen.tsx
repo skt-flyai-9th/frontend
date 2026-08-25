@@ -1,9 +1,9 @@
 /**
- * FaqScreen — **시안 v3 `faq` 대조 이식** (2026-08-26).
+ * FaqScreen — **시안 V4 `24_faq` 대조 이식**.
  *
  * 시안 사양 (`FaqScreen` 원문 수치 그대로)
  *   배경     bg-surface
- *   헤더     px-4 pb-3 · 뒤로가기 36 + 타이틀 18·bold **좌측 정렬** · 탭바 없음
+ *   헤더     px-4 pb-3 gap-2 · 뒤로가기 36 + 타이틀 18·bold **좌측 정렬** · 탭바 없음
  *   목록     px-4 · 카드 사이 gap-2.5(10)
  *   카드     rounded-2xl(16) · border-hairline/80 · bg-white · shadow-card
  *   질문 행  px-4 py-4 · 15·semibold · 우측 chevron-down 18 (#94a3b8)
@@ -120,10 +120,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     paddingBottom: space[3],
   },
+  /**
+   * ⚠️ 여기에는 `marginLeft: -6` 이 없습니다. 시안에 헤더가 두 종류라 그렇습니다.
+   *
+   *   TopHeader (제목 가운데, 대부분의 화면) — 뒤로가기에 `-ml-1.5`(-6) 가 붙습니다.
+   *                                            우리 `ui/AppBar` 가 그걸 그대로 따릅니다.
+   *   이 화면·안무 가이드 (제목 좌측)        — `px-4` 안에 36 상자를 그냥 둡니다. 음수 여백 없음.
+   *
+   * 이 화면은 AppBar 를 쓰지 않고 헤더를 직접 그리는데, 그동안 AppBar 쪽 규칙(-6)을
+   * 따라와서 chevron 과 제목이 시안보다 6px 왼쪽에 있었습니다.
+   */
   backBtn: {
     width: 36,
     height: 36,
-    marginLeft: -6,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -150,7 +159,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     paddingVertical: space[4],
   },
-  q: { ...theme.text.bodyStrong, flex: 1 },
+  /*
+   * 시안 질문은 `text-[15px] font-semibold` 뿐 — **줄높이를 지정하지 않습니다.**
+   * 그래서 폰트 고유 metrics 의 normal(≈1.63)이 걸려 줄상자가 24.5 가 됩니다.
+   * 우리 `bodyStrong` 토큰은 22 라 카드가 매번 2.5 씩 짧아지고, 다섯 번째 카드에서
+   * 9pt 어긋납니다(캡처 실측). 토큰은 다른 38개 화면이 함께 쓰므로
+   * 이 화면에서만 시안이 실제로 쓰는 값으로 덮습니다.
+   */
+  q: { ...theme.text.bodyStrong, flex: 1, lineHeight: 24.5 },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
 
   // 시안: px-4 pb-4 · 14 · leading-relaxed · #475569
