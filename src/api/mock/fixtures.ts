@@ -420,29 +420,24 @@ export const scenes = [
   {
     id: 604,
     scene_order: 4,
-    scene_description: '테이블 위 완성컷, 김이 보이게',
+    scene_description: '한 입 먹고 나오는 표정',
     scene_dialogue: '한 그릇 9,000원입니다',
     scene_subtitle: '한 그릇 9,000원',
     shot_type: '미디엄샷',
     target_duration_sec: 5,
   },
-  {
-    id: 605,
-    scene_order: 5,
-    scene_description: '가게 외관과 주변 길',
-    scene_dialogue: '관악구 난곡로 42, 일요일은 쉽니다',
-    scene_subtitle: '관악구 난곡로 42 · 일요일 휴무',
-    shot_type: '풀샷',
-    target_duration_sec: 5,
-  },
 ];
 
+/**
+ * 촬영 컷. **시안 V4 CAMERA_TAKES 원문 4개** 를 그대로 씁니다.
+ * 화면(촬영 준비·카메라)이 8.1 로 읽는 값이라, 여기가 시안과 다르면
+ * 화면도 시안과 달라집니다.
+ */
 export const tasks = [
-  { id: 701, scene_id: 601, task_type: '영상촬영', task_title: '가게 간판 촬영', task_status: 'NOT_STARTED', display_order: 1 },
-  { id: 702, scene_id: 602, task_type: 'B-roll', task_title: '면 미는 손', task_status: 'NOT_STARTED', display_order: 2 },
-  { id: 703, scene_id: 603, task_type: 'B-roll', task_title: '국물 붓는 장면', task_status: 'NOT_STARTED', display_order: 3 },
-  { id: 704, scene_id: 604, task_type: 'B-roll', task_title: '완성 그릇', task_status: 'NOT_STARTED', display_order: 4 },
-  { id: 705, scene_id: 605, task_type: '영상촬영', task_title: '가게 외관과 위치', task_status: 'NOT_STARTED', display_order: 5 },
+  { id: 701, scene_id: 601, task_type: '영상촬영', task_title: '간판 클로즈업', task_status: 'NOT_STARTED', display_order: 1 },
+  { id: 702, scene_id: 602, task_type: 'B-roll', task_title: '손으로 집기', task_status: 'NOT_STARTED', display_order: 2 },
+  { id: 703, scene_id: 603, task_type: 'B-roll', task_title: '절단면', task_status: 'NOT_STARTED', display_order: 3 },
+  { id: 704, scene_id: 604, task_type: '영상촬영', task_title: '리액션', task_status: 'NOT_STARTED', display_order: 4 },
 ];
 
 /**
@@ -476,14 +471,9 @@ export const guides: Record<number, unknown> = {
     broll_shot: null,
   },
   704: {
-    guide_type: 'BROLL',
-    overlay: { instructions: ['김이 보이도록 옆에서 낮게 찍으세요'] },
-    reference_video: null,
-    broll_shot: { shot_type: '클로즈업', distance: '근접', angle: '측면' },
-  },
-  705: {
+    // 컷 4 "리액션" — 얼굴이 나오므로 구도 지시문형입니다.
     guide_type: 'OVERLAY',
-    overlay: { instructions: ['가게 앞 길이 함께 보이게 찍으세요'] },
+    overlay: { instructions: ['얼굴이 화면 가운데 오게 서세요', '한 입 먹고 바로 표정을 지으세요'] },
     reference_video: null,
     broll_shot: null,
   },
