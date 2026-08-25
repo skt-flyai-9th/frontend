@@ -65,7 +65,13 @@ let connectionState: Record<string, unknown>[] = [];
  * 5.1·5.2 응답의 is_favorite 는 이 Set 에서 파생합니다. 상태를 두 곳에
  * 두면 반드시 어긋나므로(저장 안 되는 앱 사고 유형) 파생만 합니다.
  */
-let favoriteSet = new Set<number>();
+/**
+ * 시안은 계정에 **이미 찜한 숏폼이 있는 상태**로 시작합니다
+ * (홈 카드의 하트가 채워져 있고, 관심목록 탭에 그리드가 차 있습니다).
+ * 빈 Set 으로 시작하면 두 화면이 모두 빈 상태로만 보여서 시안과 대조할 수가 없습니다.
+ */
+const FAVORITES_SEED = [71, 73];
+let favoriteSet = new Set<number>(FAVORITES_SEED);
 /** 3.6 로고. 업로드하면 실제로 3.1 응답이 바뀌어야 "저장 안 되는 앱" 이 안 됩니다. */
 let logoUrl: string | null = null;
 /** 1.5 회원정보. PATCH 가 실제로 반영돼야 재조회 검증이 됩니다. */
@@ -124,7 +130,7 @@ export function resetMockState() {
   photoState = fx.photos.map((p) => ({ ...p }));
   targetState = fx.targetCustomers.map((t) => ({ ...t }));
   connectionState = [];
-  favoriteSet = new Set();
+  favoriteSet = new Set(FAVORITES_SEED);
   logoUrl = null;
   meState = {};
   nextId = 9000;

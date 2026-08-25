@@ -31,12 +31,13 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { Send, Sparkles } from 'lucide-react-native';
+import { ArrowUp, RotateCcw, Sparkles } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
+import { pressTap } from '../../../ui/press';
 import { Banner, Loading } from '../../../ui/Feedback';
 import { useAppState } from '../../../lib/appState';
 import {
@@ -55,11 +56,12 @@ type Bubble = { role: 'ai' | 'me'; content: string };
 
 const PURPOSES: PromotionPurpose[] = ['메뉴소개', '이벤트알리기', '가게소개', '고객늘리기'];
 
-const INTRO_OPTIONS = [
-  '어떤 걸 찍을지 막막해요',
-  '홍보하고 싶은 주제가 있어요',
-  '직접 아이디어 입력하기',
-] as const;
+/**
+ * 시안 v3 root 노드의 선택지 **그대로** 입니다.
+ *   { label: "홍보하고 싶은 게 있어요" } / { label: "직접 입력하기" }
+ * v1·v2 에 있던 "어떤 걸 찍을지 막막해요" 는 v3 에서 사라졌습니다.
+ */
+const INTRO_OPTIONS = ['홍보하고 싶은 게 있어요', '직접 입력하기'] as const;
 
 export default function AiChatScreen() {
   const nav = useNavigation<Nav>();
@@ -76,6 +78,17 @@ export default function AiChatScreen() {
   const [input, setInput] = useState('');
   const [projectId, setProjectId] = useState<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  /** 시안 헤더 우측의 대화 새로고침. 처음 질문으로 되돌립니다. */
+  const resetChat = () => {
+    setLog([{ role: 'ai', content: '오늘 어떤 영상을 찍을까요?' }]);
+    setStep('intro');
+    setQIndex(0);
+    setAnswers({});
+    setFreeText(undefined);
+    setInput('');
+    setProjectId(null);
+  };
 
   // ── 서버 ──
   const { data: drafts } = useProjects(storeId ?? undefined, 'DRAFT');
@@ -99,7 +112,7 @@ export default function AiChatScreen() {
 
   const pickIntro = (opt: (typeof INTRO_OPTIONS)[number]) => {
     say([{ role: 'me', content: opt }]);
-    if (opt === '직접 아이디어 입력하기') {
+    if (opt === '직접 입력하기') {
       say([
         {
           role: 'ai',
@@ -225,7 +238,20 @@ export default function AiChatScreen() {
 
   return (
     <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
-      <AppBar title="AI 숏폼 추천" />
+      <AppBar
+        title="AI 숏폼 추천"
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="대화 새로고침"
+            hitSlop={6}
+            onPress={resetChat}
+            style={({ pressed }) => [styles.headerBtn, pressTap(pressed, 'icon')]}
+          >
+            <RotateCcw size={22} strokeWidth={2} color={color.ink[900]} />
+          </Pressable>
+        }
+      />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -295,6 +321,7 @@ export default function AiChatScreen() {
                     key={opt}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
+                    hitSlop={6}
                     onPress={() => {
                       if (step === 'intro') pickIntro(opt as (typeof INTRO_OPTIONS)[number]);
                       else if (step === 'purpose') pickPurpose(opt as PromotionPurpose);
@@ -306,7 +333,7 @@ export default function AiChatScreen() {
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    <Text style={[text.body, selected && { color: color.brand[700] }]}>{opt}</Text>
+                    <Text style={[styles.optionText, selected && { color: color.brand[700] }]}>{opt}</Text>
                   </Pressable>
                 );
               })}
@@ -347,9 +374,16 @@ export default function AiChatScreen() {
             accessibilityRole="button"
             accessibilityLabel="보내기"
             onPress={sendFree}
-            style={({ pressed }) => [styles.send, pressed && { opacity: 0.7 }]}
+            disabled={!input.trim()}
+            style={({ pressed }) => [
+              styles.send,
+              // 시안: disabled:opacity-40 · active:scale-90
+              !input.trim() && { opacity: 0.4 },
+              pressed && input.trim() ? { transform: [{ scale: 0.9 }] } : null,
+            ]}
           >
-            <Send size={20} strokeWidth={2} color={color.paper} />
+            {/* 시안 v3: 종이비행기가 아니라 위쪽 화살표입니다 */}
+            <ArrowUp size={20} strokeWidth={2} color={color.paper} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -382,14 +416,28 @@ const styles = StyleSheet.create({
     ...theme.elevation('bubble'),
   },
   me: { backgroundColor: color.brand[600], borderTopRightRadius: radius.xs },
-  options: { gap: space[2], marginTop: space[2] },
+  headerBtn: {
+    width: sizing.iconButton,
+    height: sizing.iconButton,
+    marginRight: -6,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /**
+   * 시안: flex flex-wrap gap-2 — 칩이 **가로로 나란히** 놓이고 넘치면 줄바꿈합니다.
+   * flexDirection 을 안 주면 세로로 쌓이며 전체 폭으로 늘어나, 대화가 아니라
+   * 목록처럼 보입니다(이전 상태).
+   */
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginTop: space[2] },
   /**
    * 시안 answerChip — rounded-full · border-brand-border · bg-canvas · px-4 py-2.5.
    * 사각 카드가 아니라 알약입니다. 대화 안에서 "고르는 말" 로 읽히게 하는 형태라
    * 카드로 그리면 대화가 아니라 목록처럼 보입니다.
    */
   option: {
-    minHeight: sizing.touchTargetMin,
+    // 시안: px-4 py-2.5 — 높이를 고정하지 않고 내용에 맞춥니다. 터치는 hitSlop 으로 보전.
+    alignSelf: 'flex-start',
     justifyContent: 'center',
     paddingHorizontal: space[4],
     paddingVertical: 10,
@@ -397,6 +445,13 @@ const styles = StyleSheet.create({
     borderWidth: theme.border.hairline,
     borderColor: color.brand[300],
     backgroundColor: color.canvas,
+  },
+  // 시안: text-[14px] font-semibold text-brand
+  optionText: {
+    ...theme.text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.brand[600],
   },
   optionOn: { borderColor: color.brand[600], backgroundColor: color.brand[50] },
   confirm: { backgroundColor: color.brand[600], borderColor: color.brand[600], alignItems: 'center' },
@@ -408,12 +463,14 @@ const styles = StyleSheet.create({
     borderTopColor: color.hairlineSoft,
     backgroundColor: color.canvas,
   },
+  // 시안 v3: h-11(44) · rounded-full · border-hairline · **bg-panel(흰색)**
   input: {
     flex: 1,
-    minHeight: sizing.touchTargetMin,
+    height: sizing.touchTargetMin,
     borderWidth: theme.border.hairline,
     borderColor: color.ink[200],
     borderRadius: radius.pill,
+    backgroundColor: color.paper,
     paddingHorizontal: space[4],
     ...theme.text.body,
   },
