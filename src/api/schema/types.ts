@@ -574,6 +574,66 @@ export interface Draft {
 }
 
 // ══════════════════════════════════════════════════
+// R06 대화형 숏폼 Agent
+// ══════════════════════════════════════════════════
+
+export type ShortformAction =
+  | 'ASK'
+  | 'SAVE_AND_ASK'
+  | 'CLARIFY'
+  | 'SUGGEST_SWITCH'
+  | 'RESOLVE_CONFLICT'
+  | 'CONFIRM'
+  | 'RECOMMEND';
+
+export interface ShortformOption {
+  id: string;
+  label: string;
+}
+
+export interface ShortformRecommendation {
+  recommendationId: string;
+  projectTitle: string;
+  title: string;
+  concept: string;
+  editingTemplateId: string;
+  editingTemplateVersion: number;
+}
+
+export interface ShortformSessionResponse {
+  id: Id;
+  status: 'ACTIVE' | 'ACCEPTED' | 'DISCARDED';
+  assistantMessage?: string;
+  options: ShortformOption[];
+  projectState: Record<string, unknown>;
+}
+
+export interface ShortformTurnResponse {
+  id: Id;
+  action: ShortformAction;
+  assistantMessage?: string;
+  options: ShortformOption[];
+  projectState: Record<string, unknown>;
+  recommendation?: ShortformRecommendation;
+}
+
+export type ShortformTurnInput =
+  | { type: 'TEXT'; text: string }
+  | { type: 'OPTION'; optionId: string }
+  | { type: 'CONFIRM'; value: boolean };
+
+export interface ShortformAcceptResponse {
+  id: Id;
+  storeId: Id;
+  projectTitle?: string;
+  videoFormatId: Id;
+  promotionPurpose: PromotionPurpose;
+  menuId?: Id;
+  shortsStatus: ShortsStatus;
+  createdAt: string;
+}
+
+// ══════════════════════════════════════════════════
 // R13 AI 촬영 평가
 // ══════════════════════════════════════════════════
 
