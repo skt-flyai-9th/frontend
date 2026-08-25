@@ -1,37 +1,38 @@
 /**
  * DanceCameraScreen — 시안 V4 `15_dance-camera`.
  *
- * 참고 영상(위)과 카메라 프리뷰(아래)를 **위아래로 나눠** 동시에 봅니다.
- * 안무·동작 따라하기 태스크(9.1 guide_type: "DANCE") 전용입니다.
+ * 카메라를 화면 전체로 두고, 참고 영상을 그 위에 뜬 작은 창(PipGuide)으로 곁눈질하며
+ * 따라 찍습니다. 안무·동작 따라하기 태스크(9.1 guide_type: "DANCE") 전용입니다.
  *
- * ⚠️ 시안과 다른 단 하나 — PiP
- *   시안은 참고 영상을 카메라 위에 떠 있는 작은 창(`PipGuide`, width 110, 9:16)으로 둡니다.
- *   그대로 옮기지 못했습니다. 두 가지 때문입니다.
- *     ① 시안 PipGuide 는 플레이어 **위에** 반투명 막(bg-ink/45)과 재생·확대 버튼을 얹습니다.
- *        YouTube 약관이 금지하는 바로 그 행위입니다 (아래 약관 항목).
- *        떠 있는 배치 자체는 위반이 아니지만, 그 위에 얹는 컨트롤은 위반입니다.
- *     ② 우리 GuidePlayer 는 폭을 화면 너비에서 스스로 계산합니다. 110 짜리 창에 넣으려면
- *        `src/ui/GuidePlayer.tsx` 에 폭 prop 이 필요한데, 그 파일은 이 작업 범위 밖입니다.
- *   그래서 이번에는 상하 분할을 유지하고, PiP 를 뺀 나머지 시안 구조를 전부 맞췄습니다.
- *
- * ⚠️ YouTube 약관 (인수인계 §6.8 — 반드시 지켜야 합니다)
+ * ⚠️ YouTube 약관 (인수인계 §6.8)
  *   "You must not display overlays, frames, or other visual elements
  *    in front of any part of a YouTube embedded player."
- *   - 플레이어 위에 카메라 프리뷰·버튼·카운트다운을 **절대 겹치지 않습니다.**
- *     뒤로가기 버튼도 그래서 플레이어 위가 아니라 그 **위쪽 별도 줄**에 있습니다.
- *   - 재생·배속은 유튜브 자체 컨트롤입니다(플레이어 안). 우리가 위에 얹는 것은 없습니다.
- *     compact 모드에서는 전체화면 버튼만 끕니다 — 촬영 중에 카메라가 가려지면 안 됩니다.
+ *   - 참고 영상 **앞을 가리는 요소를 두지 않습니다.** 그래서 이 화면이 그리는 것들
+ *     (옅은 막·헤더·셔터·검수 시트)은 전부 PipGuide 보다 **먼저** 놓입니다 —
+ *     PipGuide 가 항상 맨 위라 플레이어 앞에 아무것도 오지 않습니다.
+ *   - 재생·일시정지·배속은 유튜브 자체 컨트롤입니다(플레이어 안). 우리가 얹는 건 없습니다.
+ *     확대/축소 버튼도 PipGuide 가 영상 **바깥 띠**에 그립니다.
  *   - Instagram·TikTok 참고 영상은 재생 제어 API 가 없어 이 화면을 못 씁니다.
+ *
+ * 2026-08-25: 상하 분할에서 시안 PiP 로 전환했습니다(사장님 확정).
+ *   이전에는 약관 때문에 화면을 위(플레이어)/아래(카메라)로 갈라 뒀습니다. 떠 있는 배치
+ *   자체는 약관 위반이 아니고, 위반은 플레이어 **위에 얹는 컨트롤**뿐이라는 것이
+ *   정리되어 시안 배치를 되찾았습니다.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, AppState, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { ChevronLeft, SwitchCamera, RotateCcw, Check } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
-import { GuidePlayer } from '../../../ui/GuidePlayer';
+import {
+  CAMERA_IS_PLACEHOLDER,
+  CameraPreview,
+  type CameraPreviewHandle,
+} from '../../../ui/CameraPreview';
+import { PipGuide } from '../../../ui/PipGuide';
 import { Loading, JobProgress } from '../../../ui/Feedback';
 import { Shutter } from '../../../ui/Shutter';
 import {
@@ -55,12 +56,11 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
 
   const { data: guide, isLoading } = useTaskGuide(taskId);
-  const refUrl = guide?.referenceVideo?.referenceUrl;
 
   /** 남은 컷이 있는지 보고 다음 갈 곳을 정합니다 (시안 CameraScreen.accept 와 같은 규칙). */
   const { data: board } = useTasks(projectId);
 
-  const cameraRef = useRef<CameraView>(null);
+  const cameraRef = useRef<CameraPreviewHandle>(null);
   const [facing, setFacing] = useState<'front' | 'back'>('front');
   const [camPermission, requestCam] = useCameraPermissions();
   const [micPermission, requestMic] = useMicrophonePermissions();
@@ -135,14 +135,15 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   };
 
   // ── 권한: 이 화면에서 필요할 때 즉석 요청 (한 번에 묶어 요청하지 않음) ──
-  if (!camPermission || !micPermission || isLoading) {
+  // 웹 대체본은 진짜 카메라가 아니라 권한을 묻지 않습니다 (디자인 QA 캡처용).
+  if (isLoading || (!CAMERA_IS_PLACEHOLDER && (!camPermission || !micPermission))) {
     return (
       <View style={[styles.fill, styles.center]}>
         <Loading label="준비하는 중" />
       </View>
     );
   }
-  if (!camPermission.granted || !micPermission.granted) {
+  if (!CAMERA_IS_PLACEHOLDER && (!camPermission?.granted || !micPermission?.granted)) {
     return (
       <View style={[styles.fill, styles.center, { padding: space[6], gap: space[3] }]}>
         <Text style={text.subheading}>카메라와 마이크가 필요합니다</Text>
@@ -152,8 +153,8 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
         <Button
           label="허용하기"
           onPress={async () => {
-            if (!camPermission.granted) await requestCam();
-            if (!micPermission.granted) await requestMic();
+            if (!camPermission?.granted) await requestCam();
+            if (!micPermission?.granted) await requestMic();
           }}
         />
         <Button label="돌아가기" variant="quiet" onPress={() => navigation.goBack()} />
@@ -162,95 +163,85 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   }
 
   return (
-    <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: color.canvas }]}>
+    <View style={styles.black}>
+      <CameraPreview ref={cameraRef} facing={facing} />
+
       {/*
-        시안: 행 44(h-11) · 좌우 16(px-4) · 뒤로 36(h-9 w-9) · chevron-left 24.
-        시안은 카메라 위 흰색이지만, 우리 플레이어 위에는 아무것도 올릴 수 없어(약관)
-        플레이어 **위쪽 별도 줄**에 흰 바탕 + ink 색으로 둡니다.
-        녹화 중에는 제스처 뒤로가기가 막혀 있어(navigator) 이 버튼이 유일한 출구입니다.
+        시안: 카메라 위 아주 옅은 막(bg-ink/10). 흰 글자·아이콘이 밝은 배경에서도 읽힙니다.
+        토큰에 0.10 이 없어 값을 직접 씁니다 (overlay.media 는 0.25 로 시안보다 진합니다).
+        ⚠️ PipGuide 보다 **먼저** 놓입니다 — 플레이어 앞을 가리면 약관 위반입니다.
       */}
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="뒤로가기"
-          disabled={recording}
-          onPress={() => navigation.goBack()}
-          hitSlop={8}
-          style={({ pressed }) => [styles.backBtn, (pressed || recording) && { opacity: 0.5 }]}
+      <View style={styles.dim} pointerEvents="none" />
+
+      {/* 시안: 행 44(h-11) · 좌우 16(px-4) · 뒤로 36(h-9 w-9) · chevron-left 24 흰색 */}
+      <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="뒤로가기"
+            // 녹화 중에는 제스처 뒤로가기도 막혀 있습니다(navigator). 실수로 나가는 것을 막습니다.
+            disabled={recording}
+            onPress={() => navigation.goBack()}
+            hitSlop={8}
+            style={({ pressed }) => [styles.backBtn, (pressed || recording) && { opacity: 0.5 }]}
+          >
+            <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
+          </Pressable>
+        </View>
+      </SafeAreaView>
+
+      {/*
+        참고 영상. 시안은 이 화면에서 width 110 을 씁니다(카메라 화면은 98).
+        PipGuide 가 98 고정이라 지금은 98 입니다 — 폭 prop 요청은 보고에 적었습니다.
+        ⚠️ 이 아래로는 아무것도 그리지 않습니다. 플레이어가 항상 맨 위여야 합니다.
+      */}
+      {/* 시안: 안무 카메라의 PiP 는 110 입니다(카메라는 98) */}
+      <PipGuide url={guide?.referenceVideo?.referenceUrl} width={110} />
+
+      {/*
+        시안 Shutter: 하단 밴드 150. 셔터 76 은 가운데, 전환 버튼은 오른쪽 26 에
+        52×52 rounded-full bg-ink/45. 검수 시트가 뜨면 시안처럼 밴드를 통째로 감춥니다.
+      */}
+      {!take && (
+        <View
+          style={[
+            styles.shutterBand,
+            { height: SHUTTER_BAND + insets.bottom, paddingBottom: insets.bottom },
+          ]}
         >
-          <ChevronLeft size={24} strokeWidth={2} color={color.ink[900]} />
-        </Pressable>
-      </View>
+          <Shutter
+            recording={recording}
+            onPress={() => {
+              if (recording) cameraRef.current?.stopRecording();
+              else void beginRecording();
+            }}
+          />
 
-      {/* 위: 참고 영상. 플레이어 위에는 아무것도 올리지 않습니다 (YouTube 약관). */}
-      <View style={styles.playerArea}>
-        {refUrl ? (
-          <GuidePlayer url={refUrl} compact />
-        ) : (
-          // 실패해도 빠져나갈 길 — 참고 영상이 없으면 그냥 찍을 수 있게 합니다.
-          <View style={[styles.center, { padding: space[4] }]}>
-            <Text style={text.bodySmall}>참고 영상이 없습니다. 그냥 찍으셔도 됩니다.</Text>
-          </View>
-        )}
-      </View>
-
-      {/* 아래: 카메라 프리뷰 + 촬영 버튼 (플레이어와 완전히 분리된 영역) */}
-      <View style={styles.cameraArea}>
-        <CameraView
-          ref={cameraRef}
-          style={StyleSheet.absoluteFill}
-          facing={facing}
-          mode="video"
-          videoQuality="1080p"
-        />
-
-        {/*
-          시안 Shutter: 하단 밴드 150. 셔터 76 은 가운데, 전환 버튼은 오른쪽 26 에
-          52×52 rounded-full bg-ink/45. 검수 시트가 뜨면 시안처럼 밴드를 통째로 감춥니다.
-        */}
-        {!take && (
-          <View
-            style={[
-              styles.shutterBand,
-              { height: SHUTTER_BAND + insets.bottom, paddingBottom: insets.bottom },
+          {/*
+            앞/뒤 전환 — 실기기(2026-08-24): 전환 버튼이 없어 전면만 쓸 수 있었음.
+            안무는 셀프(전면)가 기본이지만, 남이 찍어주는 경우 후면이 필요합니다.
+            녹화 중 전환은 영상이 끊기는 기기가 있어 막습니다 (시안은 막지 않습니다).
+          */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={facing === 'front' ? '후면 카메라로 전환' : '전면 카메라로 전환'}
+            disabled={recording}
+            onPress={() => setFacing((f) => (f === 'front' ? 'back' : 'front'))}
+            style={({ pressed }) => [
+              styles.flipBtn,
+              (pressed || recording) && { opacity: recording ? 0.35 : 0.7 },
             ]}
           >
-            <Shutter
-              recording={recording}
-              onPress={() => {
-                if (recording) cameraRef.current?.stopRecording();
-                else void beginRecording();
-              }}
-            />
-
             {/*
-              앞/뒤 전환 — 실기기(2026-08-24): 전환 버튼이 없어 전면만 쓸 수 있었음.
-              안무는 셀프(전면)가 기본이지만, 남이 찍어주는 경우 후면이 필요합니다.
-              녹화 중 전환은 영상이 끊기는 기기가 있어 막습니다 (시안은 막지 않습니다).
+              시안: 전면일 때 아이콘을 좌우 반전 (scaleX(-1)).
+              반전은 감싸는 View 가 겁니다 — SVG 자체에 걸면 웹에서 아이콘이 사라집니다.
             */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                facing === 'front' ? '후면 카메라로 전환' : '전면 카메라로 전환'
-              }
-              disabled={recording}
-              onPress={() => setFacing((f) => (f === 'front' ? 'back' : 'front'))}
-              style={({ pressed }) => [
-                styles.flipBtn,
-                (pressed || recording) && { opacity: recording ? 0.35 : 0.7 },
-              ]}
-            >
-              {/* 시안: 전면일 때 아이콘을 좌우 반전 (scaleX(-1)) */}
-              <SwitchCamera
-                size={23}
-                strokeWidth={2}
-                color={color.paper}
-                style={{ transform: [{ scaleX: facing === 'front' ? -1 : 1 }] }}
-              />
-            </Pressable>
-          </View>
-        )}
-      </View>
+            <View style={{ transform: [{ scaleX: facing === 'front' ? -1 : 1 }] }}>
+              <SwitchCamera size={23} strokeWidth={2} color={color.paper} />
+            </View>
+          </Pressable>
+        </View>
+      )}
 
       {/*
         시안 ReviewSheet — rounded-t-28 · px-5 · pt-5 · pb-8 · 미리보기 150 (9:16).
@@ -315,14 +306,25 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  black: { flex: 1, backgroundColor: color.mediaBlack },
   center: { alignItems: 'center', justifyContent: 'center', flex: 1 },
 
+  // 시안: bg-ink/10
+  dim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15,23,42,0.10)',
+  },
+
+  topLayer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
   // 시안: h-11(44) · px-4 · 뒤로 h-9 w-9(36)
   header: {
     height: sizing.appBarHeight,
     justifyContent: 'center',
     paddingHorizontal: space[4],
-    backgroundColor: color.canvas,
   },
   backBtn: {
     width: sizing.iconButton,
@@ -331,16 +333,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // compact 플레이어가 넘치지 않게 상한. 카메라가 항상 화면의 절반 이상을 가집니다.
-  playerArea: { backgroundColor: color.canvas, maxHeight: 380, alignItems: 'center' },
-  cameraArea: { flex: 1, minHeight: 260, backgroundColor: color.mediaBlack },
-
   // 시안 Shutter: inset-x-0 bottom-0 h-[150px] · 가운데 정렬
   shutterBand: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -363,6 +362,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 20,
     backgroundColor: color.overlay.scrim,
     justifyContent: 'flex-end',
   },

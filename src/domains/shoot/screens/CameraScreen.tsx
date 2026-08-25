@@ -66,10 +66,11 @@ export default function CameraScreen({ navigation, route }: Props) {
    * 안무 컷(9.1 DANCE)은 참고 영상을 보면서 찍어야 해서 전용 화면이 따로 있습니다.
    * 촬영 목록 화면을 없애면서 그리로 가는 길이 끊겨 있었습니다 — 여기서 잇습니다.
    */
+  const goingToDance = guide?.guideType === 'DANCE';
   useEffect(() => {
-    if (!taskId || guide?.guideType !== 'DANCE') return;
+    if (!taskId || !goingToDance) return;
     navigation.replace('DanceCamera', { projectId, taskId });
-  }, [taskId, guide?.guideType, navigation, projectId]);
+  }, [taskId, goingToDance, navigation, projectId]);
 
   const guideVisible = useAppState((s) => s.guideVisible);
   const guideOpacity = useAppState((s) => s.guideOpacity);
@@ -155,6 +156,9 @@ export default function CameraScreen({ navigation, route }: Props) {
     const t = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
     return () => clearTimeout(t);
   }, [countdown, beginRecording]);
+
+  // 안무 컷으로 넘어가는 사이에 이 화면이 한 프레임 스쳐 보이지 않게 검은 판만 둡니다.
+  if (goingToDance) return <View style={styles.black} />;
 
   // ── 권한 게이트 ──────────────────────────────────────
   // 웹 자리표시자에서는 권한을 물을 대상이 없어 건너뜁니다(디자인 대조용).

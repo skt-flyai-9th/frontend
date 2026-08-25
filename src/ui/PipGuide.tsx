@@ -17,12 +17,21 @@ import { GuidePlayer } from './GuidePlayer';
 import { pressTap } from './press';
 import theme, { color, radius, space, text } from '../design/theme';
 
-/** 시안 PipGuide width 98 */
-const PIP_WIDTH = 98;
+/** 시안 기본 폭. 화면마다 다릅니다 — 카메라 98, 안무 카메라 110. */
+const DEFAULT_WIDTH = 98;
 /** 확대 버튼이 앉는 띠. 영상 위를 가리지 않기 위한 자리입니다. */
 const BAR = 24;
 
-export function PipGuide({ url, startSec }: { url?: string | null; startSec?: number }) {
+export function PipGuide({
+  url,
+  startSec,
+  width: pipWidth = DEFAULT_WIDTH,
+}: {
+  url?: string | null;
+  startSec?: number;
+  /** 시안 화면별 폭. 카메라 98 · 안무 카메라 110. */
+  width?: number;
+}) {
   const [expanded, setExpanded] = useState(false);
   const { width, height } = useWindowDimensions();
 
@@ -33,7 +42,7 @@ export function PipGuide({ url, startSec }: { url?: string | null; startSec?: nu
 
   return (
     <>
-      <View style={styles.pip}>
+      <View style={[styles.pip, { width: pipWidth }]}>
         <View style={styles.bar}>
           <Pressable
             accessibilityRole="button"
@@ -45,7 +54,7 @@ export function PipGuide({ url, startSec }: { url?: string | null; startSec?: nu
             <Maximize2 size={12} strokeWidth={2.5} color={color.paper} />
           </Pressable>
         </View>
-        <GuidePlayer url={url} startSec={startSec} width={PIP_WIDTH} portrait compact />
+        <GuidePlayer url={url} startSec={startSec} width={pipWidth} portrait compact />
       </View>
 
       <Modal visible={expanded} animationType="fade" transparent={false} onRequestClose={() => setExpanded(false)}>
@@ -72,7 +81,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: space[4],
     top: 110,
-    width: PIP_WIDTH,
     borderRadius: radius.lg,
     borderWidth: theme.border.hairline,
     borderColor: 'rgba(255,255,255,0.4)',
