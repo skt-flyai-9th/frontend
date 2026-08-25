@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert } from 'lucide-react-native';
 import theme, { color, radius, space, text } from '../design/theme';
-import { Button } from './Button';
+import { Button, type ButtonProps } from './Button';
 
 export function Loading({ label = '불러오는 중' }: { label?: string }) {
   return (
@@ -78,6 +78,7 @@ export function StateBlock({
   title,
   body,
   primaryLabel,
+  primaryIcon,
   onPrimary,
   secondaryLabel,
   onSecondary,
@@ -87,6 +88,11 @@ export function StateBlock({
   title: string;
   body?: string;
   primaryLabel?: string;
+  /**
+   * 주 버튼 문구 앞 아이콘. 시안 `EditingFailed` 의 "편집 다시 시도"(rotate-ccw) 처럼
+   * 시안이 아이콘을 함께 그리는 자리에 씁니다. 색은 Button 이 정합니다.
+   */
+  primaryIcon?: ButtonProps['icon'];
   onPrimary?: () => void;
   secondaryLabel?: string;
   onSecondary?: () => void;
@@ -101,7 +107,13 @@ export function StateBlock({
       {body ? <Text style={[text.bodySmall, styles.centerText, { color: color.ink[500] }]}>{body}</Text> : null}
       {primaryLabel && onPrimary ? (
         // 시안 StateBlock 의 주 버튼은 44 입니다 (기본 48 / small 36 의 사이).
-        <Button label={primaryLabel} onPress={onPrimary} full={false} style={styles.blockButton} />
+        <Button
+          label={primaryLabel}
+          icon={primaryIcon}
+          onPress={onPrimary}
+          full={false}
+          style={styles.blockButton}
+        />
       ) : null}
       {secondaryLabel && onSecondary ? (
         <Button label={secondaryLabel} onPress={onSecondary} variant="quiet" size="small" full={false} />

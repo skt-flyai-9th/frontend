@@ -1,5 +1,10 @@
 /**
- * InsightScreen — **시안 v3 `insight` 대조 이식** (2026-08-26).
+ * InsightScreen — **시안 V4 `insight` 대조 이식** (2026-08-26).
+ *
+ * V4 재대조에서 고친 것 (비교 이미지 @2x 픽셀 측정):
+ *   · KPI 그리드가 위아래로 6 씩 더 벌어져 있었습니다 → kpiGrid marginVertical
+ *   · KPI 카드가 5 낮았습니다(78 vs 83) → kpiHead minHeight · kpiValue lineHeight
+ *   헤더(제목 밴드 143–174)와 상권 카드 시작점(1096)은 원래 시안과 같습니다.
  *
  * 시안 구조 (위에서부터)
  *   ① 헤더  뒤로가기 + "매장 인사이트 분석" 좌측 정렬 · 탭바 없음 · bg-surface
@@ -20,8 +25,8 @@
  * 이전 구현은 칩 필터 + 카드 목록이었습니다. 시안에 없는 구성이라 걷어냈고,
  * 인사이트 종류별 내용은 각 섹션 안으로 들어갔습니다(기능 축소 없음).
  */
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import {
   Bookmark,
   Camera,
@@ -56,6 +61,84 @@ const KPI_ICONS: Record<string, typeof TrendingUp> = {
   users: Users,
 };
 
+/**
+ * 시안 `rise-in` — `@keyframes rise{from{opacity:0;transform:translateY(14px)}}`
+ * `.3s cubic-bezier(.16,1,.3,1)`. KPI 카드는 `animationDelay: 0.05×i` 로 계단식입니다.
+ *
+ * 숫자가 한꺼번에 튀어나오면 어디를 봐야 할지 모릅니다. 왼쪽 위부터 차례로
+ * 들어와야 읽는 순서가 생깁니다.
+ */
+function RiseIn({
+  delay = 0,
+  style,
+  children,
+}: {
+  delay?: number;
+  style?: ViewStyle;
+  children: React.ReactNode;
+}) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: 300,
+      delay,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [t, delay]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: t,
+          transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * 상권 막대 — 시안 `transition: width .6s ease-out`, 지연 `0.2 + 0.1×i` 초.
+ *
+ * ⚠️ width 는 레이아웃 속성이라 **네이티브 드라이버를 못 씁니다**.
+ *    scaleX 로 바꾸면 네이티브로 돌릴 수 있지만, pill 막대라 자라는 동안
+ *    양 끝 둥근 모서리가 눌려 보입니다. 시안이 쓰는 값이 width 이기도 해서
+ *    그대로 두고 JS 스레드로 돌립니다 — 진입 때 한 번, 막대 3개뿐입니다.
+ */
+function ShareBar({ value, tint, index }: { value: number; tint: string; index: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: 600,
+      delay: 200 + index * 100,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [t, index]);
+
+  return (
+    // 시안: h-2 pill · 트랙 #F1F5F9
+    <View style={styles.shareTrack}>
+      <Animated.View
+        style={[
+          styles.shareFill,
+          {
+            backgroundColor: tint,
+            width: t.interpolate({ inputRange: [0, 1], outputRange: ['0%', `${value}%`] }),
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
 export default function InsightScreen() {
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
@@ -66,6 +149,13 @@ export default function InsightScreen() {
   const list = insights.data ?? [];
   const local = list.find((i) => i.insightType === '상권분석');
   const next = list.find((i) => i.insightType === '다음숏폼추천');
+  /*
+   * 비율 막대가 있을 때만 문장형 분석을 접습니다.
+   * 막대가 없으면(집계 없는 실서버) 카드에 남는 게 문장뿐이라 접을 이유가 없고,
+   * 접으면 카드가 제목만 남아 빈 상자로 보입니다.
+   */
+  const hasShares = (metrics.data?.local.length ?? 0) > 0;
+  const foldable = !!local && hasShares;
 
   return (
     <Screen
@@ -90,11 +180,12 @@ export default function InsightScreen() {
       <View style={styles.body}>
         {/* ② KPI 2열 그리드 */}
         <View style={styles.kpiGrid}>
-          {(metrics.data?.kpis ?? []).map((kpi) => {
+          {(metrics.data?.kpis ?? []).map((kpi, i) => {
             const Icon = KPI_ICONS[kpi.icon] ?? TrendingUp;
             return (
               <View key={kpi.label} style={styles.kpiWrap}>
-                <View style={styles.kpiCard}>
+                {/* 시안: rise-in · animationDelay 0.05×i */}
+                <RiseIn delay={50 * i} style={styles.kpiCard}>
                   <View style={styles.kpiHead}>
                     <Icon size={16} strokeWidth={2} color={color.ink[500]} />
                     <Text style={styles.kpiLabel}>{kpi.label}</Text>
@@ -103,7 +194,7 @@ export default function InsightScreen() {
                     <Text style={styles.kpiValue}>{kpi.value ?? '—'}</Text>
                     {kpi.delta ? <Text style={styles.kpiDelta}>{kpi.delta}</Text> : null}
                   </View>
-                </View>
+                </RiseIn>
               </View>
             );
           })}
@@ -136,7 +227,34 @@ export default function InsightScreen() {
 
         {/* ④ 지역 상권 분석 — 3.5 로 실제 값이 옵니다 */}
         <View style={styles.card}>
-          <Text style={[styles.cardTitle, { marginBottom: space[4] }]}>지역 상권 분석</Text>
+          {/*
+            3.5 문장형 분석은 시안에 없는 요소입니다. 지우면 닿을 길이 사라지므로
+            **제목 줄 오른쪽 끝의 chevron** 으로 접어 둡니다 (2026-08-26 결정).
+            제목 줄 안이라 카드 높이가 시안과 같습니다 — 별도 행으로 두었을 때는
+            카드가 38 커져서 아래 "다음 숏폼 추천" 이 통째로 밀렸습니다.
+
+            카드 전체를 누르게 하지 않은 이유: 막대를 짚어 보려다 접힙니다.
+          */}
+          {foldable ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="지역 상권 분석 자세한 설명"
+              accessibilityState={{ expanded: showLocalText }}
+              hitSlop={6}
+              onPress={() => setShowLocalText((v) => !v)}
+              style={({ pressed }) => [styles.localHead, pressTap(pressed, 'card')]}
+            >
+              <Text style={styles.cardTitle}>지역 상권 분석</Text>
+              <ChevronDown
+                size={16}
+                strokeWidth={2}
+                color={color.ink[500]}
+                style={showLocalText ? styles.chevronOpen : undefined}
+              />
+            </Pressable>
+          ) : (
+            <Text style={[styles.cardTitle, { marginBottom: space[4] }]}>지역 상권 분석</Text>
+          )}
           <LoadGate
             loading={insights.isLoading}
             error={insights.isError}
@@ -144,54 +262,22 @@ export default function InsightScreen() {
             onRetry={insights.refetch}
             loadingLabel="분석을 불러오고 있어요"
           >
-            {(metrics.data?.local.length ?? 0) > 0 ? (
+            {hasShares ? (
               <View style={{ gap: 14 }}>
-                {metrics.data!.local.map((item) => (
+                {metrics.data!.local.map((item, i) => (
                   <View key={item.label}>
                     <View style={styles.shareHead}>
                       <Text style={styles.shareLabel}>{item.label}</Text>
                       <Text style={styles.shareValue}>{item.value}%</Text>
                     </View>
-                    {/* 시안: h-2 pill · 트랙 #F1F5F9 */}
-                    <View style={styles.shareTrack}>
-                      <View
-                        style={[
-                          styles.shareFill,
-                          { width: `${item.value}%`, backgroundColor: item.color },
-                        ]}
-                      />
-                    </View>
+                    <ShareBar value={item.value} tint={item.color} index={i} />
                   </View>
                 ))}
-                {/*
-                  3.5 문장형 분석은 시안에 없는 요소입니다. 지우지 않고 접어 둡니다 —
-                  펼치기 전에는 카드 높이가 시안과 같고, 필요하면 눌러서 봅니다.
-                */}
-                {local ? (
-                  <View>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ expanded: showLocalText }}
-                      hitSlop={6}
-                      onPress={() => setShowLocalText((v) => !v)}
-                      style={({ pressed }) => [styles.moreBtn, pressTap(pressed, 'button')]}
-                    >
-                      <Text style={styles.moreText}>
-                        {showLocalText ? '설명 접기' : '자세한 설명 보기'}
-                      </Text>
-                      <ChevronDown
-                        size={14}
-                        strokeWidth={2}
-                        color={color.ink[500]}
-                        style={showLocalText ? styles.chevronOpen : undefined}
-                      />
-                    </Pressable>
-                    {showLocalText ? (
-                      <View style={{ gap: space[1], marginTop: space[2] }}>
-                        <Text style={styles.localBody}>{local.insightContent}</Text>
-                        <Text style={styles.source}>출처 {local.insightSource}</Text>
-                      </View>
-                    ) : null}
+                {/* 제목 줄 chevron 으로 펼칩니다. 접혀 있으면 카드 높이가 시안과 같습니다. */}
+                {foldable && showLocalText ? (
+                  <View style={{ gap: space[1] }}>
+                    <Text style={styles.localBody}>{local.insightContent}</Text>
+                    <Text style={styles.source}>출처 {local.insightSource}</Text>
                   </View>
                 ) : null}
               </View>
@@ -216,12 +302,19 @@ export default function InsightScreen() {
               <Sparkles size={12} strokeWidth={2} color={color.brand[600]} />
               <Text style={styles.recBadgeText}>인사이트 분석 기반</Text>
             </View>
-            <Text style={styles.recTitle}>
-              {next?.insightTitle ?? '추천을 준비하고 있습니다'}
-            </Text>
-            <Text style={styles.recBody}>
-              {next?.insightContent ?? '가게 정보가 쌓이면 다음에 찍을 숏폼을 골라 드려요.'}
-            </Text>
+            {/*
+              시안은 추천이 바뀔 때 `key={recIdx}` 로 다시 그려 rise-in 을 태웁니다.
+              우리는 3.5 를 다시 불러오므로 제목을 key 로 씁니다 — 내용이 바뀌면
+              다시 올라옵니다. 눌렀는데 아무 움직임이 없으면 바뀐 줄 모릅니다.
+            */}
+            <RiseIn key={next?.insightTitle ?? 'empty'}>
+              <Text style={styles.recTitle}>
+                {next?.insightTitle ?? '추천을 준비하고 있습니다'}
+              </Text>
+              <Text style={styles.recBody}>
+                {next?.insightContent ?? '가게 정보가 쌓이면 다음에 찍을 숏폼을 골라 드려요.'}
+              </Text>
+            </RiseIn>
 
             <Pressable
               accessibilityRole="button"
@@ -265,9 +358,17 @@ const styles = StyleSheet.create({
   },
   body: { paddingHorizontal: space[4], paddingBottom: space[10] },
 
-  // 시안: grid-cols-2 gap-3
-  // 카드 바깥으로 6씩 빼서 좌우 정렬을 유지합니다(안쪽 여백이 gap 12 를 대신).
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
+  /*
+   * 시안: grid-cols-2 gap-3.
+   * 칸마다 6 씩 안쪽 여백을 주고 바깥으로 6 을 빼서 gap 12 를 만듭니다.
+   *
+   * ⚠️ marginVertical 도 같이 빼야 합니다 (2026-08-26, 비교 이미지 측정).
+   *    가로만 상쇄하면 첫 줄 **위**와 마지막 줄 **아래**에 6 씩 남습니다.
+   *    시안 grid 는 칸 사이에만 간격이 있고 바깥에는 없어서, 그 6 이
+   *    KPI 를 6 내리고 아래 차트 카드까지 6 더 밀었습니다
+   *    (@2x 측정: 카드 상단 시안 222 / 앱 234, 그리드→차트 간격 시안 37 / 앱 49).
+   */
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6, marginVertical: -6 },
   kpiWrap: { width: '50%', padding: 6 },
   kpiCard: {
     padding: 14,
@@ -277,14 +378,28 @@ const styles = StyleSheet.create({
     backgroundColor: color.paper,
     ...theme.elevation('card'),
   },
-  kpiHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  /*
+   * 시안 라벨 줄은 18 입니다 — 아이콘 16 이 아니라 12px 라벨의 줄높이가 잡습니다.
+   * 비워 두면 아이콘 16 이 줄 높이가 되어 카드가 2 낮아집니다.
+   */
+  kpiHead: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18 },
   kpiLabel: { ...theme.text.label, fontFamily: theme.text.caption.fontFamily, fontWeight: theme.text.caption.fontWeight, color: color.ink[500] },
   kpiValueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: space[2] },
-  // 시안: 19·bold · tracking-tighter-title
-  kpiValue: { ...theme.text.heading, fontSize: 19, lineHeight: 25, letterSpacing: -0.38 },
+  /*
+   * 시안: 19·bold · tracking-tighter-title.
+   * 줄높이 29 는 시안 카드 높이에서 역산한 값입니다 —
+   * p-3.5(14) + 라벨줄(18) + mt-2(8) + 값줄(29) + p-3.5(14) = 83.
+   * 25 로 두면 카드가 78 이라 시안보다 5 낮고, 두 줄이라 아래가 10 밀립니다
+   * (@2x 측정: 카드 높이 시안 166 / 앱 156).
+   */
+  kpiValue: { ...theme.text.heading, fontSize: 19, lineHeight: 29, letterSpacing: -0.38 },
   kpiDelta: { ...theme.text.label, marginBottom: 2, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.done[500] },
 
-  note: { ...theme.text.caption, marginTop: space[3], lineHeight: 20, color: color.ink[500] },
+  /*
+   * 그리드가 marginVertical -6 으로 아래 6 을 당겨 가므로 여기서 6 을 되돌립니다.
+   * 그래야 카드와의 간격이 원래대로 12 입니다.
+   */
+  note: { ...theme.text.caption, marginTop: space[3] + 6, lineHeight: 20, color: color.ink[500] },
 
   card: {
     marginTop: space[4],
@@ -314,8 +429,13 @@ const styles = StyleSheet.create({
   shareValue: { ...theme.text.caption, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[900] },
   shareTrack: { height: 8, borderRadius: radius.pill, backgroundColor: '#F1F5F9', overflow: 'hidden' },
   shareFill: { height: '100%', borderRadius: radius.pill },
-  moreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: space[1] },
-  moreText: { ...theme.text.caption, color: color.ink[500] },
+  /* 시안 제목 줄(mb-4)에 chevron 만 얹습니다 — 16 은 제목 줄높이 안이라 높이가 안 늘어납니다. */
+  localHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: space[4],
+  },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
   localTitle: { ...theme.text.bodyStrong },
   localBody: { ...theme.text.caption, lineHeight: 21, color: color.ink[700] },
