@@ -18,14 +18,19 @@ import { pressTap } from './press';
 
 interface FieldProps extends TextInputProps {
   label: string;
+  /**
+   * 라벨과 입력칸 사이. 기본 8 입니다.
+   * 시안 프로필 수정만 mb-1.5(6) 이라 그 화면에서만 좁힙니다.
+   */
+  labelGap?: number;
   hint?: string;
   error?: string;
   required?: boolean;
 }
 
-export function Field({ label, hint, error, required, style, ...rest }: FieldProps) {
+export function Field({ label, hint, error, required, labelGap, style, ...rest }: FieldProps) {
   return (
-    <View style={{ gap: space[2] }}>
+    <View style={{ gap: labelGap ?? space[2] }}>
       <View style={styles.labelRow}>
         <Text style={styles.label}>{label}</Text>
         {required ? <Text style={[text.micro, { color: color.brand[600] }]}>필수</Text> : null}

@@ -58,7 +58,26 @@ let targetState: Record<string, unknown>[] = fx.targetCustomers.map((t) => ({ ..
  * 안 바꾸면 GET 이 항상 빈 목록을 줘서 "연결했는데 연결 안 됨" 이 됩니다.
  * (§실기기 버그에서 배운 그 유형: 저장하고 다시 조회했을 때 반영되는가)
  */
-let connectionState: Record<string, unknown>[] = [];
+/**
+ * 시안은 인스타그램·유튜브가 **이미 연동된 상태**로 시작합니다
+ * (프로필 수정 화면에 계정이 "연동됨" 배지와 함께 떠 있습니다).
+ * 빈 배열로 시작하면 그 상태를 한 번도 볼 수 없어 시안과 대조가 안 됩니다.
+ */
+const CONNECTIONS_SEED = [
+  {
+    id: 8801,
+    sns_platform: 'INSTAGRAM',
+    sns_account_name: 'nangok_kalguksu',
+    token_expires_at: '2026-11-19T00:00:00Z',
+  },
+  {
+    id: 8802,
+    sns_platform: 'YOUTUBE',
+    sns_account_name: '난곡신사손칼국수TV',
+    token_expires_at: '2026-11-19T00:00:00Z',
+  },
+];
+let connectionState: Record<string, unknown>[] = CONNECTIONS_SEED.map((c) => ({ ...c }));
 /**
  * 5.3 찜 (2026-08-23 신설). 계정 단위이므로 storeId 와 무관합니다.
  * POST/DELETE 는 멱등 — Set 이라 중복 add/delete 가 자연히 멱등이 됩니다.
@@ -129,7 +148,7 @@ export function resetMockState() {
   menuState = fx.menus.map((m) => ({ ...m }));
   photoState = fx.photos.map((p) => ({ ...p }));
   targetState = fx.targetCustomers.map((t) => ({ ...t }));
-  connectionState = [];
+  connectionState = CONNECTIONS_SEED.map((c) => ({ ...c }));
   favoriteSet = new Set(FAVORITES_SEED);
   logoUrl = null;
   meState = {};

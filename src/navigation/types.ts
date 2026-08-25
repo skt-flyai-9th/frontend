@@ -30,6 +30,12 @@ export type RootStackParamList = {
   /** 매장 인사이트 분석 — 시안에 탭바가 없어 탭 밖입니다. */
   Insight: undefined;
   /**
+   * 프로필 수정 — 3.1(가게) + 3.6(로고) + 16.1(SNS) + 1.5(계정) 을 한 화면에.
+   * 시안에 하단 탭바가 없고 저장하기 버튼이 화면 맨 아래에 옵니다.
+   * 탭 안에 두면 탭바가 그 자리를 먹어 저장하기가 화면 밖으로 밀립니다.
+   */
+  EditProfile: undefined;
+  /**
    * 자주 묻는 질문 — 탭 **밖**입니다.
    * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
    * 시안과 어긋납니다(알림 화면과 같은 이유).
@@ -99,8 +105,6 @@ export type MyStackParamList = {
   PermissionsInfo: undefined;
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
-  /** 프로필 수정 — 3.1(가게) + 3.6(로고) + 16.1(SNS) + 1.5(계정) 을 한 화면에 */
-  EditProfile: undefined;
   /** 플랜 안내 — 정적 화면 (플랜 API 없음) */
   Plans: undefined;
 };

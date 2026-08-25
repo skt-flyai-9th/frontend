@@ -109,7 +109,6 @@ function MyStack() {
       <My.Screen name="Performance" component={PerformanceScreen} />
       <My.Screen name="Settings" component={SettingsScreen} />
       <My.Screen name="PermissionsInfo" component={PermissionsInfoScreen} />
-      <My.Screen name="EditProfile" component={EditProfileScreen} />
       <My.Screen name="Plans" component={PlansScreen} />
       <My.Screen name="Legal" component={LegalScreen} />
     </My.Navigator>
@@ -241,6 +240,7 @@ export default function RootNavigator() {
       {/* 시안: 이 화면들에는 하단 탭바가 없습니다 */}
       <Root.Screen name="Faq" component={FaqScreen} />
       <Root.Screen name="Insight" component={InsightScreen} />
+      <Root.Screen name="EditProfile" component={EditProfileScreen} />
       <Root.Screen
         name="MyVideo"
         component={MyVideoScreen}
