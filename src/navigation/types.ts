@@ -38,6 +38,11 @@ export type RootStackParamList = {
   /** 플랜 안내 — 정적 화면(플랜 API 없음). 시안에 탭바가 없어 탭 밖입니다. */
   Plans: undefined;
   /**
+   * 약관 및 접근 권한 동의 — 가입 직후 단계라 탭 밖입니다.
+   * 시안에도 탭바가 없고 헤더에 제목조차 없습니다.
+   */
+  PermissionsInfo: undefined;
+  /**
    * 자주 묻는 질문 — 탭 **밖**입니다.
    * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
    * 시안과 어긋납니다(알림 화면과 같은 이유).
@@ -92,7 +97,6 @@ export type MyStackParamList = {
   MyPage: undefined;
   Settings: undefined;
   // ── 신규 ──
-  PermissionsInfo: undefined;
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
 };

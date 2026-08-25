@@ -45,7 +45,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList & MyStackParamList>;
 
 /** 시안 SETTINGS_ITEMS 순서 그대로. 아이콘도 시안이 지정한 lucide 이름입니다. */
 /** Faq·Notifications 는 탭 밖(Root), 나머지는 마이 탭 안입니다. */
-type Dest = keyof MyStackParamList | 'Notifications' | 'Faq';
+type Dest = keyof MyStackParamList | 'Notifications' | 'Faq' | 'PermissionsInfo';
 
 const ITEMS: { icon: typeof Bell; label: string; go: Dest }[] = [
   { icon: CircleHelp, label: '자주 묻는 질문', go: 'Faq' },

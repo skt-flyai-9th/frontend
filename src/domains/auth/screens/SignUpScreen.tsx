@@ -38,7 +38,9 @@ import { color, space, text } from '../../../design/theme';
 import { useSignup } from '../../../api/queries/auth';
 import { useAppState } from '../../../lib/appState';
 import { ApiError } from '../../../api/http';
-import type { AuthStackParamList } from '../../../navigation/types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { AuthStackParamList, RootStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
@@ -47,6 +49,8 @@ type FormKey = 'name' | 'password' | 'password2' | 'email' | 'phone';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignUpScreen({ navigation }: Props) {
+  // 가입이 끝나면 이 스택을 벗어나므로 루트 내비게이션을 씁니다.
+  const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [form, setForm] = useState<Record<FormKey, string>>({
     name: '',
     password: '',
@@ -92,7 +96,8 @@ export default function SignUpScreen({ navigation }: Props) {
         marketingAgreed,
       },
       {
-        onSuccess: () => navigation.replace('SignIn'),
+        // 시안 V4: 가입 다음은 약관·접근 권한 동의입니다.
+        onSuccess: () => rootNav.replace('PermissionsInfo'),
         onError: (e) =>
           setServerError(e instanceof ApiError ? e.message : '가입하지 못했습니다.'),
       }
