@@ -634,3 +634,39 @@ export const storeShorts = [
     created_at: '2026-08-20T18:40:00Z',
   },
 ];
+
+/**
+ * 알림 3건 — 시안 v3 `NOTICES` 원문 그대로입니다.
+ *
+ * ⚠️ 명세에 알림 API 가 없어 **mock 에만** 존재합니다.
+ *    실서버 모드에서는 이 값이 쓰이지 않고 화면이 빈 상태가 됩니다
+ *    (없는 숫자를 사장님에게 보여주지 않기 위해).
+ */
+export const notices = [
+  {
+    id: 'n1',
+    icon: 'trending-up',
+    tone: 'brand',
+    title: '지난주 조회수가 32% 늘었어요',
+    body: '크로플 단면 숏폼이 가장 많이 재생됐어요.',
+    time: '2시간 전',
+    unread: true,
+  },
+  {
+    id: 'n2',
+    icon: 'sparkles',
+    tone: 'brand',
+    title: '새 추천 숏폼 3개가 도착했어요',
+    body: '여름 신메뉴에 맞는 레퍼런스를 골라봤어요.',
+    time: '어제',
+    unread: true,
+  },
+  {
+    id: 'n3',
+    icon: 'circle-check',
+    tone: 'verified',
+    title: '영상 내보내기가 완료됐어요',
+    body: '인스타그램 릴스로 공유되었습니다.',
+    time: '3일 전',
+  },
+];
