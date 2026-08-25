@@ -11,7 +11,12 @@
  * 죽은 버튼을 안 만들겠다고 큐·확인 타이머까지 넣었지만, 결국 우리가 유튜브 플레이어를
  * 흉내 내는 구조 자체가 문제였습니다.
  *
- * 지금은 `controls=1` 로 **유튜브 자체 컨트롤을 그대로** 씁니다.
+ * (2026-08-25) 구조를 한 번 더 바꿨습니다 — 자세한 근거는 guidePlayerBridge.ts 머리말.
+ *   embed 를 최상위 문서로 열던 4차 방식이 **오류 153** 을 냈습니다. 실측 결과 유튜브는
+ *   ① iframe 안일 것 ② 문서에 진짜 origin 이 있을 것 을 요구합니다. 그래서 우리 origin 을
+ *   가진 호스트 문서를 만들고 그 안에 embed 를 iframe 으로 넣습니다.
+ *
+ * 재생 제어는 4차와 같이 `controls=1` 로 **유튜브 자체 컨트롤을 그대로** 씁니다.
  *   · 하단 진행바(스크럽) · 재생/일시정지 · 영상 탭하면 멈춤
  *   · 설정(⚙) → **배속** — 유튜브가 그 영상에 실제로 허용하는 속도만 나옵니다
  *   · 자막(CC)·화질 등 유튜브가 주는 나머지도 함께
@@ -41,20 +46,29 @@ import {
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { color, radius, space, text } from '../design/theme';
-import { GUIDE_PLAYER_BRIDGE, buildEmbedUrl } from './guidePlayerBridge';
+import { buildEmbedUrl, buildFrameHtml, extractVideoId } from './guidePlayerBridge';
+import { BASE_URL } from '../api/http';
 
 /** 준비 신호가 안 와도 이만큼 지나면 로딩 표시를 걷습니다. 유튜브 자체 로딩이 이어받습니다. */
 const LOADING_GIVE_UP_MS = 8000;
 
-export function extractVideoId(url?: string | null): string | null {
-  if (!url) return null;
-  const m =
-    url.match(/[?&]v=([\w-]{11})/) ||
-    url.match(/youtu\.be\/([\w-]{11})/) ||
-    url.match(/\/embed\/([\w-]{11})/) ||
-    url.match(/\/shorts\/([\w-]{11})/);
-  return m ? m[1] : null;
-}
+/**
+ * 호스트 문서에 부여할 출처.
+ *
+ * 유튜브 임베드는 문서에 **진짜 origin 이 있어야** 재생됩니다 (없으면 오류 153).
+ * 우리 서버 주소를 그대로 씁니다 — 값이 한 곳에서만 오도록 api/http 의 BASE_URL 을
+ * 재사용하고, 경로가 붙어 있으면 origin 만 남깁니다.
+ */
+const APP_ORIGIN = (() => {
+  const m = /^(https?:\/\/[^/]+)/.exec(BASE_URL);
+  return m ? m[1] : 'https://sarils.p-e.kr';
+})();
+
+/**
+ * 영상 id 추출은 guidePlayerBridge 가 단일 출처입니다.
+ * 여기서 다시 구현하면 두 곳이 어긋납니다 (watch·youtu.be·embed·shorts·live 지원).
+ */
+export { extractVideoId };
 
 interface Props {
   url?: string | null;
@@ -87,10 +101,21 @@ export function GuidePlayer({ url, startSec, compact = false }: Props) {
     ? Math.min(210, Math.round((playerWidth * 9) / 16))
     : Math.max(200, Math.round((playerWidth * 9) / 16));
 
-  const embedUrl = useMemo(
-    () => (videoId ? buildEmbedUrl(videoId, { startSec, allowFullscreen: !compact }) : ''),
-    [videoId, startSec, compact]
-  );
+  /**
+   * 재생할 주소는 **서버(DB)가 준 url 하나뿐**입니다.
+   * 앱에 기본 영상이나 대체 주소를 두지 않습니다 — 그런 게 있으면 서버가 주소를 안 줬을 때
+   * 엉뚱한 영상이 조용히 재생되고, 아무도 데이터가 비었다는 걸 모르게 됩니다.
+   * url 이 없거나 유튜브 주소가 아니면 아래에서 "참고 영상이 없습니다" 로 끝냅니다.
+   */
+  const frameHtml = useMemo(() => {
+    if (!videoId) return '';
+    const embedUrl = buildEmbedUrl(videoId, {
+      startSec,
+      allowFullscreen: !compact,
+      origin: APP_ORIGIN,
+    });
+    return buildFrameHtml(embedUrl);
+  }, [videoId, startSec, compact]);
 
   // 영상이 바뀌면 초기화 (명세 S10.1.2)
   useEffect(() => {
@@ -171,12 +196,11 @@ export function GuidePlayer({ url, startSec, compact = false }: Props) {
     <View style={[styles.playerBox, { width: playerWidth, height: playerHeight }]}>
       <WebView
         /*
-         * embed 페이지를 **최상위 문서로 직접** 엽니다. origin = 진짜 youtube.com.
-         * 위장(baseUrl 트릭)이 아니므로 152 계열 위장 검증에 걸릴 것이 없습니다.
-         * 주입 스크립트는 오류 감지·준비 통지만 하고 재생에는 관여하지 않습니다.
+         * ⚠️ baseUrl 은 필수입니다. 이게 없으면 문서 origin 이 null 이 되어
+         *    유튜브가 임베드를 거부합니다(오류 153, 2026-08-25 실측).
+         *    값은 우리 서버 주소 — 남을 사칭하는 게 아니라 우리 출처를 밝히는 것입니다.
          */
-        source={{ uri: embedUrl }}
-        injectedJavaScript={GUIDE_PLAYER_BRIDGE}
+        source={{ html: frameHtml, baseUrl: APP_ORIGIN }}
         originWhitelist={['*']}
         onMessage={onMessage}
         javaScriptEnabled
@@ -194,6 +218,8 @@ export function GuidePlayer({ url, startSec, compact = false }: Props) {
           const u = req.url;
           const inPlayer =
             u === 'about:blank' ||
+            // 호스트 문서 자신. baseUrl 로 준 우리 origin 이라 반드시 통과시켜야 합니다.
+            u.startsWith(APP_ORIGIN) ||
             u.includes('youtube.com') ||
             u.includes('youtube-nocookie.com') ||
             u.includes('ytimg.com') ||

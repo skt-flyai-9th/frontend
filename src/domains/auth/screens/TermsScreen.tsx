@@ -31,6 +31,7 @@ export default function TermsScreen() {
   const [agreed, setAgreed] = useState<Record<string, boolean>>({});
   const signedIn = useAppState((s) => s.signedIn);
   const storeId = useAppState((s) => s.storeId);
+  const setMarketingAgreed = useAppState((s) => s.setMarketingAgreed);
 
   if (isLoading && !data) {
     return (
@@ -68,6 +69,11 @@ export default function TermsScreen() {
             <Button
               label="동의하고 시작"
               onPress={() => {
+                /*
+                 * 선택 동의는 여기서만 받습니다. 회원가입(1.2)이 서버로 보내는 값이라
+                 * 기기에 남겨 두고 가입할 때 함께 보냅니다 (appState 주석 참고).
+                 */
+                setMarketingAgreed(optional.every((t) => agreed[t]));
                 if (signedIn && storeId) nav.replace('Main', { screen: 'HomeFeed' });
                 else if (signedIn) nav.replace('StoreSetup', { screen: 'StoreSearch' });
                 else nav.replace('Auth', { screen: 'SignIn' });

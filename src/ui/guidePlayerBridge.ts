@@ -1,92 +1,162 @@
 /**
- * guidePlayerBridge.ts — 유튜브 embed 문서에 주입하는 **진단 전용** 스크립트.
+ * guidePlayerBridge.ts — 유튜브 임베드를 담는 **호스트 문서**와 그 안의 통신 스크립트.
  *
  * ─────────────────────────────────────────────────────────────
- * 4차 구조 전환 (2026-08-26) — 재생 제어를 유튜브에 돌려줍니다
+ * 5차 구조 전환 (2026-08-25) — iframe + 우리 origin
  * ─────────────────────────────────────────────────────────────
  * 1차: 라이브러리(원격 페이지) — 페이지가 죽으면 조용히 실패.
- * 2차: 내장 HTML + iframe API — baseUrl 위장이 감지돼 오류 152.
- * 3차: embed 를 최상위 문서로 열고 <video> 를 직접 제어 — origin 문제는 풀렸지만,
- *      **바깥에 우리가 만든 재생/배속/구간반복 버튼이 자주 안 먹었습니다.**
- *      영상마다 준비 시점이 다르고, 유튜브가 내부적으로 <video> 를 갈아끼우면
- *      우리가 잡아둔 참조가 끊깁니다. 그때마다 "눌러도 아무 일 없음" 이 됩니다.
- * 4차(현재): **유튜브 자체 컨트롤을 그대로 씁니다.**
- *      controls=1 이면 하단 진행바·재생/일시정지·설정(⚙)의 **배속 메뉴**가 전부
- *      유튜브 것으로 붙습니다. 영상 탭하면 멈추는 것도 유튜브 기본 동작입니다.
- *      우리가 흉내 내던 것보다 정확하고, 무엇보다 **안 먹는 일이 없습니다.**
+ * 2차: 내장 HTML + iframe API + `baseUrl:'https://www.youtube.com'` 위장 → **오류 152**.
+ *      유튜브가 "youtube.com 이라 주장하지만 아닌" 문서를 위장으로 판정.
+ * 3·4차: 위장을 없애려고 embed 를 **최상위 문서**로 열었습니다. 152 는 사라졌지만
+ *      이번엔 **오류 153** 이 났습니다.
+ * 5차(현재): 실측으로 조건을 특정했습니다.
  *
- * 그래서 이 스크립트에는 더 이상 재생 명령(__cmd)이 없습니다. 하는 일은 둘뿐입니다.
- *   1. 영상이 실제로 준비됐는지 알려주기 (로딩 표시를 걷기 위해)
- *   2. 유튜브가 자체 오류 UI 를 띄우면 그 **코드 숫자를 긁어 전달** —
- *      화면에 뜨는 숫자가 곧 다음 버그리포트의 진단이 되게.
+ *   측정 (2026-08-25, Chrome 실기 · headless/headful 동일 · 같은 영상 dQw4w9WgXcQ)
+ *   ┌────────────────────────────────────┬──────────────┬────────┐
+ *   │ 구성                                │ origin        │ 결과   │
+ *   ├────────────────────────────────────┼──────────────┼────────┤
+ *   │ embed 를 최상위 문서로 (4차)        │ youtube.com  │ 153    │
+ *   │ iframe + about:blank (origin 없음)  │ null         │ 153    │
+ *   │ iframe + 진짜 origin                │ http://…     │ 정상   │
+ *   └────────────────────────────────────┴──────────────┴────────┘
  *
- * 나가는 메시지: { t: 'boot' | 'ready' | 'err' | 'apifail' }
+ *   → 유튜브 임베드가 요구하는 것은 두 가지입니다.
+ *     ① **iframe 안에 있을 것** (embed 페이지는 프레임 전제로 만들어져 있습니다)
+ *     ② **문서에 진짜 origin 이 있을 것** (null origin 은 거부)
+ *
+ *   영상 길이·숏츠 여부는 무관합니다 — 위 세 줄 모두 **같은 3분 43초 일반 영상**입니다.
+ *
+ * 그래서 5차는 **우리 앱 origin 을 가진 호스트 문서**를 만들고 그 안에 embed 를
+ * iframe 으로 넣습니다. baseUrl 은 우리 서버 주소입니다 — 남을 사칭하는 게 아니라
+ * 우리 출처를 정직하게 밝히는 것이라 2차의 152 와는 성격이 다릅니다.
+ *
+ * ⚠️ 대가: iframe 은 교차 출처라 **문서 안의 <video>·오류 UI 를 읽을 수 없습니다.**
+ *    그래서 오류 감지를 DOM 긁기에서 **IFrame Player API 의 postMessage** 로 바꿉니다.
+ *    (`enablejsapi=1` + `origin` → `onReady`·`onError` 를 유튜브가 직접 보내줍니다)
+ *
+ * 나가는 메시지: { t: 'boot' | 'ready' | 'err' | 'apifail' }  — 4차와 동일합니다.
  */
 
-/** WebView injectedJavaScript 로 들어갑니다. 문서 로드 직후 1회 실행. */
-export const GUIDE_PLAYER_BRIDGE = `
+/** DB(명세 9.1 reference_video.reference_url)가 주는 주소에서 영상 id 를 꺼냅니다. */
+export function extractVideoId(url?: string | null): string | null {
+  if (!url) return null;
+  const u = String(url).trim();
+  const m =
+    u.match(/[?&]v=([\w-]{11})/) ||        // watch?v=…
+    u.match(/youtu\.be\/([\w-]{11})/) ||   // 단축 링크
+    u.match(/\/embed\/([\w-]{11})/) ||     // 이미 embed 형태
+    u.match(/\/shorts\/([\w-]{11})/) ||    // 숏츠
+    u.match(/\/live\/([\w-]{11})/);        // 라이브 다시보기
+  return m ? m[1] : null;
+}
+
+/**
+ * embed URL. **iframe 의 src 로만** 씁니다 (최상위 문서로 열면 153).
+ *
+ * controls=1        하단 진행바 · 재생/일시정지 · 설정(⚙)의 배속 메뉴
+ * playsinline=1     자리에서 재생 (전체화면으로 튀지 않음)
+ * rel=0             끝났을 때 남의 채널 추천을 줄임
+ * iv_load_policy=3  주석 숨김
+ * fs                전체화면 버튼. 카메라와 화면을 나눠 쓰는 곳에서는 끔.
+ * enablejsapi=1     onReady·onError 를 postMessage 로 받기 위해 필요
+ * origin            우리 문서의 출처. 이게 있어야 API 메시지가 옵니다.
+ */
+export function buildEmbedUrl(
+  videoId: string,
+  opts: { startSec?: number; allowFullscreen?: boolean; origin?: string } = {}
+): string {
+  const vid = /^[\w-]{11}$/.test(videoId) ? videoId : '';
+  const start = Math.max(0, Math.floor(opts.startSec ?? 0));
+  const fs = opts.allowFullscreen ? 1 : 0;
+  const origin = opts.origin ? `&origin=${encodeURIComponent(opts.origin)}` : '';
+  return (
+    `https://www.youtube.com/embed/${vid}` +
+    `?playsinline=1&controls=1&rel=0&iv_load_policy=3&fs=${fs}&start=${start}` +
+    `&enablejsapi=1&widgetid=1${origin}`
+  );
+}
+
+/**
+ * 호스트 문서 안에서 도는 스크립트.
+ *
+ * 하는 일은 4차와 같습니다 — **준비 알리기**와 **오류 코드 전달** 둘뿐이고,
+ * 재생 제어는 유튜브 자체 컨트롤에 그대로 맡깁니다.
+ * 달라진 건 정보를 얻는 경로입니다: DOM 긁기(불가) → IFrame API postMessage.
+ */
+const FRAME_SCRIPT = `
 (function () {
   'use strict';
-  if (window.__realsBridge) return; // 재주입 방지
-  window.__realsBridge = true;
-
   function post(o) {
     try { window.ReactNativeWebView.postMessage(JSON.stringify(o)); } catch (e) {}
   }
   post({ t: 'boot' });
 
-  var readySent = false;
+  var frame = document.getElementById('yt');
+  var ready = false, settled = false;
 
-  /** 유튜브 자체 오류 UI 에서 코드 숫자를 긁어냅니다 (예: "오류 코드: 152"). */
-  function scrapeError() {
-    var el = document.querySelector('.ytp-error');
-    if (!el) return false;
-    var txt = (el.textContent || '').trim();
-    var m = txt.match(/(\\d{2,3})/);
-    post({ t: 'err', c: m ? Number(m[1]) : 'embed' });
-    return true;
+  /** 유튜브에 "이 프레임의 이벤트를 보내달라" 고 신청합니다. */
+  function listen() {
+    try {
+      frame.contentWindow.postMessage(
+        JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'
+      );
+    } catch (e) {}
   }
+
+  function markReady() {
+    if (ready) return;
+    ready = true; settled = true;
+    post({ t: 'ready' });
+  }
+
+  window.addEventListener('message', function (e) {
+    if (typeof e.data !== 'string') return;
+    var m;
+    try { m = JSON.parse(e.data); } catch (_) { return; }
+    if (!m || !m.event) return;
+
+    if (m.event === 'onError') {
+      // 101·150 = 업로더가 임베드 금지 / 2·5·100 = 잘못된·없는 영상
+      settled = true;
+      post({ t: 'err', c: Number(m.info) });
+      return;
+    }
+    if (m.event === 'onReady' || m.event === 'initialDelivery') { markReady(); return; }
+    if (m.event === 'infoDelivery' && m.info && typeof m.info.playerState === 'number') markReady();
+  });
+
+  frame.addEventListener('load', listen);
 
   var ticks = 0;
   var timer = setInterval(function () {
     ticks++;
-    if (scrapeError()) { clearInterval(timer); return; }
-
-    if (!readySent) {
-      var v = document.querySelector('video');
-      var d = v && Number(v.duration);
-      if (v && isFinite(d) && d > 0) {
-        readySent = true;
-        post({ t: 'ready' });
-        // 준비됐고 오류도 없으면 더 볼 일이 없습니다. 타이머를 놓아 줍니다.
-        clearInterval(timer);
-        return;
-      }
-      // 12초 안에 영상도 오류 UI 도 없으면 통신 문제로 봅니다.
-      if (ticks >= 30) { post({ t: 'apifail' }); clearInterval(timer); }
-    }
+    if (!ready) listen();
+    // 12초 안에 준비도 오류도 없으면 통신 문제로 봅니다 (4차와 같은 기준).
+    if (!settled && ticks === 30) { post({ t: 'apifail' }); settled = true; }
+    if (ready || ticks > 40) clearInterval(timer);
   }, 400);
 })();
-true;`;
+`;
 
 /**
- * embed 최상위 문서 URL. origin 이 진짜 youtube.com 이 됩니다.
+ * WebView 에 실을 호스트 문서.
  *
- * controls=1  하단 진행바 · 재생/일시정지 · 설정(⚙) 안의 **배속 메뉴**
- * playsinline=1  전체화면으로 튀어나가지 않고 자리에서 재생
- * rel=0          끝났을 때 남의 채널 영상 추천을 줄입니다
- * iv_load_policy=3  주석(annotation) 숨김
- * fs             전체화면 버튼. 카메라와 화면을 나눠 쓰는 곳에서는 끕니다.
+ * ⚠️ 이 문자열을 `source={{ html, baseUrl }}` 로 넘길 때 **baseUrl 을 반드시 함께** 주세요.
+ *    baseUrl 이 없으면 문서 origin 이 null 이 되어 유튜브가 153 으로 거부합니다.
  */
-export function buildEmbedUrl(
-  videoId: string,
-  opts: { startSec?: number; allowFullscreen?: boolean } = {}
-): string {
-  const vid = /^[\w-]{11}$/.test(videoId) ? videoId : '';
-  const start = Math.max(0, Math.floor(opts.startSec ?? 0));
-  const fs = opts.allowFullscreen ? 1 : 0;
-  return (
-    `https://www.youtube.com/embed/${vid}` +
-    `?playsinline=1&controls=1&rel=0&iv_load_policy=3&fs=${fs}&start=${start}`
-  );
+export function buildFrameHtml(embedUrl: string): string {
+  return `<!doctype html><html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+  #yt { display: block; width: 100%; height: 100%; border: 0; }
+</style>
+</head><body>
+<iframe id="yt" src="${embedUrl}" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+<script>${FRAME_SCRIPT}</script>
+</body></html>`;
 }
+
+/** 4차까지 쓰던 이름. 지금은 호스트 문서에 인라인으로 들어가므로 주입하지 않습니다. */
+export const GUIDE_PLAYER_BRIDGE = FRAME_SCRIPT;
