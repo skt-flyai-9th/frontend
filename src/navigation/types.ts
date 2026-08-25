@@ -42,6 +42,8 @@ export type RootStackParamList = {
    * 시안에도 탭바가 없고 헤더에 제목조차 없습니다.
    */
   PermissionsInfo: undefined;
+  /** 설정 — 시안에 탭바가 없어 탭 밖입니다. */
+  Settings: undefined;
   /**
    * 자주 묻는 질문 — 탭 **밖**입니다.
    * 시안에는 이 화면에 하단 탭바가 없습니다. 탭 안 스택에 두면 탭바가 계속 보여
@@ -95,7 +97,6 @@ export type MainTabParamList = {
  */
 export type MyStackParamList = {
   MyPage: undefined;
-  Settings: undefined;
   // ── 신규 ──
   /** 약관·정책 목록 (시안 legal) */
   Legal: undefined;
