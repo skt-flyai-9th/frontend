@@ -92,12 +92,12 @@ export function useDraft(projectId?: number) {
 
 // ── R05 포맷 ───────────────────────────────────────────
 export interface FormatFilters {
-  [key: string]: string | number | undefined;
+  [key: string]: string | number | boolean | undefined;
   projectId?: number;
   formatType?: string;
   sort?: string;
   period?: string;
-  faceExposureLevel?: string;
+  requiresFace?: boolean;
   keyword?: string;
 }
 
@@ -111,7 +111,7 @@ export function useVideoFormats(filters: FormatFilters) {
           format_type: filters.formatType,
           sort: filters.sort,
           period: filters.period,
-          face_exposure_level: filters.faceExposureLevel,
+          requires_face: filters.requiresFace,
           keyword: filters.keyword,
         })
       ),

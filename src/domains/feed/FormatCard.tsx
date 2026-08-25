@@ -47,8 +47,12 @@ export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props
   const tags = [
     `#완성${format.expectedDurationSec}초`,
     `#난이도${format.shootingDifficulty}`,
-    format.faceExposureLevel === '낮음' ? '#얼굴노출없음' : `#얼굴노출${format.faceExposureLevel}`,
-  ];
+    typeof format.requiresFace === 'boolean'
+      ? format.requiresFace
+        ? '#얼굴촬영O'
+        : '#얼굴촬영X'
+      : null,
+  ].filter((tag): tag is string => tag !== null);
 
   return (
     <View style={styles.card}>
