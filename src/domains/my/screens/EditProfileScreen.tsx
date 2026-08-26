@@ -58,9 +58,25 @@ type Nav = NativeStackNavigationProp<RootStackParamList & MyStackParamList>;
 /**
  * 시안 `PLATFORM_META`.
  *
- * ⚠️ `scope` 는 시안이 준 문구 그대로입니다. 실제 OAuth 범위는 **서버가 정합니다**
- *    (16.1 A방식 — 앱은 authorize_url 을 열기만 합니다). 사장님께 보여 주는 동의 문구라
- *    실제 범위와 어긋나면 안 되어 BE 확인 요청 목록에 올려 뒀습니다.
+ * ─────────────────────────────────────────────────────────────
+ * 🔴 `scope` 는 **서버가 실제로 요청하는 권한**입니다. 시안 문구가 아닙니다.
+ * ─────────────────────────────────────────────────────────────
+ * 시안에는 "게시물 업로드 권한" · "동영상 업로드 권한" 이라고 적혀 있었는데,
+ * 2026-08-26 실서버 `GET /sns-connections/authorize` 가 주는 주소를 열어 보니
+ * 요청 범위가 **전부 읽기 전용**이었습니다.
+ *
+ *   INSTAGRAM  instagram_business_basic · instagram_business_manage_insights
+ *   YOUTUBE    yt-analytics.readonly · youtube.readonly
+ *
+ * 올리는 권한은 어디에도 없습니다. 그대로 뒀으면 **동의 화면이 사장님께 거짓을
+ * 말하는 것**이 됩니다(CLAUDE.md §2 제1규칙). 실제 범위로 고쳤습니다.
+ *
+ * ⚠️ 범위는 서버가 정합니다. BE 가 scope 를 바꾸면 이 문구도 같이 고쳐야 합니다.
+ *    확인 방법: authorize_url 의 `scope=` 파라미터를 그대로 읽으면 됩니다.
+ *
+ * `requires` 는 그 범위를 쓰려면 계정이 갖춰야 하는 조건입니다. 인스타그램
+ * `instagram_business_*` 는 **개인 계정으로는 통과되지 않습니다** — 로그인까지는
+ * 되고 마지막에 막혀서, 안내가 없으면 "앱이 고장났다" 로 읽힙니다.
  */
 const PLATFORMS = [
   {
@@ -69,14 +85,16 @@ const PLATFORMS = [
     mark: 'instagram' as const,
     // 시안: PLATFORM_META.Instagram.color
     brandColor: '#E1306C',
-    scope: '프로필 정보 · 게시물 업로드 권한',
+    scope: '프로필 정보 · 게시물 성과(조회수·저장수) 읽기',
+    requires: '비즈니스 또는 크리에이터 계정이어야 하고, 페이스북 페이지가 연결돼 있어야 해요.',
   },
   {
     key: 'YOUTUBE' as const,
     label: 'YouTube',
     mark: 'youtube' as const,
     brandColor: '#FF0000',
-    scope: '채널 정보 · 동영상 업로드 권한',
+    scope: '채널 정보 · 영상 성과(조회수·시청 시간) 읽기',
+    requires: null,
   },
 ];
 
@@ -434,6 +452,14 @@ export default function EditProfileScreen() {
                     <View style={styles.scopeText}>
                       <Text style={styles.scopeTitle}>요청 권한</Text>
                       <Text style={styles.scopeBody}>{connecting.scope}</Text>
+                      {/*
+                        계정 조건은 **막히기 전에** 말해야 합니다. 인스타그램은 개인
+                        계정으로 로그인까지 되고 마지막에 거절돼서, 안내가 없으면
+                        앱이 고장난 것으로 읽힙니다.
+                      */}
+                      {connecting.requires ? (
+                        <Text style={styles.scopeNote}>{connecting.requires}</Text>
+                      ) : null}
                     </View>
                   </View>
 
@@ -655,6 +681,17 @@ const styles = StyleSheet.create({
     fontFamily: theme.text.caption.fontFamily,
     fontWeight: theme.text.caption.fontWeight,
     color: color.ink[500],
+  },
+  /*
+   * 계정 조건. 시안에 없는 줄이라 권한 문구보다 한 단계 눌러 둡니다 —
+   * 읽어야 하는 값이지만 "요청 권한" 자리를 뺏으면 안 됩니다.
+   */
+  scopeNote: {
+    ...theme.text.label,
+    fontFamily: theme.text.caption.fontFamily,
+    fontWeight: theme.text.caption.fontWeight,
+    marginTop: 4,
+    color: color.ink[400],
   },
 
   errorWrap: { width: '100%', marginTop: space[4] },
