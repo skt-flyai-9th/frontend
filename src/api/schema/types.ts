@@ -393,6 +393,14 @@ export interface VideoFormat {
    * 트렌드 연동 전에 들어온 포맷에는 없습니다 — 고를 때는 `api/formatVideo.ts` 를 쓰세요.
    */
   guideVideoUrl?: string;
+  /**
+   * 얼굴이 나와야 하는 포맷인지 (2026-08-26 실서버 대조로 확인).
+   *
+   * 실서버 5.1 이 `requires_face` 를 보내는데 우리 스키마에 없어서 버리고 있었습니다.
+   * 지금은 값이 전부 null 로 오지만, 채워지면 추천 카드의 "#얼굴미노출" 태그가 이걸 씁니다.
+   * `faceExposureLevel`(높음/보통/낮음)과는 다른 필드입니다 — 이쪽은 예/아니오입니다.
+   */
+  requiresFace?: boolean | null;
   /** 썸네일 추출 방식이 플랫폼마다 달라 함께 받습니다. */
   sourcePlatform?: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK';
   /** 5.3 (2026-08-23): 이 계정이 찜했는지. 5.1·5.2 응답에 포함됩니다. */
