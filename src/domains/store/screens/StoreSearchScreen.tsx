@@ -18,10 +18,16 @@
  * ⚠️ 시안 주소 검색은 도로명·지번을 가진 자체 목록입니다. 우리 2.1 은 가게를 찾아
  *    이름·주소·좌표를 주므로, 후보에는 주소를 크게 이름을 작게 보여 줍니다.
  *    지번은 API 에 없어 넣지 않습니다 — 없는 값을 지어내지 않습니다.
+ *
+ * ⚠️ **시안에 없는 것을 하나 더했습니다 — 매장 이름 후보 목록** (2026-08-26, 사장님 지시).
+ *    시안 ④ 의 이름 칸은 글자만 받지만, 우리는 치는 대로 2.1 로 찾아 후보를 아래에
+ *    쭉 깔고 눌러서 확정하게 합니다. 시안의 연동 버튼이 목업(1.5초 뒤 값이 채워짐)이라
+ *    실제 데이터로 만들려면 어차피 시안과 달라져야 하는 자리입니다.
+ *    이 블록이 생기면서 06_store-sync 의 시안 대조 세로 위치는 그만큼 밀립니다.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Check, Link2, MapPin, Search, X } from 'lucide-react-native';
+import { Check, Link2, MapPin, Search, Store, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -80,9 +86,48 @@ export default function StoreSearchScreen({ navigation }: Props) {
 
   // 이미 고른 주소를 그대로 다시 후보로 보여 주지 않습니다.
   const candidates = useMemo(
-    () => (picked && picked.address === query ? [] : (results ?? []).slice(0, 5)),
+    () => (picked && picked.address === query ? [] : (results ?? [])),
     [results, picked, query]
   );
+
+  /*
+   * 매장 이름 후보 (2026-08-26).
+   *
+   * 사장님이 자기 가게 이름을 치면 **그 이름으로 찾은 가게들을 아래에 쭉** 보여 주고,
+   * 눌러서 확정하게 합니다. 고르면 업종·주소·좌표가 함께 채워져 아래 지도에 찍힙니다.
+   *
+   * 왜 필요했나 — 지금까지 이름으로 찾는 건 위쪽 연동 버튼뿐이었는데, 그 버튼은
+   * 찾은 결과 중 **첫 번째를 말없이** 골랐습니다. 같은 이름의 가게가 여럿이면
+   * (체인점·비슷한 상호) 엉뚱한 가게가 조용히 등록됩니다.
+   *
+   * 개수를 자르지 않습니다 — 목록 안에 또 스크롤을 만들지 않고 화면이 그만큼
+   * 길어지게 두는 쪽이 사장님 손에 편합니다(바깥 스크롤 하나로 끝).
+   */
+  const [nameKeyword, setNameKeyword] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setNameKeyword(name), 350);
+    return () => clearTimeout(t);
+  }, [name]);
+  const { data: nameHits, isFetching: nameFetching } = useStoreSearch(nameKeyword);
+
+  // 이미 확정한 가게면 목록을 접습니다. 이름을 다시 고치면 그때 또 뜹니다.
+  const nameCandidates = useMemo(
+    () => (picked && picked.name === name ? [] : (nameHits ?? [])),
+    [nameHits, picked, name]
+  );
+
+  /** 후보를 눌러 가게를 확정합니다. 이름·업종·주소·좌표가 한 번에 들어옵니다. */
+  const pickStore = (r: PlaceResult) => {
+    const known = CATEGORIES.includes(r.category);
+    setName(r.name);
+    setCategory(known ? r.category : '직접입력');
+    setCustomCategory(known ? '' : r.category);
+    setPicked(r);
+    setQuery(r.address);
+    setNotice(null);
+    // 외부 목록에서 그대로 가져온 값이라 출처가 MANUAL 이 아닙니다(2.2 info_source).
+    setSynced(true);
+  };
 
   // 연동으로 채우기 — 이름으로 2.1 을 찾아 첫 후보를 그대로 씁니다.
   const { data: syncHits } = useStoreSearch(syncing ? name.trim() : '');
@@ -207,6 +252,42 @@ export default function StoreSearchScreen({ navigation }: Props) {
               accessibilityLabel="매장 이름"
               style={styles.input}
             />
+
+            {/* 이름 후보 — 눌러서 내 가게를 확정합니다 */}
+            {nameFetching && nameCandidates.length === 0 && nameKeyword.trim().length >= 2 ? (
+              <Text style={styles.hint}>찾는 중…</Text>
+            ) : null}
+
+            {nameCandidates.length > 0 && (
+              <>
+                <Text style={styles.hint}>내 가게를 눌러 주세요</Text>
+                <View style={styles.results}>
+                  {nameCandidates.map((r, i) => (
+                    <Pressable
+                      key={`${r.name}-${r.address}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${r.name} ${r.address}`}
+                      onPress={() => pickStore(r)}
+                      style={({ pressed }) => [
+                        styles.resultRow,
+                        i < nameCandidates.length - 1 && styles.resultDivider,
+                        pressed && { backgroundColor: color.paper },
+                      ]}
+                    >
+                      <Store size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
+                      <View style={styles.flexMin}>
+                        <Text style={styles.resultTitle} numberOfLines={1}>
+                          {r.name}
+                        </Text>
+                        <Text style={styles.resultSub} numberOfLines={1}>
+                          {r.address}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
           </View>
 
           <View>
