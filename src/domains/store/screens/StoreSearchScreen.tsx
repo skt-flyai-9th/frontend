@@ -51,7 +51,7 @@ import { Banner, Spinner } from '../../../ui/Feedback';
 import { MapPreview } from '../../../ui/MapPreview';
 import { DropIn } from '../../../ui/DropIn';
 import { pressTap } from '../../../ui/press';
-import { phoneText, shortCategory } from '../../../lib/format';
+import { categoryHint, matchCategory, phoneText } from '../../../lib/format';
 import { useAppState } from '../../../lib/appState';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
@@ -120,15 +120,21 @@ export default function StoreSearchScreen({ navigation }: Props) {
   const candidates = hits ?? [];
   const shown = nameAll ? candidates : candidates.slice(0, PAGE);
 
-  /** 시트에서 확정했을 때. 이름·업종·주소·전화·좌표가 한 번에 들어옵니다. */
+  /**
+   * 시트에서 확정했을 때. 이름·업종·주소·전화·좌표가 한 번에 들어옵니다.
+   *
+   * 업종은 **경로 전체를 키워드로 훑어** 우리 칩으로 보냅니다 (`matchCategory`).
+   * 맨 뒤 조각을 떼는 방식은 `음식점>카페,디저트` 를 "디저트" 로, `...>미용실>준오헤어`
+   * 를 "준오헤어" 로 만들어 버립니다 — `lib/format.ts` 머리말에 근거가 있습니다.
+   *
+   * 칩에 없는 업종(약국·편의점·세탁소 등)은 `직접입력` 으로 보내되, 그 칸에
+   * 원문의 가장 좁은 조각을 **미리 채워** 둡니다. 사장님이 지우고 쓸 필요가 없습니다.
+   */
   const pickStore = (r: PlaceResult) => {
-    const known = CATEGORIES.includes(r.category);
-    const short = shortCategory(r.category) ?? r.category;
-    const knownShort = CATEGORIES.includes(short);
+    const chip = matchCategory(r.category);
     setName(r.name);
-    // 서버는 "카페,디저트>카페" 로 줍니다 — 좁은 분류가 우리 칩에 있으면 그것을 씁니다.
-    setCategory(known ? r.category : knownShort ? short : '직접입력');
-    setCustomCategory(known || knownShort ? '' : short);
+    setCategory(chip ?? '직접입력');
+    setCustomCategory(chip ? '' : categoryHint(r.category));
     setPicked(r);
   };
 
@@ -465,7 +471,11 @@ function StorePreviewSheet({
   }, [rise]);
 
   const phone = phoneText(store.phone);
-  const category = shortCategory(store.category);
+  /*
+    시트 칩에도 **저장될 값**을 그대로 보여 줍니다. 여기서 원문 조각("디저트")을
+    보여주고 실제로는 "카페" 로 저장하면, 사장님이 본 것과 저장된 것이 달라집니다.
+  */
+  const category = matchCategory(store.category) ?? categoryHint(store.category);
 
   return (
     <View style={StyleSheet.absoluteFill}>
