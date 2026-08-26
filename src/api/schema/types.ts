@@ -360,8 +360,6 @@ export interface ProjectListItem {
 export type FormatType = '밈' | '잔잔한 소개' | '정보형' | '챌린지';
 /** 명세: 상 / 중 / 하 */
 export type Difficulty = '상' | '중' | '하';
-/** 명세: 높음 / 보통 / 낮음 */
-export type FaceExposureLevel = '높음' | '보통' | '낮음';
 
 /**
  * 명세 5.1 목록 / 5.2 상세 공통.
@@ -378,7 +376,8 @@ export interface VideoFormat {
   formatType: FormatType;
   expectedDurationSec: number;
   shootingDifficulty: Difficulty;
-  faceExposureLevel: FaceExposureLevel;
+  /** 얼굴 촬영이 포맷 재현에 필수인지 여부. */
+  requiresFace?: boolean;
   /** 5.1 전용. 왜 추천했는지. 점수가 아니라 이유를 보여줍니다. */
   recommendReasons?: string[];
   /**
@@ -393,14 +392,6 @@ export interface VideoFormat {
    * 트렌드 연동 전에 들어온 포맷에는 없습니다 — 고를 때는 `api/formatVideo.ts` 를 쓰세요.
    */
   guideVideoUrl?: string;
-  /**
-   * 얼굴이 나와야 하는 포맷인지 (2026-08-26 실서버 대조로 확인).
-   *
-   * 실서버 5.1 이 `requires_face` 를 보내는데 우리 스키마에 없어서 버리고 있었습니다.
-   * 지금은 값이 전부 null 로 오지만, 채워지면 추천 카드의 "#얼굴미노출" 태그가 이걸 씁니다.
-   * `faceExposureLevel`(높음/보통/낮음)과는 다른 필드입니다 — 이쪽은 예/아니오입니다.
-   */
-  requiresFace?: boolean | null;
   /** 썸네일 추출 방식이 플랫폼마다 달라 함께 받습니다. */
   sourcePlatform?: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK';
   /** 5.3 (2026-08-23): 이 계정이 찜했는지. 5.1·5.2 응답에 포함됩니다. */
@@ -442,7 +433,7 @@ export interface QuizAlternative {
    */
   expectedDurationSec?: number;
   shootingDifficulty?: Difficulty;
-  faceExposureLevel?: FaceExposureLevel;
+  requiresFace?: boolean;
 }
 
 // ══════════════════════════════════════════════════
@@ -594,6 +585,73 @@ export interface Draft {
   lastSavedAt: string;
   currentStep: CurrentStep;
   clientState?: Record<string, unknown>;
+}
+
+// ══════════════════════════════════════════════════
+// R06 대화형 숏폼 Agent
+// ══════════════════════════════════════════════════
+
+export type ShortformAction =
+  | 'ASK'
+  | 'SAVE_AND_ASK'
+  | 'CLARIFY'
+  | 'SUGGEST_SWITCH'
+  | 'RESOLVE_CONFLICT'
+  | 'CONFIRM'
+  | 'RECOMMEND';
+
+export interface ShortformOption {
+  id: string;
+  label: string;
+}
+
+export interface ShortformRecommendation {
+  recommendationId: string;
+  projectTitle: string;
+  title: string;
+  concept: string;
+  editingTemplateId: string;
+  editingTemplateVersion: number;
+}
+
+export interface ShortformSessionResponse {
+  id: Id;
+  status: 'ACTIVE' | 'ACCEPTED' | 'DISCARDED';
+  assistantMessage?: string;
+  options: ShortformOption[];
+  projectState: Record<string, unknown>;
+}
+
+export interface ShortformTurnResponse {
+  id: Id;
+  action: ShortformAction;
+  assistantMessage?: string;
+  options: ShortformOption[];
+  projectState: Record<string, unknown>;
+  /**
+   * 추천은 **배열**입니다 (2026-08-26 실서버 대조로 정정).
+   *
+   * 서버 응답 키가 `recommendations` 이고, 추천이 아직 없는 턴에서도 `[]` 로 옵니다.
+   * 단수 `recommendation` 으로 읽으면 **항상 undefined** 라 추천이 영영 안 뜹니다.
+   * 시안(`image (1).png`)이 카드 세 장인 것도 이 배열을 전제로 한 그림입니다.
+   */
+  recommendations?: ShortformRecommendation[];
+}
+
+export type ShortformTurnInput =
+  | { type: 'TEXT'; text: string }
+  | { type: 'OPTION'; optionId: string }
+  | { type: 'CONFIRM'; value: boolean };
+
+export interface ShortformAcceptResponse {
+  id: Id;
+  storeId: Id;
+  projectTitle?: string;
+  videoFormatId: Id;
+  promotionPurpose: PromotionPurpose;
+  menuId?: Id;
+  shortsStatus: ShortsStatus;
+  createdAt: string;
 }
 
 // ══════════════════════════════════════════════════

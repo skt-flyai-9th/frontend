@@ -46,7 +46,7 @@ interface AppState {
    */
   formatFilters: {
     formatType?: string;
-    faceExposureLevel?: string;
+    requiresFace?: boolean;
     sort: string;
     period: string;
     keyword: string;

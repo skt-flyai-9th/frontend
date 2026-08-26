@@ -56,6 +56,18 @@ export const API = {
   insights: (storeId: number, type?: string) =>
     `/stores/${storeId}/insights${type ? `?type=${encodeURIComponent(type)}` : ''}`, // 3.5
 
+  // ── R06 대화형 숏폼 Agent ──────────────────────────────
+  createShortformSession: (storeId: number) =>
+    `/stores/${storeId}/shortform-sessions`,
+  shortformTurn: (sessionId: number) =>
+    `/shortform-sessions/${sessionId}/turns`,
+  nextShortformRecommendation: (sessionId: number) =>
+    `/shortform-sessions/${sessionId}/recommendations/next`,
+  acceptShortformRecommendation: (sessionId: number) =>
+    `/shortform-sessions/${sessionId}/accept`,
+  discardShortformSession: (sessionId: number) =>
+    `/shortform-sessions/${sessionId}`,
+
   // ── R04 캠페인 설정 ─────────────────────────────────────
   projects: () => `/shorts-projects`,                                // 4.1 GET/POST
   projectList: (storeId: number, status?: string) =>
@@ -63,7 +75,7 @@ export const API = {
   project: (projectId: number) => `/shorts-projects/${projectId}`,   // 4.2 PATCH / 4.3 GET
 
   // ── R05 숏폼 포맷 탐색 ──────────────────────────────────
-  videoFormats: (query?: Record<string, string | number | undefined>) => {
+  videoFormats: (query?: Record<string, string | number | boolean | undefined>) => {
     const q = Object.entries(query ?? {})
       .filter(([, v]) => v !== undefined && v !== '')
       .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
