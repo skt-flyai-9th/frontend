@@ -11,11 +11,9 @@
  *    이전 코드는 단수 `recommendation` 을 읽어 **항상 undefined** 였습니다.
  *
  * ② 답은 **객관식이 기본**입니다. 사장님이 40~60대라 빈 칸을 보면 무엇을 적어야
- *    할지 막막해집니다. 하단 입력창은 평소 닫혀 있고,
- *      · 서버가 선택지 없이 물어볼 때(열린 질문)
- *      · "보기에 없어요 · 직접 입력" 을 눌렀을 때
- *      · 추천을 받은 뒤("다시 추천받고 싶어요")
- *    에만 열립니다.
+ *    할지 막막해집니다. 선택지 칩이 먼저 눈에 들어오고, 직접 입력은 그 옆 한 줄
+ *    링크로 물러납니다. **입력창 자체는 항상 열려 있습니다** — 시안 6차 원문이
+ *    `const composerOpen = true` 입니다(한때 닫아 뒀다가 시안대로 되돌렸습니다).
  *
  * ③ 기다리는 동안은 화면 바깥 스피너가 아니라 **말풍선 안에서** 점이 움직입니다.
  *
@@ -42,6 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppBar } from '../../../ui/AppBar';
 import { Banner } from '../../../ui/Feedback';
 import { Screen } from '../../../ui/Screen';
+import { HScroll } from '../../../ui/HScroll';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import {
@@ -68,8 +67,12 @@ const CONFIRM_OPTIONS: ShortformOption[] = [
   { id: 'CONFIRM_FALSE', label: '내용 수정하기' },
 ];
 
-/** 시안 실측: 카드 폭 176. 오른쪽 카드가 살짝 걸쳐 보이는 것이 "넘길 수 있다" 는 신호입니다. */
-const CARD_W = 176;
+/**
+ * 시안 6차 원문: `w-[248px] shrink-0 snap-start`, 카드 사이 `gap-3`(12),
+ * 줄 컨테이너는 `-mr-5 … pr-5` 로 오른쪽 카드가 화면 끝에 걸쳐 보입니다.
+ * (5차까지는 껍데기만 와서 176 으로 어림했었습니다 — 6차에서 실제값 확인)
+ */
+const CARD_W = 248;
 
 /**
  * "생각하는 중" 말풍선.
@@ -84,9 +87,10 @@ const CARD_W = 176;
  * **투명도만이 아니라 위로 3px 튀어오릅니다.** 처음에는 투명도만 넣었는데
  * 시안을 다시 보니 튀어오르는 값이 있었습니다 — 그게 있어야 "말하는 중" 으로 읽힙니다.
  *
- * ⚠️ 점 하나하나의 지연(animation-delay)은 시안 원문에 없습니다. 키프레임만
- *    스타일에 들어 있고 붙이는 곳은 화면 코드 안이라, 5차 껍데기에는 안 옵니다.
- *    그래서 한 주기 1200ms 를 셋이 1/3 씩 나눠 갖는 방식으로 뒀습니다.
+ * 붙이는 값도 6차 화면 코드에서 확인했습니다 (5차 껍데기에는 없었습니다):
+ *   `animation: typing-dot .9s ${d * 0.15}s infinite` · 점 크기 `h-2 w-2`(8)
+ * → **한 주기 900ms, 점마다 150ms 씩 밀림.** 900/150 = 6 이라 시계를 0→6 으로 두고
+ *   점 i 는 t=i 에서 가장 흐리고 t=i+3 에서 가장 진합니다. 시계는 여전히 하나입니다.
  *
  * ⚠️ `useNativeDriver: false` 입니다. `Animated.loop` 은 반복을 네이티브 모듈에 맡기는데
  *    웹에는 그 모듈이 없어 **한 바퀴만 돌고 멈춥니다** (CLAUDE.md §5-④).
@@ -97,8 +101,8 @@ function Thinking({ label }: { label: string }) {
   useEffect(() => {
     const anim = Animated.loop(
       Animated.timing(t, {
-        toValue: 3,
-        duration: 1200,
+        toValue: 6,
+        duration: 900,
         easing: Easing.linear,
         useNativeDriver: false,
       })
@@ -107,18 +111,22 @@ function Thinking({ label }: { label: string }) {
     return () => anim.stop();
   }, [t]);
 
-  // 시안 원문값: 흐릴 때 0.3, 진할 때 1
+  /*
+   * 시안 원문값: 흐릴 때 0.3, 진할 때 1 · 진할 때 위로 3px.
+   * 점 i 는 t=i 에서 흐리고 t=i+3 에서 진합니다(150ms = 시계 1칸).
+   * 한 바퀴가 6칸이라, t=0 시점의 값은 각 점이 이미 지나온 위치에서 읽습니다.
+   */
   const dim = 0.3;
-  const fade: number[][] = [
-    [1, dim, dim, 1],
-    [dim, 1, dim, dim],
-    [dim, dim, 1, dim],
+  const at = (frac: number) => dim + (1 - dim) * frac;
+  const fade: { input: number[]; output: number[] }[] = [
+    { input: [0, 3, 6], output: [dim, 1, dim] },
+    { input: [0, 1, 4, 6], output: [at(1 / 3), dim, 1, at(1 / 3)] },
+    { input: [0, 2, 5, 6], output: [at(2 / 3), dim, 1, at(2 / 3)] },
   ];
-  // 진해지는 순간 위로 3px (시안 원문값)
-  const lift: number[][] = [
-    [-3, 0, 0, -3],
-    [0, -3, 0, 0],
-    [0, 0, -3, 0],
+  const lift: { input: number[]; output: number[] }[] = [
+    { input: [0, 3, 6], output: [0, -3, 0] },
+    { input: [0, 1, 4, 6], output: [-1, 0, -3, -1] },
+    { input: [0, 2, 5, 6], output: [-2, 0, -3, -2] },
   ];
 
   return (
@@ -129,18 +137,18 @@ function Thinking({ label }: { label: string }) {
       <View style={[styles.bubble, styles.ai, styles.thinking]}>
         <Text style={styles.bubbleText}>{label}</Text>
         <View style={styles.dots}>
-          {fade.map((out, i) => (
+          {fade.map((f, i) => (
             <Animated.View
               key={i}
               style={[
                 styles.dot,
                 {
-                  opacity: t.interpolate({ inputRange: [0, 1, 2, 3], outputRange: out }),
+                  opacity: t.interpolate({ inputRange: f.input, outputRange: f.output }),
                   transform: [
                     {
                       translateY: t.interpolate({
-                        inputRange: [0, 1, 2, 3],
-                        outputRange: lift[i],
+                        inputRange: lift[i].input,
+                        outputRange: lift[i].output,
                       }),
                     },
                   ],
@@ -155,12 +163,10 @@ function Thinking({ label }: { label: string }) {
 }
 
 /**
- * 추천 카드 한 장 (시안 `image (1).png`).
+ * 추천 카드 한 장. 시안 6차 `RecoCard` (`js/screens-chat.jsx`).
  *
- * ⚠️ 시안에는 카드 안에 영상 자리(회색 상자)가 있지만 **넣지 않았습니다.**
- *    추천 응답에는 영상 주소도 포맷 번호도 없습니다 — 포맷은 채택(accept)한 뒤에야
- *    `video_format_id` 로 돌아옵니다. 채울 값이 없는 회색 상자는 자리만 먹습니다.
- *    추천에 포맷 번호를 실어 달라고 BE 에 요청해 둘 것.
+ * 원문 구성: 제목 · AI 한줄요약 · 해시태그 3개 · 숏츠 임베딩 · 바로 촬영하기.
+ * 카드 안 여백은 `gap-3` 로 통일, 버튼은 `mt-auto` 로 바닥에 붙습니다.
  */
 function RecCard({
   rec,
@@ -176,11 +182,17 @@ function RecCard({
       <Text style={styles.cardTitle} numberOfLines={2}>
         {rec.title}
       </Text>
-      {rec.concept ? (
-        <Text style={styles.cardConcept} numberOfLines={4}>
-          {rec.concept}
-        </Text>
-      ) : null}
+      {rec.concept ? <Text style={styles.cardConcept}>{rec.concept}</Text> : null}
+
+      {/*
+        시안은 여기에 해시태그 3개(#촬영시간5분 #1인촬영 #얼굴미노출)와 숏츠 임베드가
+        들어갑니다. **둘 다 서버가 안 줍니다** — 추천 응답은 recommendation_id ·
+        project_title · title · concept · editing_template_id/version 뿐입니다
+        (2026-08-26 실서버 확인). 값이 생기면 이 자리에 그대로 넣으면 됩니다.
+        지금 회색 상자만 깔면 영영 안 채워지는 빈칸이 되므로 두지 않습니다.
+        BE_전달사항 부록 D-4.
+      */}
+
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${rec.title} 으로 바로 촬영하기`}
@@ -339,14 +351,14 @@ export default function AiChatScreen() {
   const hasRecs = recommendations.length > 0;
 
   /**
-   * 입력창을 여는 조건 — 객관식이 기본이라 평소에는 닫혀 있습니다.
-   *   · 사장님이 직접 열었을 때
-   *   · 추천을 받은 뒤 (조건을 적어 다시 받을 수 있게)
-   *   · 서버가 **선택지 없이** 물어볼 때 (열린 질문이라 적는 수밖에 없습니다)
-   *   · 오류가 났을 때 (선택지가 없으니 길이 막힙니다)
+   * 입력창은 **항상 열려 있습니다** (시안 6차 원문: `const composerOpen = true`).
+   *
+   * 한때 닫아 뒀습니다 — "객관식이 기본" 이라는 지시를 입력창을 숨기는 것으로 풀었는데,
+   * 시안은 **선택지를 기본으로 보여주되 입력창은 열어 두는** 쪽입니다. 6차 화면 코드에
+   * 그렇게 박혀 있어 시안을 따릅니다. "객관식이 기본" 은 선택지 칩이 먼저 눈에 들어오고
+   * 직접 입력은 그 옆 한 줄 링크로 물러나는 배치로 지킵니다.
    */
-  const openEnded = !!sessionId && !pending && options.length === 0 && !hasRecs;
-  const showInput = !!sessionId && (freeInput || hasRecs || openEnded || hasError);
+  const showInput = !!sessionId;
 
   return (
     <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
@@ -442,11 +454,16 @@ export default function AiChatScreen() {
           {/* 추천 카드 — 시안 `image (1).png`. 가로로 넘겨 봅니다. */}
           {hasRecs && (
             <>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
+              {/*
+                ⚠️ 일반 ScrollView 를 쓰면 안 됩니다. 탭 트랙이 가로 ScrollView 라
+                   카드를 넘기려는 손가락을 바깥이 먼저 먹어 **마이페이지로 넘어갑니다.**
+                   `HScroll` 이 손가락이 안에 있는 동안 탭 넘김을 잠급니다.
+              */}
+              <HScroll
                 style={styles.cardStrip}
                 contentContainerStyle={styles.cardStripInner}
+                snapToInterval={CARD_W + space[3]}
+                snapToAlignment="start"
               >
                 {recommendations.map((rec) => (
                   <RecCard
@@ -456,7 +473,7 @@ export default function AiChatScreen() {
                     onShoot={accept}
                   />
                 ))}
-              </ScrollView>
+              </HScroll>
               <Pressable
                 accessibilityRole="button"
                 onPress={tryNext}
@@ -524,8 +541,9 @@ const styles = StyleSheet.create({
 
   // 생각 중 말풍선 — 글자와 점이 한 줄에 나란히 섭니다
   thinking: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  dots: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: color.ink[400] },
+  dots: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // 시안 h-2 w-2(8) · bg-slate-muted
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: color.ink[500] },
 
   headerBtn: {
     width: sizing.iconButton,
@@ -555,24 +573,28 @@ const styles = StyleSheet.create({
   // ── 추천 카드 (시안 image (1).png) ──────────────────
   cardStrip: { marginHorizontal: -space[5] },
   cardStripInner: { paddingHorizontal: space[5], gap: space[3], paddingVertical: space[1] },
+  // 시안 6차: rounded-2xl · border-brand-border · bg-canvas · p-4 · gap-3
   card: {
     width: CARD_W,
-    gap: space[2],
-    padding: space[3],
+    gap: space[3],
+    padding: space[4],
     borderRadius: radius.lg,
     borderWidth: theme.border.hairline,
-    borderColor: color.brand[100],
-    backgroundColor: color.brand[50],
+    borderColor: color.brand[300],
+    backgroundColor: color.canvas,
   },
-  cardTitle: { ...theme.text.bodySmall, fontWeight: '600', color: color.ink[900] },
-  cardConcept: { ...theme.text.caption, color: color.ink[500] },
+  // 시안: 15 bold leading-snug(1.375)
+  cardTitle: { ...theme.text.body, fontWeight: '700', lineHeight: 20.6, color: color.ink[900] },
+  // 시안: 13 leading-relaxed(1.625) · ink-3
+  cardConcept: { ...theme.text.caption, lineHeight: 21, color: color.ink[700] },
+  // 시안: h-11(44) rounded-xl(12) · 14 semibold · mt-auto
   cardBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    height: 40,
-    marginTop: space[1],
+    height: 44,
+    marginTop: 'auto',
     borderRadius: radius.md,
     backgroundColor: color.brand[600],
   },

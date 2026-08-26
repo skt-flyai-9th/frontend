@@ -81,7 +81,13 @@ export default function HomeFeedScreen() {
   const header = (
     <AppBar
       home={{
-        onBell: () => nav.navigate('Notifications'),
+        /*
+         * 벨(알림)은 **길을 닫아 뒀습니다** (2026-08-26, 사장님 지시).
+         * 시안 6차에서 `notifications` 화면이 라우터·DEPTH·PUSH_SCREENS 에서 전부
+         * 빠졌습니다. 화면 코드(`NotificationsScreen`)와 라우트는 **지우지 않고 남겨**
+         * 두고 들어가는 버튼만 감춥니다 — 다시 살릴 수 있게 하기 위해서입니다.
+         * 되살리려면 여기에 `onBell` 을 돌려주고 설정 목록의 '알림' 을 풀면 됩니다.
+         */
         // 설정은 시안에 탭바가 없어 탭 밖(Root)에 있습니다.
         onMenu: () => nav.navigate('Settings'),
       }}

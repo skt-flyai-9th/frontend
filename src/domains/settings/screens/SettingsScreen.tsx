@@ -85,7 +85,12 @@ export default function SettingsScreen() {
    */
   const items: { icon: typeof Bell; label: string; go: () => void }[] = [
     { icon: CircleHelp, label: '자주 묻는 질문', go: () => nav.navigate('Faq') },
-    { icon: Bell, label: '알림', go: () => nav.navigate('Notifications') },
+    /*
+     * '알림' 은 **길을 닫아 뒀습니다** (2026-08-26, 사장님 지시).
+     * 시안 6차에서 notifications 화면이 빠졌습니다. 화면과 라우트는 남겨 두고
+     * 들어가는 줄만 뺍니다 — 되살리려면 이 줄의 주석을 풀면 됩니다.
+     *   { icon: Bell, label: '알림', go: () => nav.navigate('Notifications') },
+     */
     {
       icon: FileText,
       label: '서비스 이용약관',

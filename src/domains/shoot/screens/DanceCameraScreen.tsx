@@ -204,9 +204,9 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
         참고 영상. 시안은 이 화면에서 width 110 을 씁니다(카메라 화면은 98).
         ⚠️ 이 아래로는 아무것도 그리지 않습니다. 플레이어가 항상 맨 위여야 합니다.
       */}
-      {/* 시안: 안무 카메라의 PiP 는 110 입니다(카메라는 98) */}
+      {/* 시안은 110(카메라 98)이지만 사장님 지시로 키웠습니다 — ui/PipGuide 머리말 */}
       {/* 안무를 따라 추는 화면이라 **가이드 영상** 입니다 (api/formatVideo.ts) */}
-      <PipGuide url={guide?.referenceVideo?.referenceUrl ?? guideVideoUrl(format)} width={110} />
+      <PipGuide url={guide?.referenceVideo?.referenceUrl ?? guideVideoUrl(format)} width={180} />
 
       {/*
         시안 Shutter: 하단 밴드 150. 셔터 76 은 가운데, 전환 버튼은 오른쪽 26 에
