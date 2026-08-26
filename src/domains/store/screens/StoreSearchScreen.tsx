@@ -91,112 +91,56 @@ export default function StoreSearchScreen({ navigation }: Props) {
   // 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+  /** 1 = 매장 찾기 · 2 = 업종 확인. 시안 8차가 나눈 그대로입니다. */
+  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
-  const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<PlaceResult | null>(null);
   /** 후보를 몇 개까지 펼쳤는지. "더보기" 를 누르면 전부 보여 줍니다. */
   const [nameAll, setNameAll] = useState(false);
-  const [addrAll, setAddrAll] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [synced, setSynced] = useState(false);
   /**
    * 확인 시트에 올라와 있는 후보. **아직 고른 것이 아닙니다** — "이 매장으로 선택"
    * 을 눌러야 `picked` 로 넘어갑니다 (StorePreviewSheet 머리말).
    */
   const [preview, setPreview] = useState<PlaceResult | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const createStore = useCreateStore();
 
-  // 주소 검색 — 글자마다 서버를 부르지 않도록 350ms 늦춥니다.
+  // 글자마다 서버를 부르지 않도록 350ms 늦춥니다.
   const [keyword, setKeyword] = useState('');
   useEffect(() => {
-    const t = setTimeout(() => setKeyword(query), 350);
-    setAddrAll(false);
-    return () => clearTimeout(t);
-  }, [query]);
-  const { data: results, isFetching, isError } = useStoreSearch(keyword);
-
-  // 이미 고른 주소를 그대로 다시 후보로 보여 주지 않습니다.
-  const candidates = useMemo(
-    () => (picked && picked.address === query ? [] : (results ?? [])),
-    [results, picked, query]
-  );
-  const shownCandidates = addrAll ? candidates : candidates.slice(0, PAGE);
-
-  /*
-   * 매장 이름 후보 (2026-08-26).
-   *
-   * 사장님이 자기 가게 이름을 치면 **그 이름으로 찾은 가게들을 아래에 쭉** 보여 주고,
-   * 눌러서 확정하게 합니다. 고르면 업종·주소·좌표가 함께 채워져 아래 지도에 찍힙니다.
-   *
-   * 왜 필요했나 — 지금까지 이름으로 찾는 건 위쪽 연동 버튼뿐이었는데, 그 버튼은
-   * 찾은 결과 중 **첫 번째를 말없이** 골랐습니다. 같은 이름의 가게가 여럿이면
-   * (체인점·비슷한 상호) 엉뚱한 가게가 조용히 등록됩니다.
-   *
-   * 개수를 자르지 않습니다 — 목록 안에 또 스크롤을 만들지 않고 화면이 그만큼
-   * 길어지게 두는 쪽이 사장님 손에 편합니다(바깥 스크롤 하나로 끝).
-   */
-  const [nameKeyword, setNameKeyword] = useState('');
-  useEffect(() => {
-    const t = setTimeout(() => setNameKeyword(name), 350);
+    const t = setTimeout(() => setKeyword(name), 350);
     // 검색어가 바뀌면 펼친 것을 다시 접습니다 — 새 결과는 처음부터 봅니다.
     setNameAll(false);
     return () => clearTimeout(t);
   }, [name]);
-  const { data: nameHits, isFetching: nameFetching } = useStoreSearch(nameKeyword);
+  const { data: hits, isFetching, isError } = useStoreSearch(picked ? '' : keyword);
 
-  // 이미 확정한 가게면 목록을 접습니다. 이름을 다시 고치면 그때 또 뜹니다.
-  const nameCandidates = useMemo(
-    () => (picked && picked.name === name ? [] : (nameHits ?? [])),
-    [nameHits, picked, name]
-  );
-  const shownNames = nameAll ? nameCandidates : nameCandidates.slice(0, PAGE);
+  const candidates = hits ?? [];
+  const shown = nameAll ? candidates : candidates.slice(0, PAGE);
 
-  /** 후보를 눌러 가게를 확정합니다. 이름·업종·주소·좌표가 한 번에 들어옵니다. */
+  /** 시트에서 확정했을 때. 이름·업종·주소·전화·좌표가 한 번에 들어옵니다. */
   const pickStore = (r: PlaceResult) => {
     const known = CATEGORIES.includes(r.category);
+    const short = shortCategory(r.category) ?? r.category;
+    const knownShort = CATEGORIES.includes(short);
     setName(r.name);
-    setCategory(known ? r.category : '직접입력');
-    setCustomCategory(known ? '' : r.category);
+    // 서버는 "카페,디저트>카페" 로 줍니다 — 좁은 분류가 우리 칩에 있으면 그것을 씁니다.
+    setCategory(known ? r.category : knownShort ? short : '직접입력');
+    setCustomCategory(known || knownShort ? '' : short);
     setPicked(r);
-    setQuery(r.address);
-    setNotice(null);
-    // 외부 목록에서 그대로 가져온 값이라 출처가 MANUAL 이 아닙니다(2.2 info_source).
-    setSynced(true);
   };
 
-  // 연동으로 채우기 — 이름으로 2.1 을 찾아 첫 후보를 그대로 씁니다.
-  const { data: syncHits } = useStoreSearch(syncing ? name.trim() : '');
-  useEffect(() => {
-    if (!syncing || syncHits === undefined) return;
-    const hit = syncHits[0];
-    setSyncing(false);
-    if (!hit) {
-      setNotice('그 이름으로 찾지 못했습니다. 직접 입력해 주세요.');
-      return;
-    }
-    setName(hit.name);
-    setCategory(CATEGORIES.includes(hit.category) ? hit.category : '직접입력');
-    if (!CATEGORIES.includes(hit.category)) setCustomCategory(hit.category);
-    setPicked(hit);
-    setQuery(hit.address);
-    setSynced(true);
-  }, [syncing, syncHits]);
-
-  const startSync = () => {
-    setNotice(null);
-    if (name.trim().length < 2) {
-      setNotice('매장 이름을 먼저 적어 주세요. 그 이름으로 찾아 채웁니다.');
-      return;
-    }
-    setSyncing(true);
+  /** 다시 찾기 — 고른 것을 지우고 검색으로 돌아갑니다. */
+  const clearPick = () => {
+    setPicked(null);
+    setName('');
+    setCategory('');
+    setCustomCategory('');
   };
 
   const resolvedCategory = category === '직접입력' ? customCategory.trim() : category;
-  const complete = !!name.trim() && !!resolvedCategory && !!picked;
 
   const submit = () => {
     if (!picked) return;
@@ -206,301 +150,249 @@ export default function StoreSearchScreen({ navigation }: Props) {
         category: resolvedCategory,
         address: picked.address,
         phone: picked.phone,
-        // 연동으로 채웠으면 그 출처를, 직접 적었으면 MANUAL 입니다.
-        infoSource: synced ? picked.source : 'MANUAL',
+        // 이제 매장은 검색 결과에서만 고릅니다 — 출처는 언제나 그 결과의 것입니다.
+        infoSource: picked.source,
         externalChannelUrl: picked.externalChannelUrl,
         // 2.2 (2026-08-23): 검색이 준 좌표를 버리지 않고 그대로 저장시킵니다.
         latitude: picked.latitude,
         longitude: picked.longitude,
-        // 2.2 (2026-08-25): 카카오 후보면 값이 있고 네이버면 null 입니다.
-        kakaoPlaceId: picked.kakaoPlaceId,
       },
       {
-        onSuccess: (res) => {
-          setStoreId(res.id);
-          rootNav.replace('Main', { screen: 'HomeFeed' });
+        onSuccess: (store) => {
+          setStoreId(Number(store.id));
+          rootNav.reset({ index: 0, routes: [{ name: 'Main' }] });
         },
       }
     );
   };
 
+  const phone = phoneText(picked?.phone);
+
   return (
-    /*
-     * 시안은 이 화면에서 하단 안전영역을 따로 잡지 않습니다 — pb-6 이 그 몫까지 합니다.
-     * bottom edge 까지 켜면 34 를 더 먹어 "시작하기" 가 그만큼 위로 뜹니다.
-     */
     <Screen padded={false} scroll={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>
-      <AppBar onBack={() => navigation.goBack()} title="매장 등록" />
+      <AppBar
+        onBack={() => (step === 2 ? setStep(1) : navigation.goBack())}
+        title="매장 정보 등록하기"
+      />
 
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={[styles.body, { paddingBottom: Math.max(insets.bottom, space[6]) }]}
+        contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ① */}
-        <Text style={text.title}>매장 정보를 등록해 주세요</Text>
-        <Text style={styles.lead}>네이버 스마트플레이스를 연동하거나 직접 입력할 수 있어요.</Text>
+        {step === 1 ? (
+          <>
+            <Text style={text.title}>매장 정보를 등록해 주세요</Text>
+            <Text style={styles.lead}>
+              매장 이름을 검색해 선택하면 주소와 전화번호가 자동으로 채워져요.
+            </Text>
 
-        {/* ② 시안: h56 rounded-full · 네이버 초록 */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ busy: syncing }}
-          disabled={syncing}
-          onPress={startSync}
-          style={({ pressed }) => [styles.syncBtn, pressTap(pressed, 'button')]}
-        >
-          {syncing ? (
-            <Spinner size={20} tint={color.paper} />
-          ) : synced ? (
-            <Check size={20} strokeWidth={2.5} color={color.paper} />
-          ) : (
-            <Link2 size={20} strokeWidth={2} color={color.paper} />
-          )}
-          <Text style={styles.syncText}>
-            {synced ? '연동 완료' : syncing ? '불러오는 중...' : '네이버 스마트플레이스 연동으로 채우기'}
-          </Text>
-        </Pressable>
-
-        {notice ? (
-          <View style={{ marginTop: space[3] }}>
-            <Banner tone="warn" title={notice} />
-          </View>
-        ) : null}
-
-        {/* ③ */}
-        <View style={styles.divider}>
-          <View style={styles.line} />
-          <Text style={styles.dividerText}>또는 직접 입력</Text>
-          <View style={styles.line} />
-        </View>
-
-        {/* ④ */}
-        <View style={styles.fields}>
-          <View>
-            <Text style={styles.label}>매장 이름</Text>
-            <TextInput
-              value={name}
-              onChangeText={(v) => {
-                setName(v);
-                setSynced(false);
-                setNotice(null);
-              }}
-              placeholder="매장 이름을 입력해 주세요"
-              placeholderTextColor={color.ink[500]}
-              accessibilityLabel="매장 이름"
-              style={styles.input}
-            />
-
-            {/* 이름 후보 — 눌러서 내 가게를 확정합니다 */}
-            {nameFetching && nameCandidates.length === 0 && nameKeyword.trim().length >= 2 ? (
-              <Text style={styles.hint}>찾는 중…</Text>
-            ) : null}
-
-            {nameCandidates.length > 0 && (
-              <>
-                <Text style={styles.hint}>내 가게를 눌러 주세요</Text>
-                <View style={styles.results}>
-                  {shownNames.map((r, i) => (
-                    <DropIn key={`${r.name}-${r.address}`} index={i}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${r.name} ${r.address}`}
-                      onPress={() => setPreview(r)}
-                      style={({ pressed }) => [
-                        styles.resultRow,
-                        i < shownNames.length - 1 && styles.resultDivider,
-                        pressed && { backgroundColor: color.paper },
-                      ]}
-                    >
-                      <Store size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
-                      <View style={styles.flexMin}>
-                        <Text style={styles.resultTitle} numberOfLines={1}>
-                          {r.name}
-                        </Text>
-                        <Text style={styles.resultSub} numberOfLines={1}>
-                          {r.address}
-                        </Text>
-                      </View>
-                    </Pressable>
-                    </DropIn>
-                  ))}
-                  {!nameAll && nameCandidates.length > PAGE && (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setNameAll(true)}
-                      style={({ pressed }) => [
-                        styles.moreRow,
-                        styles.resultDivider,
-                        pressed && { backgroundColor: color.paper },
-                      ]}
-                    >
-                      <Text style={styles.moreText}>
-                        더보기 ({nameCandidates.length - PAGE}곳 더)
-                      </Text>
-                      <ChevronDown size={16} strokeWidth={2} color={color.brand[600]} />
-                    </Pressable>
-                  )}
-                </View>
-              </>
-            )}
-          </View>
-
-          <View>
-            <Text style={styles.label}>업종 카테고리</Text>
-            <View style={styles.chips}>
-              {CATEGORIES.map((c) => {
-                const on = category === c;
-                return (
-                  <Pressable
-                    key={c}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    onPress={() => {
-                      setCategory(c);
-                      if (c !== '직접입력') setCustomCategory('');
-                    }}
-                    style={({ pressed }) => [styles.chip, on && styles.chipOn, pressTap(pressed, 'button')]}
-                  >
-                    <Text style={[styles.chipText, on && { color: color.paper }]}>{c}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {category === '직접입력' && (
-              <TextInput
-                value={customCategory}
-                onChangeText={setCustomCategory}
-                placeholder="업종을 직접 입력해 주세요"
-                placeholderTextColor={color.ink[500]}
-                accessibilityLabel="업종 직접 입력"
-                style={[styles.input, { marginTop: 10 }]}
-              />
-            )}
-          </View>
-
-          <View>
-            <Text style={styles.label}>지역 / 주소</Text>
-            <View style={styles.searchBox}>
-              <Search size={18} strokeWidth={2} color={color.ink[500]} />
-              <TextInput
-                value={query}
-                onChangeText={(v) => {
-                  setQuery(v);
-                  setPicked(null);
-                }}
-                placeholder="도로명 · 지번으로 검색 (예: 테헤란로)"
-                placeholderTextColor={color.ink[500]}
-                accessibilityLabel="주소 검색"
-                style={styles.searchInput}
-              />
-              {query.length > 0 && (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="검색어 지우기"
-                  hitSlop={8}
-                  onPress={() => {
-                    setQuery('');
-                    setPicked(null);
+            <View style={styles.field}>
+              <Text style={styles.label}>매장 이름</Text>
+              {/* 시안: 돋보기가 칸 **안**에 들어갑니다 */}
+              <View style={styles.searchBox}>
+                <Search size={18} strokeWidth={2} color={color.ink[500]} />
+                <TextInput
+                  value={name}
+                  onChangeText={(v) => {
+                    setName(v);
+                    if (picked) setPicked(null);
                   }}
-                >
-                  <X size={16} strokeWidth={2} color={color.ink[500]} />
-                </Pressable>
-              )}
-            </View>
-
-            {isError && !picked ? (
-              <Text style={styles.hint}>주소를 찾지 못했습니다. 잠시 후 다시 시도해 주세요.</Text>
-            ) : null}
-            {isFetching && candidates.length === 0 && !picked ? (
-              <Text style={styles.hint}>찾는 중…</Text>
-            ) : null}
-
-            {candidates.length > 0 && (
-              <View style={styles.results}>
-                {shownCandidates.map((r, i) => (
-                  <DropIn key={`${r.name}-${r.address}`} index={i}>
+                  placeholder="매장 이름을 검색해 주세요"
+                  placeholderTextColor={color.ink[500]}
+                  accessibilityLabel="매장 이름 검색"
+                  style={styles.searchInput}
+                />
+                {name.length > 0 && (
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => {
-                      setPicked(r);
-                      setQuery(r.address);
-                      if (!name.trim()) setName(r.name);
-                    }}
-                    style={({ pressed }) => [
-                      styles.resultRow,
-                      i < shownCandidates.length - 1 && styles.resultDivider,
-                      pressed && { backgroundColor: color.paper },
-                    ]}
+                    accessibilityLabel="검색어 지우기"
+                    hitSlop={8}
+                    onPress={clearPick}
                   >
-                    <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
-                    <View style={styles.flexMin}>
-                      <Text style={styles.resultTitle} numberOfLines={1}>
-                        {r.address}
-                      </Text>
-                      <Text style={styles.resultSub} numberOfLines={1}>
-                        {r.name}
-                      </Text>
-                    </View>
-                  </Pressable>
-                  </DropIn>
-                ))}
-                {!addrAll && candidates.length > PAGE && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setAddrAll(true)}
-                    style={({ pressed }) => [
-                      styles.moreRow,
-                      styles.resultDivider,
-                      pressed && { backgroundColor: color.paper },
-                    ]}
-                  >
-                    <Text style={styles.moreText}>더보기 ({candidates.length - PAGE}곳 더)</Text>
-                    <ChevronDown size={16} strokeWidth={2} color={color.brand[600]} />
+                    <X size={17} strokeWidth={2} color={color.ink[500]} />
                   </Pressable>
                 )}
               </View>
+            </View>
+
+            {/* 고르기 전 — 후보 목록 */}
+            {!picked && (
+              <>
+                {isFetching && candidates.length === 0 && keyword.trim().length >= 2 ? (
+                  <Text style={styles.hint}>찾는 중…</Text>
+                ) : null}
+                {isError ? (
+                  <View style={{ marginTop: space[3] }}>
+                    <Banner
+                      tone="warn"
+                      title="매장을 찾지 못했습니다"
+                      description="신호를 확인하고 다시 검색해 주세요."
+                    />
+                  </View>
+                ) : null}
+                {!isFetching && !isError && keyword.trim().length >= 2 && candidates.length === 0 ? (
+                  <Text style={styles.hint}>검색 결과가 없어요. 매장 이름을 다시 확인해 주세요.</Text>
+                ) : null}
+
+                {candidates.length > 0 && (
+                  <View style={styles.results}>
+                    {shown.map((r, i) => (
+                      <DropIn key={`${r.name}-${r.address}`} index={i}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${r.name} ${r.address}`}
+                          onPress={() => setPreview(r)}
+                          style={({ pressed }) => [
+                            styles.resultRow,
+                            i < shown.length - 1 && styles.resultDivider,
+                            pressed && { backgroundColor: color.paper },
+                          ]}
+                        >
+                          <Store size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
+                          <View style={styles.flexMin}>
+                            <Text style={styles.resultTitle} numberOfLines={1}>
+                              {r.name}
+                            </Text>
+                            <Text style={styles.resultSub} numberOfLines={1}>
+                              {r.address}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      </DropIn>
+                    ))}
+
+                    {!nameAll && candidates.length > PAGE && (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setNameAll(true)}
+                        style={({ pressed }) => [styles.moreRow, pressed && { opacity: 0.6 }]}
+                      >
+                        <Text style={styles.moreText}>더보기 ({candidates.length - PAGE}곳 더)</Text>
+                        <ChevronDown size={16} strokeWidth={2} color={color.brand[600]} />
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </>
             )}
 
+            {/* 고른 뒤 — 무엇이 채워졌는지 그대로 보여 줍니다 */}
             {picked && (
-              <DropIn style={styles.mapCard}>
-                <MapPreview latitude={picked.latitude} longitude={picked.longitude} />
-                <View style={styles.mapAddr}>
-                  <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
+              <DropIn style={styles.pickedCard}>
+                <View style={styles.pickedHead}>
                   <View style={styles.flexMin}>
-                    <Text style={styles.resultTitle} numberOfLines={1}>
-                      {picked.address}
-                    </Text>
-                    <Text style={styles.resultSub} numberOfLines={1}>
+                    <Text style={styles.pickedName} numberOfLines={1}>
                       {picked.name}
                     </Text>
                   </View>
+                  <Pressable accessibilityRole="button" hitSlop={8} onPress={clearPick}>
+                    <Text style={styles.changeText}>변경</Text>
+                  </Pressable>
+                </View>
+
+                <MapPreview
+                  latitude={picked.latitude}
+                  longitude={picked.longitude}
+                  width={windowWidth - space[6] * 2}
+                  zoomable
+                />
+
+                <View style={styles.pickedRows}>
+                  <View style={styles.pickedRow}>
+                    <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.rowIcon} />
+                    <Text style={styles.pickedAddr}>{picked.address}</Text>
+                  </View>
+                  {phone ? (
+                    <View style={styles.pickedRow}>
+                      <Phone size={16} strokeWidth={2} color={color.brand[600]} />
+                      <Text style={styles.pickedPhone}>{phone}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </DropIn>
             )}
-          </View>
-        </View>
+          </>
+        ) : (
+          <>
+            <Text style={text.title} numberOfLines={2}>
+              {picked?.name}
+            </Text>
+            {/*
+              시안은 "업종과 **메뉴 정보를** 자동으로 채웠어요" 라고 적지만, 우리는
+              메뉴를 자동으로 채우지 않습니다 — 2.1 검색 응답에 메뉴가 없고,
+              `/stores/{id}/menus` 는 매장이 만들어진 **뒤**에야 부를 수 있습니다.
+              하지도 않을 일을 적으면 사장님이 기다립니다. 사실대로 적습니다.
+            */}
+            <Text style={styles.lead}>업종을 확인해 주세요. 다르면 고칠 수 있어요.</Text>
 
-        {createStore.isError && (
-          <View style={{ marginTop: space[4] }}>
-            <Banner
-              tone="danger"
-              title="가게를 등록하지 못했습니다"
-              description="입력하신 내용은 그대로 있습니다. 다시 눌러 주세요."
-            />
-          </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>업종 카테고리</Text>
+              <View style={styles.chips}>
+                {CATEGORIES.map((c) => {
+                  const on = category === c;
+                  return (
+                    <Pressable
+                      key={c}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: on }}
+                      onPress={() => {
+                        setCategory(c);
+                        if (c !== '직접입력') setCustomCategory('');
+                      }}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        on ? styles.chipOn : styles.chipOff,
+                        pressTap(pressed, 'button'),
+                      ]}
+                    >
+                      <Text style={[styles.chipText, on && { color: color.paper }]}>{c}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {category === '직접입력' && (
+                <TextInput
+                  value={customCategory}
+                  onChangeText={setCustomCategory}
+                  placeholder="업종을 직접 입력해 주세요"
+                  placeholderTextColor={color.ink[500]}
+                  accessibilityLabel="업종 직접 입력"
+                  style={[styles.input, { marginTop: space[3] }]}
+                />
+              )}
+            </View>
+
+            {createStore.isError && (
+              <View style={{ marginTop: space[4] }}>
+                <Banner
+                  tone="danger"
+                  title="가게를 등록하지 못했습니다"
+                  description="입력하신 내용은 그대로 있습니다. 다시 눌러 주세요."
+                />
+              </View>
+            )}
+          </>
         )}
+      </ScrollView>
 
-        {/* ⑤ */}
-        <View style={styles.cta}>
+      {/*
+        시안: 버튼이 화면 **아래에 붙어** 있습니다. 스크롤 안에 두면 후보가 길어질 때
+        한참 내려야 나옵니다 — 무엇을 눌러야 다음으로 가는지 항상 보이게 둡니다.
+      */}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space[6]) }]}>
+        {step === 1 ? (
+          <Button label="다음" disabled={!picked} onPress={() => setStep(2)} />
+        ) : (
           <Button
-            label="시작하기"
-            disabled={!complete}
+            label="매장 등록 완료"
+            disabled={!resolvedCategory}
             loading={createStore.isPending}
             onPress={submit}
           />
-        </View>
-      </ScrollView>
+        )}
+      </View>
 
       {/*
         확인 시트. ScrollView **밖**이라 화면 전체를 덮습니다 — 안에 두면 스크롤을
@@ -657,26 +549,8 @@ const styles = StyleSheet.create({
 
   lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
 
-  // 시안: mt-6 · h56 · rounded-full · 네이버 초록
-  syncBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[2],
-    height: 56,
-    marginTop: space[6],
-    borderRadius: radius.pill,
-    backgroundColor: color.naver,
-  },
-  syncText: { ...text.button, color: color.paper },
-
-  // 시안: mt-6 · 양옆 hairline 선 + 12 문구
-  divider: { flexDirection: 'row', alignItems: 'center', gap: space[3], marginTop: space[6] },
-  line: { flex: 1, height: theme.border.hairline, backgroundColor: color.ink[200] },
-  dividerText: { ...text.label, color: color.ink[500] },
-
-  // 시안: mt-5 gap-5
-  fields: { marginTop: space[5], gap: space[5] },
+  // 시안: mt-5 (제목 아래 첫 칸)
+  field: { marginTop: space[5] },
   // 시안: mb-1.5 pl-1 · 12 · slate
   label: { ...text.label, marginBottom: 6, paddingLeft: 4, color: color.ink[500] },
   input: {
@@ -701,6 +575,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
   },
   chipOn: { borderColor: color.brand[600], backgroundColor: color.brand[600] },
+  chipOff: { borderColor: color.ink[200], backgroundColor: color.surface },
   chipText: {
     ...text.bodySmall,
     fontFamily: theme.text.bodyStrong.fontFamily,
@@ -784,6 +659,52 @@ const styles = StyleSheet.create({
 
   // 시안: mt-auto pt-8
   cta: { marginTop: 'auto', paddingTop: space[8] },
+  // ── 고른 매장 카드 (시안 8차 StorePickedDetail) ──────────────────
+  pickedCard: {
+    marginTop: space[5],
+    borderRadius: radius.lg,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+    overflow: 'hidden',
+  },
+  pickedHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+  },
+  pickedName: {
+    ...text.body,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[900],
+  },
+  // 시안: 12 semibold brand
+  changeText: {
+    ...text.label,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.brand[600],
+  },
+  pickedRows: { gap: 10, paddingHorizontal: space[4], paddingVertical: space[4] },
+  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pickedAddr: { ...text.bodySmall, flex: 1, minWidth: 0, color: color.ink[900] },
+  pickedPhone: { ...text.bodySmall, color: color.ink[800] },
+
+  /*
+   * 하단 고정 버튼. 시안은 화면 아래에 붙여 두고 위쪽만 스크롤합니다 —
+   * 후보가 길어져도 "다음" 이 늘 보입니다 (CLAUDE.md §5-③-1 과 같은 이유).
+   */
+  footer: {
+    paddingHorizontal: space[6],
+    paddingTop: space[3],
+    borderTopWidth: theme.border.hairline,
+    borderTopColor: color.ink[200],
+    backgroundColor: color.canvas,
+  },
+
   // ── 매장 확인 시트 (시안 8차 · 매장조회지도.jpg) ──────────────────
   // 시안: bg-[rgba(15,23,42,0.45)]
   scrim: { backgroundColor: 'rgba(15,23,42,0.45)' },
