@@ -144,6 +144,42 @@ export function useDeleteMenu(storeId: number) {
   });
 }
 
+/**
+ * 메뉴 사진 올리기 — **두 걸음입니다.**
+ *
+ * 메뉴에는 사진을 직접 올리는 경로가 없습니다. `MenuUpdateRequest.image_url` 은
+ * **문자열**이라 어딘가에 올린 뒤 그 주소를 넣어야 합니다. 그래서
+ *
+ *   ① `POST /stores/{id}/photos` (multipart, category "메뉴") → `file_url` 을 받고
+ *   ② `PATCH /stores/{id}/menus/{menuId}` 의 `image_url` 에 그 주소를 넣습니다
+ *
+ * 두 번째가 실패하면 사진은 매장 사진첩에 남고 메뉴에는 안 붙습니다. 그때는
+ * 화면이 실패를 말해야 합니다 — 조용히 넘어가면 올라간 줄 압니다.
+ */
+export function useUploadMenuPhoto(storeId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ menuId, uri }: { menuId: number; uri: string }) => {
+      const form = new FormData();
+      form.append('file', {
+        uri,
+        name: `store_${storeId}_menu_${menuId}_${Date.now()}.jpg`,
+        type: 'image/jpeg',
+      } as unknown as Blob);
+      form.append('category', '메뉴');
+      const photo = await request<{ id: number; fileUrl: string }>(API.photos(storeId), {
+        method: 'POST',
+        formData: form,
+      });
+      return request<Menu>(API.menu(storeId, menuId), {
+        method: 'PATCH',
+        body: { imageUrl: photo.fileUrl },
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.menus(storeId) }),
+  });
+}
+
 export function usePhotos(storeId?: number, category?: string) {
   return useQuery({
     queryKey: qk.photos(storeId ?? 0, category),

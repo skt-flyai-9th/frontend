@@ -44,6 +44,7 @@ import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
 import { Field } from '../../../ui/Field';
 import { Banner, Spinner } from '../../../ui/Feedback';
+import { MenuManager } from '../components/MenuManager';
 import { BrandMark } from '../../../ui/BrandMark';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
@@ -354,6 +355,15 @@ export default function EditProfileScreen() {
             placeholder="예: 카페"
             style={styles.input}
           />
+        </View>
+
+        {/*
+          ②-2 매장 메뉴 관리 (시안 8·9차).
+          아래 "저장하기" 와 **저장 시점이 다릅니다** — 메뉴는 별도 API 라 줄마다
+          그 자리에서 저장됩니다 (MenuManager 머리말).
+        */}
+        <View style={styles.menuWrap}>
+          <MenuManager storeId={storeId ?? undefined} />
         </View>
 
         {/* ③ SNS 계정 */}
@@ -702,6 +712,8 @@ const styles = StyleSheet.create({
 
   // 시안: mt-6 gap-4
   fields: { marginTop: space[6], gap: space[4] },
+  // 매장 정보와 SNS 사이. 시안의 블록 간격(mt-6)과 같습니다.
+  menuWrap: { marginTop: space[6] },
   // 시안 입력: h-12 · bg-panel(흰색)
   input: { height: 48, backgroundColor: color.paper },
 
