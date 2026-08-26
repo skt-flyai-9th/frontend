@@ -279,6 +279,34 @@ Animated.loop(Animated.timing(v, { toValue: 1, duration: 2500, useNativeDriver: 
 당시 `width`(JS 드라이버)는 계속 변하는데 `opacity`·`transform`(네이티브)만 고정이라
 드라이버가 원인이라는 게 바로 드러났습니다.
 
+#### ④-1 `Animated.sequence` 를 `loop` 에 넣으면 **JS 드라이버로도** 한 바퀴만 돕니다
+
+위 처방(`useNativeDriver: false`)으로 부족한 경우가 있습니다. 2026-08-26 전광판
+(`src/ui/Marquee.tsx`)이 그랬습니다 — 드라이버를 JS 로 두었는데도 웹에서 한 바퀴 뒤
+끝값에 굳었습니다. `translateX` 를 0.5초마다 재 보니 `-215` 에서 다시 0 으로 안
+돌아왔습니다.
+
+```ts
+// ❌ 드라이버를 JS 로 둬도 웹에서 한 바퀴 뒤 멈췄습니다
+Animated.loop(Animated.sequence([Animated.delay(1200), Animated.timing(x, { ... })])).start();
+
+// ✅ 다음 바퀴를 직접 겁니다. 웹·기기 어느 쪽에서나 똑같이 돕니다
+const cycle = () => {
+  if (stopped) return;
+  x.setValue(0);
+  cur = Animated.sequence([Animated.delay(1200), Animated.timing(x, { ... })]);
+  cur.start(({ finished }) => finished && cycle());   // finished=false 면 stop() 된 것 — 다시 안 겁니다
+};
+```
+
+**가르는 법:** 캡처 두 장으로는 못 가립니다. 끝난 그림이 시작과 똑같이 보이도록 만든
+애니메이션(전광판이 그렇습니다)은 **멈춰 있어도 정상처럼 보입니다.** `transform` 의
+`m41` 을 여러 번 재서 **0 으로 돌아오는지**를 보세요.
+
+```js
+Math.round(new DOMMatrixReadOnly(getComputedStyle(el).transform).m41)
+```
+
 **반복이 아니면 네이티브 드라이버를 그대로 쓰세요.** 한 번짜리 `timing`·`spring` 은
 멀쩡합니다 — 튜토리얼 페이지 전환(`trackX`)이 그렇습니다. 문제는 `loop` 뿐입니다.
 

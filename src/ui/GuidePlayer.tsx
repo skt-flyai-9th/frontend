@@ -98,6 +98,11 @@ interface Props {
    * PiP 와 확대 화면이 서로 위치를 이어받는 데 씁니다 — 그 외에는 안 써도 됩니다.
    */
   onTime?: (sec: number) => void;
+  /**
+   * 자동재생(소리 없음). 홈 피드처럼 **화면에 하나만** 트는 자리에서만 씁니다 —
+   * 유튜브 약관은 한 화면에 자동재생 플레이어를 하나로 제한합니다.
+   */
+  autoPlay?: boolean;
 }
 
 /** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
@@ -118,6 +123,7 @@ export function GuidePlayer({
   width: fixedWidth,
   portrait = false,
   onTime,
+  autoPlay = false,
 }: Props) {
   const { width } = useWindowDimensions();
   const videoId = extractVideoId(url);
@@ -153,9 +159,10 @@ export function GuidePlayer({
       startSec,
       allowFullscreen: !compact,
       origin: APP_ORIGIN,
+      autoPlay,
     });
     return buildFrameHtml(embedUrl);
-  }, [videoId, startSec, compact]);
+  }, [videoId, startSec, compact, autoPlay]);
 
   // 영상이 바뀌면 초기화 (명세 S10.1.2)
   useEffect(() => {

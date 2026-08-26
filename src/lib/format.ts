@@ -45,3 +45,24 @@ export function clock(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
+
+/**
+ * 촬영에 걸리는 시간을 사람이 읽는 말로 (2026-08-26).
+ *
+ * 명세 5.1·7.1 의 `expected_duration_sec` 는 **완성 영상 길이가 아니라
+ * 찍는 데 걸리는 시간**입니다 (BE 확인, 2026-08-26). 값의 폭이 커서
+ * (13초짜리도 있고 1800초=30분짜리도 옵니다) 초로만 쓰면 읽기 어렵습니다.
+ *
+ *   13   → "13초"
+ *   90   → "1분 30초"
+ *   300  → "5분"
+ *   1800 → "30분"
+ */
+export function shootTime(totalSec?: number | null): string | null {
+  if (typeof totalSec !== 'number' || !Number.isFinite(totalSec) || totalSec <= 0) return null;
+  const s = Math.round(totalSec);
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest === 0 ? `${m}분` : `${m}분 ${rest}초`;
+}

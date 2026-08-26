@@ -77,8 +77,15 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
 
       <View style={styles.row}>
         <View style={styles.side}>
-          {home ? (
-            // 점을 버튼 기준으로 찍기 위해 바깥 상자가 -6 을 먹습니다.
+          {home?.onBell ? (
+            /*
+             * 점을 버튼 기준으로 찍기 위해 바깥 상자가 -6 을 먹습니다.
+             *
+             * ⚠️ `onBell` 이 없으면 **아예 그리지 않습니다** (2026-08-26).
+             *    알림 화면 진입을 닫으면서 onPress 만 뺐더니, 벨이 그대로 보이는데
+             *    눌러도 아무 일이 없는 **죽은 버튼**이 됐습니다. 사장님이 고장으로
+             *    읽습니다 — 안 쓸 거면 자리도 비웁니다.
+             */
             <View style={styles.backBtn}>
               <IconBtn icon={Bell} label="알림" onPress={home.onBell} />
               {/* 시안: 읽지 않은 알림 점 — 7px 빨강 + 흰 링 2px */}

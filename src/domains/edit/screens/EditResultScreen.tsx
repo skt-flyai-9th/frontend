@@ -15,9 +15,9 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -25,7 +25,7 @@ import {
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Clipboard from 'expo-clipboard';
-import { Check, ChevronLeft, Clock, Copy, Download, Music2, Upload } from 'lucide-react-native';
+import { Check, ChevronLeft, Clock, Copy, Download, Info, Music2, Upload } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -127,6 +127,43 @@ export default function EditResultScreen({ navigation, route }: Props) {
   const createOutputs = useCreateOutputs(projectId);
   const { data: outputs } = useOutputs(projectId);
   const { saving, saved, save } = useSaveToGallery();
+
+  /**
+   * "내보내기" — 완성 영상을 인스타·유튜브 등 다른 앱으로 보냅니다.
+   *
+   * 🔴 2026-08-26 — 눌러도 아무 일이 없던 원인
+   *    `Share.share({ message, url })` 을 쓰고 있었는데 **안드로이드의 RN Share 는
+   *    `url` 을 통째로 무시합니다.** 글자만 공유되고 영상은 안 갑니다. 게다가 캡션이
+   *    비어 있으면 `message` 가 빈 문자열이라 Share 가 예외를 던지는데
+   *    `.catch(() => {})` 로 삼켜서 **정말 아무 일도 일어나지 않았습니다.**
+   *
+   * 영상 파일 자체를 다른 앱으로 넘기려면 `expo-sharing` 이 필요한데 네이티브 모듈이라
+   * **APK 를 다시 만들어야** 합니다. 다음 빌드에 넣기로 하고, 그때까지는 사장님이
+   * 실제로 밟는 순서를 대신 해 줍니다.
+   *
+   *   ① 사진첩에 저장하고
+   *   ② 올릴 문구를 클립보드에 복사한 뒤
+   *   ③ 어디서 이어서 하면 되는지 알립니다
+   *
+   * 조용히 실패하지 않는 것이 핵심입니다 — 저장이 안 되면 그 이유가 그대로 뜹니다.
+   */
+  const [exporting, setExporting] = useState(false);
+  const exportToApps = async (videoUrl?: string | null, fileKey?: string | number) => {
+    setExporting(true);
+    try {
+      await save(videoUrl, fileKey);
+      const caption = [postTitle, postBody].filter(Boolean).join('\n\n');
+      if (caption) await Clipboard.setStringAsync(caption);
+      Alert.alert(
+        '사진첩에 저장했습니다',
+        caption
+          ? '올릴 문구도 복사해 두었습니다.\n인스타그램·유튜브 앱에서 사진첩의 영상을 고르고 문구를 붙여넣어 주세요.'
+          : '인스타그램·유튜브 앱에서 사진첩의 영상을 골라 올려 주세요.'
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
   const ready = outputs?.outputs?.find((o) => o.renderStatus === 'COMPLETED');
   const kit = outputs?.publishKit;
   const requested = useRef(false);
@@ -201,18 +238,32 @@ export default function EditResultScreen({ navigation, route }: Props) {
   }
 
   /**
-   * 음원 카드는 15.1 publish_kit.track 이 있을 때만 나옵니다.
-   * 곡명·구간은 서버가 주는 값이라, 없으면 카드를 지어내지 않고 숨깁니다
-   * (types.ts Track: "값은 당분간 null 로 옵니다" · BE 전달사항 §4).
+   * 음원 정보 (명세 15.1 `publish_kit.track`).
+   *
+   * 🔴 2026-08-26 — "음원 정보가 안 보인다" 는 지적
+   *    곡명(`title`)이 있을 때만 카드를 그리고 있었습니다. 그런데 `track.mode` 가
+   *    **SUGGESTED** 면 곡이 정해진 게 아니라 **분위기(`mood`)만** 옵니다 —
+   *    그 경우 title 이 null 이라 카드가 통째로 사라졌습니다.
+   *    실제로 서버 스키마(`TrackInfo`)는 `mode · title · artist · start_sec ·
+   *    end_sec · mood` 를 주고, 챌린지가 아닌 포맷은 mood 만 채웁니다.
+   *
+   *    → **있는 것을 있는 만큼** 보여줍니다.
+   *         FIXED     곡명 - 아티스트  (+ 구간이 있으면 구간 카드)
+   *         SUGGESTED "이런 분위기의 음원" + mood
+   *       그래도 아무 값이 없으면 카드를 만들지 않습니다(지어내지 않습니다).
+   *
+   *    `post_note`(음원 붙이는 절차 안내)도 있으면 함께 보여줍니다. 저작권 때문에
+   *    배경음악을 영상에 입히지 않으므로, 사장님이 플랫폼에서 직접 붙일 때
+   *    그 안내가 실제로 필요한 값입니다.
    */
   const track = kit?.track ?? null;
-  const trackName = track
-    ? [track.title, track.artist].filter(Boolean).join(' - ')
-    : '';
+  const trackName = track ? [track.title, track.artist].filter(Boolean).join(' - ') : '';
+  const trackMood = track && !trackName ? (track.mood ?? '') : '';
   const trackSegment =
     track && track.startSec !== null && track.endSec !== null
       ? `${clock(track.startSec)} ~ ${clock(track.endSec)} 구간 사용`
       : '';
+  const postNote = kit?.postNote ?? '';
 
   return (
     <Screen scroll={false} padded={false} edges={['top']} background={color.surface}>
@@ -259,23 +310,17 @@ export default function EditResultScreen({ navigation, route }: Props) {
             onPress={() => ready && save(ready.videoUrl, ready.id)}
           />
           <Button
-            label="내보내기"
+            label={exporting ? '준비 중…' : '내보내기'}
             icon={Upload}
-            disabled={!ready}
+            disabled={!ready || exporting}
             style={styles.actionBtn}
-            onPress={() =>
-              ready &&
-              Share.share({
-                // 제목·내용은 화면에서만 나눠 보여 줍니다. 공유는 원래 한 덩어리(caption)로 갑니다.
-                message: [postTitle, postBody].filter(Boolean).join('\n\n'),
-                url: ready.videoUrl,
-              }).catch(() => {})
-            }
+            onPress={() => ready && exportToApps(ready.videoUrl, ready.id)}
           />
         </View>
 
         {/* 시안: space-y-3 카드 묶음 */}
         <View style={styles.cards}>
+          {/* 곡이 정해진 포맷 — 시안: ♪ 음원 정보 + [복사] */}
           {trackName ? (
             <Card style={styles.card}>
               <CardLabel icon={Music2}>음원 정보</CardLabel>
@@ -286,10 +331,31 @@ export default function EditResultScreen({ navigation, route }: Props) {
             </Card>
           ) : null}
 
+          {/* 곡 대신 분위기만 오는 포맷(SUGGESTED) — 예전에는 이 경우 카드가 통째로 없었습니다 */}
+          {trackMood ? (
+            <Card style={styles.card}>
+              <CardLabel icon={Music2}>어울리는 음원</CardLabel>
+              <View style={styles.trackRow}>
+                <Text style={styles.value}>{trackMood}</Text>
+                <CopyBtn value={trackMood} label="어울리는 음원" />
+              </View>
+            </Card>
+          ) : null}
+
           {trackSegment ? (
             <Card style={styles.card}>
               <CardLabel icon={Clock}>음원 사용 구간</CardLabel>
               <Text style={styles.value}>{trackSegment}</Text>
+              {/* 원곡 기준 위치라는 것을 짚어 줍니다 — 안 그러면 완성 영상 기준으로 읽습니다 */}
+              <Text style={styles.hint}>원곡에서의 위치입니다. 올릴 때 이 지점으로 맞춰 주세요.</Text>
+            </Card>
+          ) : null}
+
+          {/* 음원을 붙이는 절차 안내 (15.1 post_note) */}
+          {postNote ? (
+            <Card style={styles.card}>
+              <CardLabel icon={Info}>음원 넣는 법</CardLabel>
+              <Text style={styles.value}>{postNote}</Text>
             </Card>
           ) : null}
 
@@ -338,6 +404,8 @@ export default function EditResultScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // 값 아래 붙는 한 줄 설명 (음원 구간이 원곡 기준이라는 것 등)
+  hint: { ...theme.text.caption, marginTop: space[1], color: color.ink[500] },
   flex: { flex: 1 },
 
   // 시안 header: px-4 pb-3 pt-[62px] gap-2 (62 - 상태바 54 = 8)
