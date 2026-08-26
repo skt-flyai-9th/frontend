@@ -37,12 +37,17 @@ export const loginResponse = {
  * ⚠️ kakao_place_id 는 **카카오 후보에만** 값이 있고 네이버는 null 입니다
  *    (명세 2026-08-25). 세 후보 중 하나만 값이 있는 이 구성이 곧 표본입니다 —
  *    전부 채워두면 "네이버일 때 null" 경로를 한 번도 안 타게 됩니다.
+ *
+ * ⚠️ jibun_address 는 반대로 **셋 다 채웁니다** (2026-08-26 배포 후 실측 98/98).
+ *    소스를 가리지 않고 옵니다. 도로명과 시·군·구가 같은 것도 실제와 같습니다 —
+ *    시트가 겹치는 앞부분을 덜어내는 경로(`jibunText`)를 타야 하기 때문입니다.
  */
 const PLACES = [
   {
     source: 'NAVER',
     name: '난곡신사 손칼국수',
     address: '서울 관악구 난곡로 42',
+    jibun_address: '서울 관악구 신림동 1544-3',
     phone: '02-123-4567',
     latitude: 37.4712,
     longitude: 126.9199,
@@ -55,6 +60,7 @@ const PLACES = [
     source: 'KAKAO',
     name: '난곡신사 손칼국수 본점',
     address: '서울 관악구 난곡로 42-1',
+    jibun_address: '서울 관악구 신림동 1544-5',
     phone: '02-123-4568',
     latitude: 37.4713,
     longitude: 126.9201,
@@ -68,6 +74,7 @@ const PLACES = [
     source: 'NAVER',
     name: '서림 옛날통닭',
     address: '서울 관악구 신림로 233',
+    jibun_address: '서울 관악구 신림동 1432-9',
     phone: '02-234-5678',
     latitude: 37.4842,
     longitude: 126.9291,
@@ -304,79 +311,10 @@ export const videoFormats = [
   },
 ];
 
-export const quizQuestions = [
-  {
-    id: 'q1',
-    type: 'single_choice',
-    question: '이번엔 무엇을 알리고 싶으세요?',
-    options: ['메뉴 하나', '이번에 하는 행사', '가게 자체'],
-  },
-  {
-    id: 'q2',
-    type: 'single_choice',
-    question: '어떤 느낌이면 좋을까요?',
-    options: ['푸근하고 정 있게', '깔끔하고 정확하게', '재미있고 가볍게'],
-  },
-  {
-    id: 'q3',
-    type: 'single_choice',
-    question: '얼굴이 나와도 괜찮으세요?',
-    options: ['전체노출', '일부노출', '비노출'],
-  },
-  {
-    id: 'q4',
-    type: 'single_choice',
-    question: '찍어줄 사람이 있으세요?',
-    options: ['혼자예요', '도와줄 사람이 있어요'],
-  },
-  {
-    // 명세 6.1 의 type 에 multi_choice 가 올 수 있습니다.
-    id: 'q4b',
-    type: 'multi_choice',
-    question: '보여줄 수 있는 게 뭐가 있으세요?',
-    options: ['조리 과정', '완성된 음식', '가게 안', '간판', '재료'],
-  },
-  {
-    id: 'q5',
-    type: 'single_choice',
-    question: '오늘 몇 분 정도 쓸 수 있으세요?',
-    options: ['5분', '10분', '20분'],
-  },
-  {
-    id: 'q6',
-    type: 'free_text',
-    question: '꼭 넣고 싶은 말이 있으세요?',
-  },
-];
-
-export const quizResult = {
-  recommended_format: {
-    video_format_id: 71,
-    format_type: '정보형',
-    reason: '얼굴 비노출 조건에 맞고, 메뉴 소개에 적합한 포맷이에요',
-    expected_duration_sec: 24,
-  },
-};
-
-// 명세 6.3 (2026-08-21): 길이·난이도·얼굴노출이 응답에 추가됐습니다 (5.1 과 동일 필드).
-export const quizAlternatives = [
-  {
-    video_format_id: 72,
-    format_type: '잔잔한 소개',
-    expected_duration_sec: 30,
-    shooting_difficulty: '중',
-    requires_face: false,
-    reason: '공간 위주로 촬영해 얼굴 노출이 필요 없음',
-  },
-  {
-    video_format_id: 73,
-    format_type: '밈',
-    expected_duration_sec: 20,
-    shooting_difficulty: '하',
-    requires_face: true,
-    reason: '가장 짧게 끝나지만 얼굴이 한 컷 필요함',
-  },
-];
+/*
+  6.1·6.2·6.3 목업(quizQuestions·quizResult·quizAlternatives)은 지웠습니다
+  (2026-08-26). 서버에서 폐기된 경로라 흉내 낼 이유가 없습니다.
+*/
 
 export const plan = {
   shooting_summary: {

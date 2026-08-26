@@ -91,13 +91,12 @@ export const API = {
   favorites: () => `/video-formats/favorites`,
   favorite: (formatId: number) => `/video-formats/${formatId}/favorite`,
 
-  // ── R06 돋보기 질문형 생성 ──────────────────────────────
-  quizQuestions: (projectId: number) =>
-    `/shorts-projects/${projectId}/quiz-questions`,                  // 6.1
-  quizAnswers: (projectId: number) =>
-    `/shorts-projects/${projectId}/quiz-answers`,                    // 6.2
-  quizAlternatives: (projectId: number) =>
-    `/shorts-projects/${projectId}/quiz-alternatives`,               // 6.3
+  /*
+    R06 6.1·6.2·6.3(quiz-questions·quiz-answers·quiz-alternatives)은 **없앴습니다**
+    (2026-08-26). R06 이 대화형 에이전트(`/shortform-sessions/…`)로 다시 설계되면서
+    서버에서 사라졌고, BE 가 폐기를 확인해 명세에서도 지우기로 했습니다.
+    추천은 아래 R06 대화형 경로로 받습니다.
+  */
 
   // ── R07 포맷 분석·가게 맞춤화 ───────────────────────────
   plan: (projectId: number) => `/shorts-projects/${projectId}/plan`, // 7.1

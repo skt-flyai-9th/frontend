@@ -26,9 +26,6 @@ export const qk = {
   formats: (filters: Record<string, unknown>) => ['formats', filters] as const,
   format: (formatId: number) => ['format', formatId] as const,
 
-  quizQuestions: (projectId: number) => ['quiz', projectId] as const,
-  quizResult: (projectId: number) => ['quiz', projectId, 'result'] as const,
-
   plan: (projectId: number) => ['plan', projectId] as const,
   scenes: (projectId: number) => ['scenes', projectId] as const,
 
