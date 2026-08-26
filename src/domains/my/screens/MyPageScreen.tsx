@@ -24,10 +24,11 @@ import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { ChevronRight, Menu } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
+import { MyShortCell } from '../components/MyShortCell';
 import { AppBar } from '../../../ui/AppBar';
 import { Button } from '../../../ui/Button';
 import { BrandMark } from '../../../ui/BrandMark';
@@ -79,6 +80,8 @@ export default function MyPageScreen() {
   const { data: store } = useStore(storeId ?? undefined);
   const { data: drafts } = useProjects(storeId ?? undefined, 'DRAFT');
   const shorts = useStoreShorts(storeId ?? undefined);
+  /** 탭을 옮기면 재생을 세웁니다 — 안 보이는 영상이 배터리를 먹지 않게. */
+  const isFocused = useIsFocused();
   const { data: connections } = useSnsConnections();
   const metrics = useInsightMetrics();
 
@@ -242,20 +245,23 @@ export default function MyPageScreen() {
         </View>
       ) : items.length > 0 ? (
         <View style={styles.grid}>
-          {items.map((v) => (
-            <Pressable
-              key={v.videoOutputId}
-              accessibilityRole="button"
-              accessibilityLabel={`${projectLabel(v)} 숏폼 보기`}
+          {items.map((v, i) => (
+            <MyShortCell
+              key={String(v.videoOutputId)}
+              short={v}
+              /*
+                앞쪽 칸만 재생합니다. 스무 편이면 스무 개를 동시에 여는 셈이라
+                기기가 버티지 못합니다 (MyShortCell 머리말 ③).
+                AUTOPLAY_CELLS 는 두 줄 — 스크롤 없이 보이는 만큼입니다.
+              */
+              autoplay={i < AUTOPLAY_CELLS}
+              focused={isFocused}
+              label={`${projectLabel(v)} 숏폼 보기`}
               onPress={() => nav.navigate('MyVideo', { videoOutputId: Number(v.videoOutputId) })}
-              style={({ pressed }) => [styles.cell, pressed && { opacity: theme.opacity.pressed }]}
-            >
-              {v.coverImageUrl ? (
-                <Image source={{ uri: v.coverImageUrl }} style={styles.cellImage} />
-              ) : (
-                <View style={[styles.cellImage, styles.cellEmpty]} />
-              )}
-            </Pressable>
+              style={styles.cell}
+              imageStyle={styles.cellImage}
+              emptyStyle={styles.cellEmpty}
+            />
           ))}
         </View>
       ) : (
@@ -270,6 +276,12 @@ export default function MyPageScreen() {
   );
 }
 
+
+/**
+ * 자동재생할 칸 수. 3열이라 두 줄 = 6칸이고, 스크롤 없이 보이는 만큼입니다.
+ * 더 늘리면 안 보이는 영상까지 배터리를 먹습니다.
+ */
+const AUTOPLAY_CELLS = 6;
 
 const GAP = 2;
 
