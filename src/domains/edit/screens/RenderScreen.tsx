@@ -116,17 +116,45 @@ export default function RenderScreen({ navigation, route }: Props) {
 
   const startEdit = useStartEdit(projectId);
   const [timedOut, setTimedOut] = useState(false);
-  /** 진행률 조회는 편집을 건 뒤에만 합니다 — 걸기 전에는 서버에 결과가 없습니다. */
-  const [started, setStarted] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: result } = useEditResult(projectId, started);
+  /**
+   * 🔴 2026-08-26 — 화면에 들어올 때마다 편집을 **다시 걸던 것**
+   *
+   * 예전에는 마운트되자마자 무조건 14.1 을 불렀습니다. 사장님이 편집 화면을 벗어났다
+   * 돌아오면 그때마다 렌더가 새로 걸립니다. 앞으로 편집이 10분씩 걸리고 "앱을 꺼도
+   * 된다" 가 되면, 돌아오는 일이 잦아져 같은 프로젝트를 몇 번씩 렌더하게 됩니다.
+   *
+   * 그래서 **먼저 물어보고 없을 때만 겁니다.**
+   *   14.2 에 결과가 있고 PENDING·PROCESSING·COMPLETED  → 그대로 붙습니다(다시 안 걸어요)
+   *   결과가 없거나(404) FAILED                          → 그때 새로 겁니다
+   *
+   * ⚠️ 서버가 "이미 도는 중인데 또 부르면" 어떻게 하는지는 아직 답을 못 받았습니다
+   *    (BE_전달사항 §2-4). 답이 오기 전까지는 프론트에서 안 부르는 쪽으로 막아 둡니다.
+   */
+  const editResult = useEditResult(projectId);
+  const result = editResult.data;
+  /** 이 화면에서 우리가 편집을 걸었는지 (상한 타이머를 걸 시점 판단용) */
+  const [started, setStarted] = useState(false);
+  const decided = useRef(false);
 
-  // 화면에 들어오는 순간 편집이 돌아갑니다. 물어볼 것이 없습니다.
   useEffect(() => {
+    if (decided.current) return;
+    // 아직 물어보는 중이면 기다립니다 — 모르는 채로 걸면 중복이 됩니다.
+    if (editResult.isLoading) return;
+
+    const s = result?.renderStatus;
+    if (s === 'PENDING' || s === 'PROCESSING' || s === 'COMPLETED') {
+      // 이미 돌고 있거나 끝났습니다. 붙기만 합니다.
+      decided.current = true;
+      setStarted(true);
+      armTimeout();
+      return;
+    }
+    decided.current = true;
     begin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [editResult.isLoading, result?.renderStatus]);
 
   useEffect(
     () => () => {
@@ -153,12 +181,17 @@ export default function RenderScreen({ navigation, route }: Props) {
     }
   }, [renderStatus]);
 
+  /** 상한 타이머를 겁니다. 이미 걸려 있으면 다시 겁니다. */
+  function armTimeout() {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+  }
+
   function begin() {
     setTimedOut(false);
     setStarted(true);
     startEdit.mutate(platform ?? RENDER_PLATFORM);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+    armTimeout();
   }
 
   /**
