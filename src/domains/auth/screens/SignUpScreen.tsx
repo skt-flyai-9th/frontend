@@ -23,10 +23,13 @@
  *       **아이디가 표시됩니다.** 서버에 아이디 컬럼이 생기면 그때 갈라야 합니다
  *       (BE_전달사항). 로그인은 지금도 이메일로만 됩니다 — 안내 문구가 그렇게 말합니다.
  *
- * ⚠️ 시안의 "다음 → 본인 인증(문자 6자리)" 단계는 **없습니다**.
- *    인증번호를 보내고 확인하는 API 가 명세에 없습니다. 화면만 만들면 아무 번호나
- *    통과시키거나(인증이 아님) 영영 못 넘어가거나 둘 중 하나입니다.
- *    그래서 이 화면에서 바로 가입하고, 버튼도 "다음" 대신 "가입하기" 입니다.
+ * ⚠️ 시안의 "다음 → 본인 인증(6자리)" 단계를 **되살렸습니다** (2026-08-26 사장님 지시).
+ *    인증 API 는 여전히 명세에 없어 그 화면은 **목업**입니다 — MVP 범위에서 빠진 것이
+ *    맞다고 확인해 주셨습니다. 대신 그 화면에 "지금은 실제로 확인하지 않는다" 를
+ *    적어 두었습니다. 자세한 건 `SignUpVerifyScreen` 머리말.
+ *
+ *    실제 가입(1.2)은 **인증 화면의 "인증 완료"** 에서 일어납니다. 시안 순서
+ *    (입력 → 인증 → 완료)를 지키면서 계정이 만들어지는 시점은 한 곳으로 둡니다.
  *
  * ⚠️ 마케팅 수신 동의 체크박스를 뺐습니다.
  *    시안에 없고, 약관 화면에서 이미 같은 동의를 받고 있었습니다(두 번 묻던 셈).
@@ -40,6 +43,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '../../../ui/Button';
+import { SignUpVerifyScreen } from './SignUpVerifyScreen';
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
 import { AuthField } from '../../../ui/AuthField';
@@ -60,6 +64,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignUpScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  /** 시안 흐름: 입력(form) → 본인 인증(verify). 인증 화면은 목업입니다. */
+  const [step, setStep] = useState<'form' | 'verify'>('form');
   // 가입이 끝나면 이 스택을 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [form, setForm] = useState<Record<FormKey, string>>({
@@ -95,9 +101,16 @@ export default function SignUpScreen({ navigation }: Props) {
     return Object.keys(next).length === 0;
   };
 
-  const submit = () => {
+  /** 시안: "다음" 은 검증만 하고 본인 인증으로 넘깁니다. 가입은 그다음입니다. */
+  const next = () => {
     setServerError(null);
     if (!validate()) return;
+    setStep('verify');
+  };
+
+  /** 실제 가입 — 인증 화면의 "인증 완료" 가 부릅니다. */
+  const doSignup = () => {
+    setServerError(null);
     signup.mutate(
       {
         name: form.name.trim(),
@@ -115,6 +128,21 @@ export default function SignUpScreen({ navigation }: Props) {
       }
     );
   };
+
+  // 시안 원문과 같은 자리 분기입니다 — 라우트를 늘리지 않고 이 화면 안에서 넘깁니다.
+  // (비밀번호를 내비게이션 params 로 흘리지 않으려는 이유도 있습니다)
+  if (step === 'verify') {
+    return (
+      <SignUpVerifyScreen
+        email={form.email.trim()}
+        phone={form.phone}
+        onBack={() => setStep('form')}
+        onDone={doSignup}
+        submitting={signup.isPending}
+        serverError={serverError}
+      />
+    );
+  }
 
   return (
     /*
@@ -211,7 +239,7 @@ export default function SignUpScreen({ navigation }: Props) {
             error={errors.phone}
             keyboardType="phone-pad"
             returnKeyType="go"
-            onSubmitEditing={submit}
+            onSubmitEditing={next}
           />
         </View>
 
@@ -223,7 +251,8 @@ export default function SignUpScreen({ navigation }: Props) {
               <Text style={styles.serverErrorText}>{serverError}</Text>
             </View>
           ) : null}
-          <Button label="가입하기" onPress={submit} loading={signup.isPending} />
+          {/* 시안: 여기서는 "다음". 가입은 인증 화면에서 일어납니다. */}
+          <Button label="다음" onPress={next} />
           <Pressable
             accessibilityRole="button"
             hitSlop={8}
