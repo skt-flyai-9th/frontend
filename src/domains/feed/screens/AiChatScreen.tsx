@@ -190,7 +190,7 @@ function RecCard({
         project_title · title · concept · editing_template_id/version 뿐입니다
         (2026-08-26 실서버 확인). 값이 생기면 이 자리에 그대로 넣으면 됩니다.
         지금 회색 상자만 깔면 영영 안 채워지는 빈칸이 되므로 두지 않습니다.
-        BE_전달사항 부록 D-4.
+        BE_전달사항 §2-1.
       */}
 
       <Pressable
