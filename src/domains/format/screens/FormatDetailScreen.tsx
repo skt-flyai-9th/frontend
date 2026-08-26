@@ -102,7 +102,8 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
                 navigation.navigate('PurposeSelect', { formatId });
                 return;
               }
-              navigation.replace('Camera', { projectId });
+              // 고른 포맷을 들고 갑니다 — 카메라 좌상단 참고 영상이 이 값을 씁니다.
+              navigation.replace('Camera', { projectId, formatId });
             }}
           />
         </View>

@@ -52,7 +52,7 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'DanceCamera'>;
 const SHUTTER_BAND = 150;
 
 export default function DanceCameraScreen({ route, navigation }: Props) {
-  const { projectId, taskId } = route.params;
+  const { projectId, taskId, formatId: pickedFormatId } = route.params;
   const upload = useUploadFootage(projectId);
   const markTask = useUpdateTask(projectId);
   const insets = useSafeAreaInsets();
@@ -60,7 +60,11 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   const { data: guide, isLoading } = useTaskGuide(taskId);
   // 9.1 이 참고 영상을 안 줄 때를 대비해 포맷의 가이드 영상을 확보해 둡니다.
   const { data: project } = useProject(projectId);
-  const { data: format } = useVideoFormat(project?.videoFormatId ?? undefined);
+  /*
+   * 카메라 화면과 같은 이유로 **route 로 받은 포맷이 먼저**입니다 (2026-08-26).
+   * 프로젝트의 video_format_id 는 7.1 이 성공해야 붙는데 실서버가 500 을 냅니다.
+   */
+  const { data: format } = useVideoFormat(pickedFormatId ?? project?.videoFormatId ?? undefined);
 
   /** 남은 컷이 있는지 보고 다음 갈 곳을 정합니다 (시안 CameraScreen.accept 와 같은 규칙). */
   const { data: board } = useTasks(projectId);
@@ -132,7 +136,8 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
           const rest = (board?.tasks ?? []).filter(
             (t) => t.id !== taskId && t.taskStatus !== 'DONE' && t.taskStatus !== 'RETAKE_NEEDED'
           );
-          if (rest.length > 0) navigation.replace('Camera', { projectId, taskId: rest[0].id });
+          if (rest.length > 0)
+            navigation.replace('Camera', { projectId, taskId: rest[0].id, formatId: pickedFormatId });
           else navigation.replace('Render', { projectId });
         },
       }

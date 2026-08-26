@@ -23,7 +23,7 @@
  *
  *    시안에 없는 "고객늘리기" 는 AI 추천 탭에 그대로 남아 있어 앱에서 사라지지 않습니다.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Coffee, Lightbulb, Sparkles, Store, Tag } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -35,6 +35,7 @@ import { Banner } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, space, sizing, text } from '../../../design/theme';
 import { useCreateProject, useProjects } from '../../../api/queries/project';
+import { useMenus } from '../../../api/queries/store';
 import { useCurrentStore } from '../../../lib/appState';
 import type { MenuDetailTag, PromotionPurpose } from '../../../api/schema/types';
 import { useNavigation } from '@react-navigation/native';
@@ -55,6 +56,11 @@ interface Topic {
   purpose: PromotionPurpose;
   /** 메뉴소개일 때 4.2 로 이어질 세부 태그 */
   detailTag?: MenuDetailTag;
+  /**
+   * 등록된 메뉴를 골라 넣을 수 있는 주제인지 (신메뉴·기존메뉴).
+   * `isNewMenu` 로 걸러 보여 줄 것인지도 함께 정합니다.
+   */
+  menuPick?: 'new' | 'all';
 }
 
 /** 시안 TOPICS 원문 + 서버 값 매핑 */
@@ -67,6 +73,7 @@ const TOPICS: Topic[] = [
     placeholder: '예: 흑임자 크림 라떼',
     purpose: '메뉴소개',
     detailTag: '신메뉴',
+    menuPick: 'new',
   },
   {
     id: 'existing',
@@ -76,6 +83,7 @@ const TOPICS: Topic[] = [
     placeholder: '예: 시그니처 아메리카노',
     purpose: '메뉴소개',
     detailTag: '대표메뉴',
+    menuPick: 'all',
   },
   {
     id: 'event',
@@ -111,6 +119,32 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
 
   const topic = TOPICS.find((t) => t.id === selected) ?? null;
   const canContinue = !!topic && value.trim().length > 0 && !!storeId;
+
+  /*
+   * 등록된 메뉴 고르기 (2026-08-26, 사장님 지시).
+   *
+   * 신메뉴·기존메뉴를 고르면 **3.2 에 등록된 메뉴가 목록으로** 뜨고 눌러서 넣습니다.
+   * 직접 적는 것도 그대로 됩니다 — 적으면 목록이 그 글자로 좁혀지고, 목록에 없는
+   * 이름이면 적은 대로 나갑니다.
+   *
+   * ⚠️ **직접 적은 이름을 메뉴 목록에 추가하지 않습니다.** 메뉴 등록은 매장 관리에서
+   *    사장님이 직접 하는 일입니다. 여기서 몰래 만들면 사진·가격 없는 메뉴가 쌓입니다.
+   *
+   * 신메뉴는 `isNewMenu` 인 것만 추립니다. 그렇게 추린 게 하나도 없으면 거르지 않고
+   * 전부 보여 줍니다 — 서버가 그 표시를 안 채웠을 뿐인데 목록이 텅 비면
+   * "등록한 메뉴가 없다" 로 오해합니다.
+   */
+  const { data: menus } = useMenus(topic?.menuPick ? storeId : undefined);
+  const menuOptions = useMemo(() => {
+    if (!topic?.menuPick || !menus) return [];
+    const onlyNew = menus.filter((m) => m.isNewMenu);
+    const base = topic.menuPick === 'new' && onlyNew.length > 0 ? onlyNew : menus;
+    const typed = value.trim();
+    const narrowed = typed ? base.filter((m) => m.name.includes(typed)) : base;
+    // 이미 그 메뉴를 정확히 골랐으면 목록을 접습니다.
+    if (narrowed.length === 1 && narrowed[0].name === typed) return [];
+    return narrowed;
+  }, [menus, topic, value]);
 
   /**
    * 명세 확정 (2026-08-23): 목적은 4.1 생성 때 정해지고 **만든 뒤 바꿀 수 없습니다.**
@@ -258,12 +292,44 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
             <TextInput
               value={value}
               onChangeText={setValue}
-              placeholder={topic.placeholder}
+              placeholder={topic.menuPick ? '메뉴를 고르거나 직접 적어 주세요' : topic.placeholder}
               placeholderTextColor={color.ink[500]}
               accessibilityLabel={topic.prompt}
               multiline={topic.multiline}
               style={[styles.input, topic.multiline && styles.inputMulti]}
             />
+
+            {/* 등록된 메뉴 목록 — 눌러서 넣습니다 */}
+            {topic.menuPick && menuOptions.length > 0 && (
+              <View style={styles.menuList}>
+                {menuOptions.map((m, i) => (
+                  <Pressable
+                    key={m.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={m.name}
+                    onPress={() => setValue(m.name)}
+                    style={({ pressed }) => [
+                      styles.menuRow,
+                      i < menuOptions.length - 1 && styles.menuDivider,
+                      pressed && { backgroundColor: color.brand[50] },
+                    ]}
+                  >
+                    <Coffee size={16} strokeWidth={2} color={color.brand[600]} />
+                    <Text style={styles.menuName} numberOfLines={1}>
+                      {m.name}
+                    </Text>
+                    {m.isNewMenu ? <Text style={styles.menuTag}>신메뉴</Text> : null}
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* 메뉴를 아직 하나도 등록하지 않은 가게 */}
+            {topic.menuPick && menus?.length === 0 && (
+              <Text style={styles.menuEmpty}>
+                등록된 메뉴가 없습니다. 위 칸에 직접 적어 주세요.
+              </Text>
+            )}
           </View>
         )}
       </View>
@@ -274,6 +340,27 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   // 시안: px-6
   body: { paddingHorizontal: space[6], paddingBottom: space[6] },
+
+  // 등록된 메뉴 목록 — 매장 등록의 후보 목록과 같은 모양입니다
+  menuList: {
+    marginTop: space[2],
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+  },
+  menuDivider: { borderBottomWidth: theme.border.hairline, borderBottomColor: color.hairlineSoft },
+  menuName: { ...theme.text.bodySmall, flex: 1, minWidth: 0, color: color.ink[900] },
+  menuTag: { ...theme.text.nano, color: color.brand[600] },
+  menuEmpty: { ...theme.text.caption, marginTop: space[2], paddingLeft: 4, color: color.ink[500] },
 
   // 시안: 22·bold · leading-tight
   title: { ...theme.text.title, lineHeight: 28 },

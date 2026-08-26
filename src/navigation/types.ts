@@ -125,10 +125,19 @@ export type CreateStackParamList = {
 
   /** projectId 가 없으면 '둘러보기' 모드입니다. 홈에서 바로 들어옵니다. */
   FormatDetail: { projectId?: number; formatId: number };
-  /** taskId 를 안 주면 카메라가 아직 안 찍은 첫 컷부터 시작합니다 (시안 V4). */
-  Camera: { projectId: number; taskId?: number };
+  /**
+   * taskId 를 안 주면 카메라가 아직 안 찍은 첫 컷부터 시작합니다 (시안 V4).
+   *
+   * `formatId` 는 **사장님이 방금 고른 포맷**입니다 (2026-08-26 추가).
+   * 원래는 프로젝트(4.3)의 `video_format_id` 로 되짚어 참고 영상을 찾았는데,
+   * 그 값은 7.1 기획 생성이 성공해야 붙습니다. 실서버 7.1 이 500 을 내는 동안
+   * 값이 영영 null 이라 **좌상단 참고 영상 창이 아예 안 떴습니다.**
+   * 고른 포맷을 그대로 들고 오면 서버가 어떻든 볼 수 있습니다 —
+   * 지어낸 값이 아니라 사장님이 직접 고른 그 포맷입니다.
+   */
+  Camera: { projectId: number; taskId?: number; formatId?: number };
   /** 안무 태스크 전용 — 참고 영상(위) + 카메라(아래). YouTube 참고 영상일 때만. */
-  DanceCamera: { projectId: number; taskId: number };
+  DanceCamera: { projectId: number; taskId: number; formatId?: number };
 
   // R14~R15 편집·출력
   /** 명세 14.1 target_platform. 안 주면 화면에서 고르게 합니다. */

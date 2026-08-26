@@ -628,7 +628,14 @@ export interface ShortformTurnResponse {
   assistantMessage?: string;
   options: ShortformOption[];
   projectState: Record<string, unknown>;
-  recommendation?: ShortformRecommendation;
+  /**
+   * 추천은 **배열**입니다 (2026-08-26 실서버 대조로 정정).
+   *
+   * 서버 응답 키가 `recommendations` 이고, 추천이 아직 없는 턴에서도 `[]` 로 옵니다.
+   * 단수 `recommendation` 으로 읽으면 **항상 undefined** 라 추천이 영영 안 뜹니다.
+   * 시안(`image (1).png`)이 카드 세 장인 것도 이 배열을 전제로 한 그림입니다.
+   */
+  recommendations?: ShortformRecommendation[];
 }
 
 export type ShortformTurnInput =

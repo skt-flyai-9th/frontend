@@ -7,6 +7,8 @@
     "doctor": "npx expo-doctor",
     "fix-deps": "npx expo install --fix",
     "typecheck": "tsc --noEmit",
+    "ota": "eas update --branch preview",
+    "ota:prod": "eas update --branch production",
     "build:dev": "eas build --profile development --platform android",
     "build:preview": "eas build --profile preview --platform android",
     "build:prod": "eas build --profile production --platform android"
@@ -32,6 +34,7 @@
     "expo-secure-store": "~57.0.1",
     "expo-splash-screen": "~57.0.7",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.17",
     "expo-video": "~57.0.2",
     "lucide-react-native": "^1.33.0",
     "react": "19.2.3",

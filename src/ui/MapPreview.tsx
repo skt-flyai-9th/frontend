@@ -5,13 +5,31 @@
  * 자리라 가짜 지도를 띄우면 안 됩니다 — 2.1 검색이 좌표(latitude·longitude)를
  * 함께 주므로 그 좌표로 실제 지도를 그립니다.
  *
- * 그리는 방법: OpenStreetMap **타일 이미지**를 직접 깝니다.
+ * 그리는 방법: 지도 **타일 이미지**를 직접 깝니다.
  *   · 새 의존성이 없습니다. <Image> 만 씁니다 — 지도 SDK 도, API 키도 없습니다.
  *   · 임베드(iframe/WebView)를 쓰면 확대 버튼과 저작권 바가 함께 딸려 와
  *     시안과 달라지고, WebView 는 웹 빌드에서 아예 뜨지 않습니다.
  *   · 핀은 시안 원문 모양(파란 핀 34)을 우리가 그립니다.
  *
- * 좌표가 없을 때만 시안과 같은 격자 자리표시자를 그립니다.
+ * ─────────────────────────────────────────────────────────────
+ * ⚠️ 타일 제공자를 바꿨습니다 (2026-08-26) — `tile.openstreetmap.org` 는 **403**
+ * ─────────────────────────────────────────────────────────────
+ * 실기기에서 지도가 안 뜬다는 보고가 있었습니다. 핀은 보이는데 지도만 빈 상자였고,
+ * 타일 요청이 **403** 이었습니다. 좌표 문제가 아니라 **타일 서버가 막은 것**입니다.
+ *
+ * `tile.openstreetmap.org` 는 자원봉사로 돌아가는 서버라 **타일 사용 정책상 앱에서
+ * 직접 쓰면 안 됩니다.** 개발 PC 에서는 200 이 떨어져서 눈치채지 못했는데,
+ * 실기기·실사용 트래픽에서 막혔습니다 — 정책 위반이었던 것이지 버그가 아닙니다.
+ *
+ * 그래서 **CARTO 베이스맵**으로 옮깁니다. 같은 OpenStreetMap 데이터를 쓰지만
+ * 앱·웹에서 쓰라고 만든 CDN 이고 API 키가 필요 없습니다. 표기만 지키면 됩니다
+ * (아래 배지에 `© OpenStreetMap © CARTO`).
+ *
+ * 그리고 **타일이 안 내려오면 조용히 빈 상자로 두지 않습니다.** 한 장도 못 받으면
+ * 격자 자리표시자로 되돌리고 "지도를 불러오지 못했습니다" 를 적습니다 —
+ * 이번처럼 원인을 찾느라 헤매지 않도록.
+ *
+ * 좌표가 없을 때도 같은 격자 자리표시자를 그립니다(문구는 다릅니다).
  *
  * 시안 규격: 높이 144(h-36) · 가운데 파란 핀 34 · 우하단 배지
  * 배지 문구는 시안의 "지도" 대신 출처를 적습니다 — 타일 제공자를 밝혀야 합니다.
@@ -26,6 +44,13 @@ const HEIGHT = 144;
 const TILE = 256;
 /** 가게 하나가 보일 만한 배율. 17 은 건물이 구분되는 수준입니다. */
 const ZOOM = 17;
+
+/**
+ * 타일 주소. CARTO 베이스맵(OSM 데이터) — API 키 없이 앱에서 쓸 수 있습니다.
+ * `voyager` 는 도로·상호가 또렷해서 가게 위치를 확인하는 용도에 맞습니다.
+ */
+const tileUrl = (z: number, x: number, y: number) =>
+  `https://basemaps.cartocdn.com/rastertiles/voyager/${z}/${x}/${y}.png`;
 
 interface Props {
   latitude?: number | null;
@@ -45,6 +70,17 @@ function toTile(lat: number, lng: number, z: number) {
 
 export function MapPreview({ latitude, longitude, width = 345 }: Props) {
   const hasPoint = typeof latitude === 'number' && typeof longitude === 'number';
+
+  /**
+   * 타일이 한 장이라도 내려왔는지 / 실패했는지.
+   * 둘 다 세는 이유는 "아직 오는 중" 과 "막혔음" 을 구분하기 위해서입니다.
+   */
+  const [loaded, setLoaded] = React.useState(0);
+  const [failed, setFailed] = React.useState(0);
+  React.useEffect(() => {
+    setLoaded(0);
+    setFailed(0);
+  }, [latitude, longitude]);
 
   if (!hasPoint) {
     return (
@@ -71,12 +107,28 @@ export function MapPreview({ latitude, longitude, width = 345 }: Props) {
     }
   }
 
+  // 한 장도 못 받고 실패만 쌓였으면 지도를 포기하고 그렇게 말합니다.
+  const tilesDown = loaded === 0 && failed > 0;
+  if (tilesDown) {
+    return (
+      <View style={[styles.box, { width }]}>
+        <Placeholder />
+        <View pointerEvents="none" style={styles.downNote}>
+          <Text style={styles.downText}>지도를 불러오지 못했습니다</Text>
+        </View>
+        <Badge label="지도" />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.box, { width }]}>
       {tiles.map(({ dx, dy }) => (
         <Image
           key={`${dx}_${dy}`}
-          source={{ uri: `https://tile.openstreetmap.org/${ZOOM}/${x0 + dx}/${y0 + dy}.png` }}
+          source={{ uri: tileUrl(ZOOM, x0 + dx, y0 + dy) }}
+          onLoad={() => setLoaded((n) => n + 1)}
+          onError={() => setFailed((n) => n + 1)}
           style={[styles.tile, { left: left + dx * TILE, top: top + dy * TILE }]}
         />
       ))}
@@ -92,7 +144,7 @@ export function MapPreview({ latitude, longitude, width = 345 }: Props) {
           <Circle cx="12" cy="10" r="3" fill={color.paper} />
         </Svg>
       </View>
-      <Badge label="© OpenStreetMap" />
+      <Badge label="© OpenStreetMap © CARTO" />
     </View>
   );
 }
@@ -139,4 +191,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.85)',
   },
   badgeText: { ...theme.text.nano, fontWeight: text.body.fontWeight, color: color.ink[500] },
+  // 타일이 안 올 때. 격자 위에 한 줄만 얹습니다.
+  downNote: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  downText: {
+    ...text.caption,
+    color: color.ink[500],
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    paddingHorizontal: space[3],
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   SafeAreaFrameContext,
@@ -6,6 +6,7 @@ import {
   SafeAreaProvider,
 } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Updates from 'expo-updates';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { Text, View } from 'react-native';
@@ -61,8 +62,54 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * 켤 때 새 코드가 있으면 **그 자리에서 갈아끼웁니다** (2026-08-26).
+ *
+ * expo-updates 의 기본 동작은 "일단 켜고, 뒤에서 받아 두고, **다음 실행**에 적용" 입니다.
+ * 그러면 고친 걸 보려고 앱을 두 번 껐다 켜야 합니다 — 사장님이 바로 지적하신 부분입니다.
+ *
+ * 그 대기 시간(`fallbackToCacheTimeout`)은 **APK 안에 구워져 있어** 바꾸려면 빌드를
+ * 다시 해야 합니다. 그래서 같은 일을 여기 JS 에서 합니다 — 이 코드 자체가 OTA 로 갑니다.
+ *
+ * 규칙 두 가지:
+ *   · **켤 때만** 합니다. 촬영 중에 백그라운드 갔다 돌아왔다고 새로고침하면
+ *     찍던 것이 날아갑니다. 시작 시점에는 잃을 것이 없습니다.
+ *   · **{UPDATE_WAIT_MS}ms 만 기다립니다.** 신호가 나쁜 가게에서 splash 가 하염없이
+ *     붙잡히면 안 됩니다. 못 받으면 그냥 지금 코드로 켜고, 받아둔 건 다음에 적용됩니다.
+ */
+const UPDATE_WAIT_MS = 4000;
+
+async function applyUpdateIfAny(): Promise<void> {
+  if (__DEV__ || !Updates.isEnabled) return;
+  const check = await Updates.checkForUpdateAsync();
+  if (!check.isAvailable) return;
+  await Updates.fetchUpdateAsync();
+  // 여기서 JS 가 새 묶음으로 다시 시작합니다 — 아래 코드는 실행되지 않습니다.
+  await Updates.reloadAsync();
+}
+
 export default function App() {
   const fontsReady = useAppFonts();
+
+  /**
+   * 업데이트 확인이 끝났는지(또는 기다리기를 포기했는지).
+   * 폰트·저장값 복원과 **같은 splash 뒤에서** 함께 기다리므로 체감 시간이 겹칩니다.
+   */
+  const [updateSettled, setUpdateSettled] = useState(false);
+  useEffect(() => {
+    let done = false;
+    const settle = () => {
+      if (!done) {
+        done = true;
+        setUpdateSettled(true);
+      }
+    };
+    const timer = setTimeout(settle, UPDATE_WAIT_MS);
+    applyUpdateIfAny()
+      .catch(() => {})
+      .finally(settle);
+    return () => clearTimeout(timer);
+  }, []);
   /**
    * 기기에 저장된 값(로그인 여부·가게·튜토리얼)이 올라올 때까지 기다립니다.
    *
@@ -72,7 +119,7 @@ export default function App() {
    * 폰트 로딩과 같은 splash 뒤에서 함께 기다리므로 체감 시간은 늘지 않습니다.
    */
   const hydrated = useHydrated();
-  const ready = fontsReady && hydrated;
+  const ready = fontsReady && hydrated && updateSettled;
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
