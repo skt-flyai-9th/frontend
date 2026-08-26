@@ -27,16 +27,19 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Check, Link2, MapPin, Search, Store, X } from 'lucide-react-native';
+import { Check, ChevronDown, Link2, MapPin, Search, Store, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
 import { Banner, Spinner } from '../../../ui/Feedback';
 import { MapPreview } from '../../../ui/MapPreview';
+import { DropIn } from '../../../ui/DropIn';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
@@ -45,6 +48,16 @@ import type { PlaceResult } from '../../../api/schema/types';
 import type { RootStackParamList, StoreSetupStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<StoreSetupStackParamList, 'StoreSearch'>;
+
+/**
+ * 한 번에 보여줄 후보 개수. 넘으면 "더보기" 를 붙입니다 (2026-08-26 사장님 지시).
+ *
+ * 시안은 `.slice(0, 5)` 로 다섯 개에서 끊고 더 볼 방법이 없습니다. 이름을 짧게 치면
+ * 후보가 훨씬 많은데 나머지를 아예 못 봅니다. 그래서 10개까지 깔고, 더 있으면
+ * 버튼을 붙여 눌렀을 때 나머지를 펼칩니다(버튼은 그때 사라집니다).
+ * 행 모양은 시안 그대로입니다.
+ */
+const PAGE = 10;
 
 /** 시안 SYNC_CATEGORIES 원문 */
 const CATEGORIES = [
@@ -61,6 +74,7 @@ const CATEGORIES = [
 ];
 
 export default function StoreSearchScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const setStoreId = useAppState((st) => st.setStoreId);
   // 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -70,6 +84,9 @@ export default function StoreSearchScreen({ navigation }: Props) {
   const [customCategory, setCustomCategory] = useState('');
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<PlaceResult | null>(null);
+  /** 후보를 몇 개까지 펼쳤는지. "더보기" 를 누르면 전부 보여 줍니다. */
+  const [nameAll, setNameAll] = useState(false);
+  const [addrAll, setAddrAll] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [synced, setSynced] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -80,6 +97,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
   const [keyword, setKeyword] = useState('');
   useEffect(() => {
     const t = setTimeout(() => setKeyword(query), 350);
+    setAddrAll(false);
     return () => clearTimeout(t);
   }, [query]);
   const { data: results, isFetching, isError } = useStoreSearch(keyword);
@@ -89,6 +107,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
     () => (picked && picked.address === query ? [] : (results ?? [])),
     [results, picked, query]
   );
+  const shownCandidates = addrAll ? candidates : candidates.slice(0, PAGE);
 
   /*
    * 매장 이름 후보 (2026-08-26).
@@ -106,6 +125,8 @@ export default function StoreSearchScreen({ navigation }: Props) {
   const [nameKeyword, setNameKeyword] = useState('');
   useEffect(() => {
     const t = setTimeout(() => setNameKeyword(name), 350);
+    // 검색어가 바뀌면 펼친 것을 다시 접습니다 — 새 결과는 처음부터 봅니다.
+    setNameAll(false);
     return () => clearTimeout(t);
   }, [name]);
   const { data: nameHits, isFetching: nameFetching } = useStoreSearch(nameKeyword);
@@ -115,6 +136,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
     () => (picked && picked.name === name ? [] : (nameHits ?? [])),
     [nameHits, picked, name]
   );
+  const shownNames = nameAll ? nameCandidates : nameCandidates.slice(0, PAGE);
 
   /** 후보를 눌러 가게를 확정합니다. 이름·업종·주소·좌표가 한 번에 들어옵니다. */
   const pickStore = (r: PlaceResult) => {
@@ -195,7 +217,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
 
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: Math.max(insets.bottom, space[6]) }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -262,15 +284,15 @@ export default function StoreSearchScreen({ navigation }: Props) {
               <>
                 <Text style={styles.hint}>내 가게를 눌러 주세요</Text>
                 <View style={styles.results}>
-                  {nameCandidates.map((r, i) => (
+                  {shownNames.map((r, i) => (
+                    <DropIn key={`${r.name}-${r.address}`} index={i}>
                     <Pressable
-                      key={`${r.name}-${r.address}`}
                       accessibilityRole="button"
                       accessibilityLabel={`${r.name} ${r.address}`}
                       onPress={() => pickStore(r)}
                       style={({ pressed }) => [
                         styles.resultRow,
-                        i < nameCandidates.length - 1 && styles.resultDivider,
+                        i < shownNames.length - 1 && styles.resultDivider,
                         pressed && { backgroundColor: color.paper },
                       ]}
                     >
@@ -284,7 +306,24 @@ export default function StoreSearchScreen({ navigation }: Props) {
                         </Text>
                       </View>
                     </Pressable>
+                    </DropIn>
                   ))}
+                  {!nameAll && nameCandidates.length > PAGE && (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setNameAll(true)}
+                      style={({ pressed }) => [
+                        styles.moreRow,
+                        styles.resultDivider,
+                        pressed && { backgroundColor: color.paper },
+                      ]}
+                    >
+                      <Text style={styles.moreText}>
+                        더보기 ({nameCandidates.length - PAGE}곳 더)
+                      </Text>
+                      <ChevronDown size={16} strokeWidth={2} color={color.brand[600]} />
+                    </Pressable>
+                  )}
                 </View>
               </>
             )}
@@ -362,9 +401,9 @@ export default function StoreSearchScreen({ navigation }: Props) {
 
             {candidates.length > 0 && (
               <View style={styles.results}>
-                {candidates.map((r, i) => (
+                {shownCandidates.map((r, i) => (
+                  <DropIn key={`${r.name}-${r.address}`} index={i}>
                   <Pressable
-                    key={`${r.name}-${r.address}`}
                     accessibilityRole="button"
                     onPress={() => {
                       setPicked(r);
@@ -373,7 +412,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
                     }}
                     style={({ pressed }) => [
                       styles.resultRow,
-                      i < candidates.length - 1 && styles.resultDivider,
+                      i < shownCandidates.length - 1 && styles.resultDivider,
                       pressed && { backgroundColor: color.paper },
                     ]}
                   >
@@ -387,12 +426,27 @@ export default function StoreSearchScreen({ navigation }: Props) {
                       </Text>
                     </View>
                   </Pressable>
+                  </DropIn>
                 ))}
+                {!addrAll && candidates.length > PAGE && (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setAddrAll(true)}
+                    style={({ pressed }) => [
+                      styles.moreRow,
+                      styles.resultDivider,
+                      pressed && { backgroundColor: color.paper },
+                    ]}
+                  >
+                    <Text style={styles.moreText}>더보기 ({candidates.length - PAGE}곳 더)</Text>
+                    <ChevronDown size={16} strokeWidth={2} color={color.brand[600]} />
+                  </Pressable>
+                )}
               </View>
             )}
 
             {picked && (
-              <View style={styles.mapCard}>
+              <DropIn style={styles.mapCard}>
                 <MapPreview latitude={picked.latitude} longitude={picked.longitude} />
                 <View style={styles.mapAddr}>
                   <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
@@ -405,7 +459,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
                     </Text>
                   </View>
                 </View>
-              </View>
+              </DropIn>
             )}
           </View>
         </View>
@@ -437,7 +491,9 @@ export default function StoreSearchScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   // 시안: px-6 pb-6
-  body: { flexGrow: 1, paddingHorizontal: space[6], paddingBottom: space[6], paddingTop: space[3] },
+  // paddingBottom 은 화면에서 안전영역과 함께 계산합니다 — 시안 pb-6 만으로는
+  // 제스처 내비게이션 폰에서 시작하기 버튼이 시스템 바에 덮입니다.
+  body: { flexGrow: 1, paddingHorizontal: space[6], paddingTop: space[3] },
 
   lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
 
@@ -524,6 +580,22 @@ const styles = StyleSheet.create({
     paddingVertical: space[3],
   },
   resultDivider: { borderBottomWidth: theme.border.hairline, borderBottomColor: color.hairlineSoft },
+  // 후보 행과 같은 높이·여백. 목록의 마지막 줄로 자연스럽게 이어집니다.
+  moreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+    borderBottomWidth: 0,
+  },
+  moreText: {
+    ...theme.text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.brand[600],
+  },
   pinIcon: { marginTop: 2 },
   flexMin: { flex: 1, minWidth: 0 },
   resultTitle: {

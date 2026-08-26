@@ -1,23 +1,28 @@
 /**
- * RealsLogo — 시안 `RealsLogo.jsx` / `PlayTri` 대조 이식.
+ * RealsLogo — 브랜드 워드마크.
  *
- * 시안 원문
- *   const play = Math.round(size * 0.31);
- *   <span className="inline-flex items-baseline font-semibold tracking-tighter-title" style={{fontSize:size}}>
- *     Reals<PlayTri size={play} style={{marginLeft:"0.06em", transform:"translateY(0.12em)"}} />
- *   </span>
- *   PlayTri: <path d="M6 3 20 12 6 21Z" fill="#ef4444" />  (24 박스 안의 삼각형)
+ * ─────────────────────────────────────────────────────────────
+ * 2026-08-26 — 새 로고 이미지로 교체했습니다 (사장님 제공 `로고.jpg`)
+ * ─────────────────────────────────────────────────────────────
+ * 예전에는 "Reals" 글자 + 빨간 삼각형(PlayTri)을 코드로 그렸습니다.
+ * 새 로고는 글자 모양 자체가 커스텀이라 폰트로 흉내 낼 수 없어 이미지로 넣습니다.
  *
- * 모든 수치가 글자 크기에 비례합니다. 그래서 size 하나만 받고 나머지는 계산합니다 —
- * 앱바(18·22)·스플래시(34)가 같은 비율로 커집니다.
+ * 원본이 흰 배경 JPG 라 그대로 쓰면 흰 사각형이 됩니다. 그래서 굽는 단계에서
+ * **밝기를 알파로 바꿔** 잉크만 남기고 여백을 잘라냈습니다(`assets/logo-wordmark.png`).
+ * 검정 + 알파라 `tintColor` 로 색을 바꿀 수 있습니다 — 어두운 배경에서는 흰색으로.
  *
- * 삼각형은 border 트릭 대신 SVG 로 그립니다. 시안의 path 를 그대로 쓸 수 있어
- * 브랜드 마크의 각도가 크기마다 달라지지 않습니다.
+ * ⚠️ `size` 는 예전과 같이 **글자 크기 자리**이지만 이제 이미지 높이입니다.
+ *    바깥 상자 높이는 `size * 1.5` 로 **그대로 뒀습니다.** 예전 로고의 줄상자가
+ *    글자크기 × 1.5 였고(시안 규칙), 로그인처럼 세로 가운데 정렬인 화면은 이 높이가
+ *    줄면 아래 내용이 통째로 올라갑니다. 시안 대조 수치를 지키려고 상자를 남겼습니다.
+ *
+ * `PlayTri` 는 로고에서 빠졌지만 **지우지 않았습니다** — 영상 썸네일의 재생 표시와
+ * BrandMark 가 아직 씁니다.
  */
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import theme, { color, font } from '../design/theme';
+import { color } from '../design/theme';
 
 /** 시안 PlayTri — 24 뷰박스 안의 재생 삼각형. 기본색은 하트 빨강입니다. */
 export function PlayTri({ size = 12, fill = color.danger[500] }: { size?: number; fill?: string }) {
@@ -28,41 +33,28 @@ export function PlayTri({ size = 12, fill = color.danger[500] }: { size?: number
   );
 }
 
+/** 구운 이미지의 잉크 비율(813x263) — 폭을 높이에서 계산합니다. */
+const ASPECT = 813 / 263;
+const WORDMARK = require('../../assets/logo-wordmark.png');
+
 export function RealsLogo({ size = 18, tint }: { size?: number; tint?: string }) {
-  const play = Math.round(size * 0.31);
   return (
-    <View style={styles.row} accessibilityRole="header" accessibilityLabel="Reals">
-      <Text
-        style={[
-          styles.word,
-          {
-            fontSize: size,
-            /*
-             * 시안은 이 글자에 `leading-*` 을 주지 않아 줄상자가 크기 × 1.5 입니다.
-             * 1.18 로 두면 로고 블록이 32 기준 10pt 낮아지고, 로그인처럼 세로 가운데
-             * 정렬인 화면은 그 절반만큼 아래 내용이 통째로 올라옵니다(실측).
-             * 앱바에서는 행 높이가 44 로 고정이라 영향이 없습니다.
-             */
-            lineHeight: size * 1.5,
-            letterSpacing: size * font.letterSpacing.titleEm,
-            color: tint ?? color.ink[900],
-          },
-        ]}
-      >
-        Reals
-      </Text>
-      {/*
-        시안은 baseline 정렬 + translateY(0.12em) 입니다. RN 에서 View 의 baseline 은
-        아래 모서리라, flex-end 로 붙이고 같은 비율만큼만 띄웁니다.
-      */}
-      <View style={{ marginLeft: size * 0.06, marginBottom: size * 0.1 }}>
-        <PlayTri size={play} />
-      </View>
+    <View
+      style={[styles.box, { height: size * 1.5 }]}
+      accessibilityRole="header"
+      accessibilityLabel="Reals"
+    >
+      <Image
+        source={WORDMARK}
+        style={{ width: Math.round(size * ASPECT), height: size }}
+        resizeMode="contain"
+        tintColor={tint ?? color.ink[900]}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-end' },
-  word: { fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight },
+  // 예전 로고의 줄상자(글자크기 × 1.5)를 그대로 재현합니다 — 위 머리말 참고.
+  box: { justifyContent: 'center', alignItems: 'flex-start' },
 });

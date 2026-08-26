@@ -53,6 +53,25 @@ import {
 
 import { RealsTabBar } from '../ui/TabBar';
 
+/**
+ * 안쪽 가로 스크롤이 탭 넘김을 잠시 멈추게 하는 통로 (2026-08-26).
+ *
+ * 탭 트랙 자체가 가로 ScrollView 라, 화면 안에 **또 다른 가로 스크롤**(AI 추천의
+ * 추천 카드 줄)을 두면 안드로이드에서 바깥이 제스처를 먼저 먹습니다.
+ * 카드를 넘기려고 밀면 카드가 아니라 **탭이 넘어가 마이페이지로 가 버립니다.**
+ *
+ * 안쪽이 손가락을 잡고 있는 동안만 바깥 스크롤을 끕니다.
+ * 쓰는 쪽은 `ui/HScroll` 하나뿐이라 화면 코드는 이걸 몰라도 됩니다.
+ */
+const PagerLockContext = React.createContext<{
+  lock: () => void;
+  unlock: () => void;
+}>({ lock: () => {}, unlock: () => {} });
+
+export function useSwipeTabsLock() {
+  return React.useContext(PagerLockContext);
+}
+
 type SwipeTabOptions = {
   /** 이 화면만 스와이프를 막고 싶을 때. 지금 쓰는 곳은 없습니다. */
   swipeEnabled?: boolean;
@@ -146,6 +165,13 @@ function SwipeTabNavigator({
    */
   const [trackHeight, setTrackHeight] = useState(0);
 
+  /** 안쪽 가로 스크롤이 잡고 있는 동안 탭 넘김을 멈춥니다 (위 PagerLockContext 참고). */
+  const [pagerLocked, setPagerLocked] = useState(false);
+  const lockApi = useMemo(
+    () => ({ lock: () => setPagerLocked(true), unlock: () => setPagerLocked(false) }),
+    []
+  );
+
   const progressX = useRef(new Animated.Value(0)).current; // 네이티브 — 위치
   const progressJS = useRef(new Animated.Value(0)).current; // JS — 색
 
@@ -197,6 +223,8 @@ function SwipeTabNavigator({
            * 방향을 명시해 둡니다.
            */
           directionalLockEnabled
+          // 안쪽 가로 스크롤이 손가락을 잡고 있으면 탭이 넘어가지 않습니다.
+          scrollEnabled={!pagerLocked}
           onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}
           onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: progressX } } }], {
             useNativeDriver: true,
@@ -215,7 +243,11 @@ function SwipeTabNavigator({
         >
           {state.routes.map((route, i) => (
             <View key={route.key} style={{ width, height: trackHeight || undefined }}>
-              {mounted.includes(i) ? descriptors[route.key].render() : null}
+              {mounted.includes(i) ? (
+                <PagerLockContext.Provider value={lockApi}>
+                  {descriptors[route.key].render()}
+                </PagerLockContext.Provider>
+              ) : null}
             </View>
           ))}
         </Animated.ScrollView>

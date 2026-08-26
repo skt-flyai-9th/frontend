@@ -9,11 +9,19 @@
  *          틀린 칸은 테두리·아이콘이 빨강이 되고 아래에 12·heart 한 줄
  *   ③      mt-auto pt-8 "다음" + mt-4 "이미 계정이 있으신가요? 로그인"
  *
- * ⚠️ 시안의 **아이디 칸을 이름으로 바꿨습니다**.
- *    시안은 아이디를 만들게 해 놓고 정작 로그인 화면은 이메일로 로그인합니다.
- *    그대로 두면 사장님이 만든 아이디로 로그인을 시도하다 못 들어옵니다.
- *    명세 1.2 가 받는 값도 name·email·phone·password 라 아이디를 보낼 데가 없습니다.
- *    자리(첫 칸)와 아이콘(user)은 시안 그대로 두고 받는 값만 이름으로 했습니다.
+ * ⚠️ 첫 칸은 시안대로 **"아이디"** 입니다 (2026-08-26, 사장님 지시).
+ *
+ *    한때 "이름" 으로 바꿔 뒀었습니다 — 시안은 아이디를 만들게 해 놓고 정작 로그인은
+ *    이메일로 하기 때문입니다(시안 6차 AuthScreen 도 이메일 로그인입니다). 그래서
+ *    사장님이 만든 아이디로 로그인을 시도하면 못 들어옵니다.
+ *
+ *    사장님 판단은 **시안 우선**이라 되돌렸습니다. 다만 명세 1.2 가 받는 값은
+ *    name·email·phone·password 뿐이라 아이디를 따로 보낼 자리가 없어,
+ *    **적어 주신 아이디를 `name` 으로 보냅니다.**
+ *
+ *    ⚠️ 그래서 마이페이지·프로필 등 "이름" 이 보이는 자리에는 사장님 성함이 아니라
+ *       **아이디가 표시됩니다.** 서버에 아이디 컬럼이 생기면 그때 갈라야 합니다
+ *       (BE_전달사항). 로그인은 지금도 이메일로만 됩니다 — 안내 문구가 그렇게 말합니다.
  *
  * ⚠️ 시안의 "다음 → 본인 인증(문자 6자리)" 단계는 **없습니다**.
  *    인증번호를 보내고 확인하는 API 가 명세에 없습니다. 화면만 만들면 아무 번호나
@@ -28,6 +36,8 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CircleAlert, Lock, Mail, Phone, User } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
@@ -49,6 +59,7 @@ type FormKey = 'name' | 'password' | 'password2' | 'email' | 'phone';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignUpScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   // 가입이 끝나면 이 스택을 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [form, setForm] = useState<Record<FormKey, string>>({
@@ -74,7 +85,8 @@ export default function SignUpScreen({ navigation }: Props) {
   /** 시안 validate 원문 규칙에 명세 1.2 필수값(이름)을 얹었습니다. */
   const validate = () => {
     const next: Partial<Record<FormKey, string>> = {};
-    if (!form.name.trim()) next.name = '이름을 입력해주세요.';
+    // 시안 6차 원문 규칙: 아이디 4자 이상
+    if (form.name.trim().length < 4) next.name = '아이디는 4자 이상 입력해주세요.';
     if (form.password.length < 8) next.password = '비밀번호는 8자 이상 입력해주세요.';
     if (form.password2 !== form.password) next.password2 = '비밀번호가 일치하지 않습니다.';
     if (!EMAIL.test(form.email)) next.email = '올바른 이메일 주소를 입력해주세요.';
@@ -117,23 +129,41 @@ export default function SignUpScreen({ navigation }: Props) {
     >
       <AppBar onBack={() => navigation.goBack()} title="회원가입" />
 
-      <View style={styles.body}>
+      {/*
+        하단 여백은 **시안값과 기기 안전영역 중 큰 쪽**입니다 (2026-08-26).
+        시안 pb-8(32) 만 주면 제스처 내비게이션 폰에서 "이미 계정이 있으신가요? 로그인"
+        이 시스템 바에 덮입니다 — 눌러도 안 눌리고 뒤로가기 제스처로 먹혀 앱이 나갑니다.
+        브라우저 시안에는 시스템 바가 없어 드러나지 않던 문제입니다 (CLAUDE.md §5-③).
+      */}
+      <View style={[styles.body, { paddingBottom: Math.max(insets.bottom, space[8]) }]}>
         {/* ① */}
         <Text style={text.title}>계정을 만들어 볼까요?</Text>
         <Text style={styles.lead}>
+          {/*
+            ⚠️ 시안 원문은 "로그인에 사용할 **아이디와** 비밀번호" 입니다. 그대로 옮기면
+               거짓말이 됩니다 — 로그인 화면은 시안 6차에서도 **이메일**로만 받습니다.
+               그 문구를 믿고 아이디로 로그인을 시도하면 못 들어옵니다.
+               25_푸시 안내 문구를 사실대로 바꿨던 것과 같은 이유입니다(CLAUDE.md §2).
+               서버에 아이디 로그인이 생기면 시안 문구로 되돌리세요.
+          */}
           로그인에 사용할 이메일과 비밀번호, 연락받을 정보를 입력해주세요.
         </Text>
 
         {/* ② */}
         <View style={styles.fields}>
+          {/*
+            시안 6차: 첫 칸은 "아이디" 입니다. 명세 1.2 에 아이디 자리가 없어
+            이 값이 `name` 으로 나갑니다 — 위 머리말 참고.
+          */}
           <AuthField
             icon={User}
-            label="이름"
-            placeholder="가게 사장님 성함"
+            label="아이디"
+            placeholder="4자 이상"
             value={form.name}
             onChangeText={set('name')}
             error={errors.name}
             autoCapitalize="none"
+            autoCorrect={false}
             returnKeyType="next"
           />
           <AuthField
@@ -212,7 +242,8 @@ export default function SignUpScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   // 시안: px-6 pb-8 · 헤더(98) 아래로 pt-[110px] → 12 만큼 띄웁니다
-  body: { flex: 1, paddingHorizontal: space[6], paddingTop: space[3], paddingBottom: space[8] },
+  // paddingBottom 은 화면에서 안전영역과 함께 계산합니다 (위 주석 참고)
+  body: { flex: 1, paddingHorizontal: space[6], paddingTop: space[3] },
 
   // 시안: mt-2 · 14 · slate-muted · leading-relaxed
   lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
