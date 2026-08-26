@@ -22,7 +22,7 @@
  */
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Camera } from 'lucide-react-native';
+import { Camera, Clock, Gauge, Package, Users } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
@@ -32,18 +32,45 @@ import { Banner, Loading } from '../../../ui/Feedback';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
-import { useCreatePlan, useVideoFormat } from '../../../api/queries/project';
+import { useCreatePlan, useShootingSummary, useVideoFormat } from '../../../api/queries/project';
 import { useTasks } from '../../../api/queries/shoot';
 import theme, { color, radius, space, text } from '../../../design/theme';
+import { shootTime } from '../../../lib/format';
 import type { CreateStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'FormatDetail'>;
+
+/**
+ * 촬영 요약 한 줄. 아이콘 + 라벨 + 값.
+ * 값이 없는 항목은 화면에서 아예 빼므로 여기서는 항상 값이 있다고 봅니다.
+ */
+function SummaryItem({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Clock;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.summaryRow}>
+      <Icon size={16} strokeWidth={2} color={color.brand[600]} />
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
 
 export default function FormatDetailScreen({ navigation, route }: Props) {
   const { projectId, formatId } = route.params;
   const { data: format, isLoading, isError, refetch } = useVideoFormat(formatId);
 
   const createPlan = useCreatePlan(projectId ?? 0);
+  /** 화면을 다시 열어도 남는 값 — 7.2 조회에서 같은 요약을 봅니다. */
+  const storedSummary = useShootingSummary(projectId);
   const { data: board, isLoading: tasksLoading } = useTasks(projectId);
   const tasks = board?.tasks ?? [];
 
@@ -83,6 +110,12 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
   }
 
   const preparing = !!projectId && tasks.length === 0 && !createPlan.isError;
+
+  /**
+   * 7.1 이 준 촬영 요약. 화면을 다시 열면 mutation 결과가 없어지므로
+   * 7.2(scenes)에도 같은 값이 들어 있는 것을 함께 봅니다 — 둘 중 있는 쪽을 씁니다.
+   */
+  const summary = createPlan.data?.shootingSummary ?? storedSummary.data ?? null;
 
   return (
     <Screen
@@ -129,6 +162,40 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
 
       {/* ② */}
       <View style={styles.body}>
+        {/*
+         * 촬영 요약 — 7.1 이 주는 `shooting_summary` 입니다 (2026-08-26).
+         *
+         * 🔴 여태 **읽지 않고 버리고 있었습니다.** `createPlan` 을 호출만 하고 응답을
+         *    쓰지 않아, AI 가 계산한 예상 촬영 시간·인원·준비물·난이도가 화면에
+         *    한 번도 안 나왔습니다. BE 가 "값은 정상으로 내려간다" 고 알려 주셔서
+         *    확인해 보니 프론트가 안 읽는 쪽이 맞았습니다.
+         *
+         * ⚠️ `expected_duration_sec` 는 **찍는 데 걸리는 시간**입니다 — 완성 영상
+         *    길이가 아닙니다. 실제로 1800(30분) 같은 값이 옵니다.
+         *
+         * 없는 항목은 줄을 만들지 않습니다(준비물이 빈 배열이면 그 칸이 빠집니다).
+         */}
+        {summary && (
+          <View style={styles.summary}>
+            {shootTime(summary.expectedDurationSec) ? (
+              <SummaryItem
+                icon={Clock}
+                label="예상 촬영 시간"
+                value={shootTime(summary.expectedDurationSec) as string}
+              />
+            ) : null}
+            {summary.requiredPeople ? (
+              <SummaryItem icon={Users} label="필요 인원" value={`${summary.requiredPeople}명`} />
+            ) : null}
+            {summary.difficulty ? (
+              <SummaryItem icon={Gauge} label="난이도" value={summary.difficulty} />
+            ) : null}
+            {summary.props?.length ? (
+              <SummaryItem icon={Package} label="준비물" value={summary.props.join(' · ')} />
+            ) : null}
+          </View>
+        )}
+
         <Text style={styles.sectionTitle}>촬영 컷 구성</Text>
 
         {createPlan.isError ? (
@@ -163,6 +230,25 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // 촬영 요약 — 컷 목록 위에 놓이는 정보 묶음
+  summary: {
+    gap: space[2],
+    marginBottom: space[5],
+    padding: space[4],
+    borderRadius: radius.lg,
+    borderWidth: theme.border.hairline,
+    borderColor: color.brand[100],
+    backgroundColor: color.brand[50],
+  },
+  summaryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
+  summaryLabel: { ...theme.text.bodySmall, width: 88, color: color.ink[500] },
+  summaryValue: {
+    ...theme.text.bodySmall,
+    flex: 1,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[900],
+  },
   // 시안: px-5 · 제목 mt-5 mb-2 pl-1
   body: { paddingHorizontal: space[5] },
   sectionTitle: {

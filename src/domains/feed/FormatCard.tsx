@@ -16,8 +16,10 @@
  *   - 목록에 YouTube 플레이어를 넣지 않습니다. 약관 위반 + 메모리 문제.
  *     썸네일만 보여주고, 재생은 상세(FormatDetail)에서 합니다.
  *   - `#1인촬영`(필요 인원)은 API 에 없는 값이라 뺐습니다. BE 미확정.
- *   - `expected_duration_sec` 는 **완성 영상 길이**입니다(확정).
- *     프로토타입의 "#촬영5분" 과 다른 값이므로 "완성 N초" 로 씁니다.
+ *   - ⚠️ `expected_duration_sec` 는 **찍는 데 걸리는 시간**입니다 (BE 확인 2026-08-26).
+ *     완성 영상 길이로 잘못 알고 "#완성 N초" 로 쓰고 있었습니다. 시안 6차의 카드 태그도
+ *     `#촬영시간5분` 이라 같은 뜻입니다. → **"#촬영 N"** 으로 고쳤습니다.
+ *     값의 폭이 커서(13초도 있고 1800초=30분도 옵니다) `shootTime()` 으로 읽기 쉽게 씁니다.
  *   - 하트는 낙관적 업데이트 — 5.3 이 멱등이라 안전합니다 (useToggleFavorite).
  */
 import React from 'react';
@@ -28,6 +30,7 @@ import { SlateGlyph } from '../../ui/SlateGlyph';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { Skeleton } from '../../ui/Feedback';
+import { shootTime } from '../../lib/format';
 import theme, { color, space, radius, sizing } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
@@ -44,8 +47,9 @@ type Props = {
 export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props) {
   const fav = !!format.isFavorite;
 
-  const tags = [
-    `#완성${format.expectedDurationSec}초`,
+  const tags: (string | null)[] = [
+    // 찍는 데 걸리는 시간입니다 (완성 영상 길이가 아닙니다 — 위 머리말)
+    shootTime(format.expectedDurationSec) ? `#촬영${shootTime(format.expectedDurationSec)}` : null,
     `#난이도${format.shootingDifficulty}`,
     typeof format.requiresFace === 'boolean'
       ? format.requiresFace

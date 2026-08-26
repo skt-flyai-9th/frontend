@@ -13,6 +13,7 @@ import type {
   QuizQuestion,
   RecommendedFormat,
   ShortsProject,
+  ShootingSummary,
   StoryboardScene,
   VideoFormat,
 } from '../schema/types';
@@ -260,6 +261,27 @@ export function useScenes(projectId?: number) {
     queryFn: () => request<{ scenes: StoryboardScene[] }>(API.scenes(projectId!)),
     enabled: !!projectId,
     select: (d) => d.scenes,
+  });
+}
+
+/**
+ * 촬영 요약만 따로 (명세 7.2 응답의 `shooting_summary`).
+ *
+ * 7.1 도 같은 값을 주지만 그건 **한 번 부르고 끝나는 mutation** 이라, 화면을 다시
+ * 열면 사라집니다. 7.2 는 조회라 언제 열어도 남아 있습니다 — 그래서 표시는 이쪽을
+ * 기본으로 씁니다 (`useScenes` 는 select 로 scenes 만 꺼내 이 값을 버립니다).
+ *
+ * ⚠️ `expectedDurationSec` 는 **찍는 데 걸리는 시간**입니다. 완성 영상 길이가 아닙니다.
+ */
+export function useShootingSummary(projectId?: number) {
+  return useQuery({
+    queryKey: [...qk.scenes(projectId ?? 0), 'summary'] as const,
+    queryFn: () =>
+      request<{ scenes: StoryboardScene[]; shootingSummary?: ShootingSummary }>(
+        API.scenes(projectId!)
+      ),
+    enabled: !!projectId,
+    select: (d) => d.shootingSummary ?? null,
   });
 }
 

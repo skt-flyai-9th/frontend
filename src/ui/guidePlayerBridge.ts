@@ -67,16 +67,29 @@ export function extractVideoId(url?: string | null): string | null {
  */
 export function buildEmbedUrl(
   videoId: string,
-  opts: { startSec?: number; allowFullscreen?: boolean; origin?: string } = {}
+  opts: {
+    startSec?: number;
+    allowFullscreen?: boolean;
+    origin?: string;
+    /**
+     * 자동재생. **소리는 끄고 시작합니다.**
+     *
+     * 모바일 브라우저·WebView 는 소리가 있는 자동재생을 막습니다 — `mute=1` 이 없으면
+     * 재생 자체가 시작되지 않습니다. 홈 피드처럼 화면에 **하나만** 자동재생하는
+     * 자리에서만 쓰세요 (유튜브 약관: 한 화면에 자동재생 플레이어는 하나).
+     */
+    autoPlay?: boolean;
+  } = {}
 ): string {
   const vid = /^[\w-]{11}$/.test(videoId) ? videoId : '';
   const start = Math.max(0, Math.floor(opts.startSec ?? 0));
   const fs = opts.allowFullscreen ? 1 : 0;
   const origin = opts.origin ? `&origin=${encodeURIComponent(opts.origin)}` : '';
+  const auto = opts.autoPlay ? '&autoplay=1&mute=1&loop=1&playlist=' + vid : '';
   return (
     `https://www.youtube.com/embed/${vid}` +
     `?playsinline=1&controls=1&rel=0&iv_load_policy=3&fs=${fs}&start=${start}` +
-    `&enablejsapi=1&widgetid=1${origin}`
+    `&enablejsapi=1&widgetid=1${origin}${auto}`
   );
 }
 
