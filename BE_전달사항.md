@@ -289,3 +289,140 @@ AI 트렌드 클러스터가 챌린지마다 영상 주소를 **두 개** 갖고
    `face_exposure_level` — 트렌드 클러스터에 없는 값이라 백엔드도 비워 두고 있습니다.
    카드 아래 `#완성24초 #난이도하 #얼굴노출없음` 줄이 통째로 비어 나옵니다.
    AI 가 줄 수 있는 값인지, 아니면 사람이 채우는 값인지 알려 주세요.
+
+---
+
+## 부록 D. 실서버 실측 보고 (2026-08-26)
+
+테스트 계정을 만들어 **실서버(`https://sarils.p-e.kr`)를 직접 호출해** 확인한 것들입니다.
+추측이 아니라 전부 실제 응답이고, 요청·상태코드를 그대로 적었습니다.
+
+```
+계정      realsqa0826@test.co.kr  (user 25)
+가게      스타벅스 한국프레스센터점 (store 21, 2.1 검색 결과로 등록)
+프로젝트   34 · 35
+```
+
+### D-1. 🔴 7.1 기획 생성이 **항상 500** 입니다 — 촬영 흐름 전체가 막힙니다
+
+```
+POST /shorts-projects/34/plan   {"video_format_id": 5}   → 500 INTERNAL_ERROR
+POST /shorts-projects/34/plan   {"video_format_id": 4}   → 500
+POST /shorts-projects/35/plan   {"video_format_id": 4}   → 500   (새 프로젝트도 동일)
+```
+
+**이것 하나가 아래를 전부 무너뜨립니다.**
+
+```
+7.1 실패 → 프로젝트의 video_format_id 가 영영 null
+        → 8.1 태스크 0개 (촬영할 컷이 안 생김)
+        → 9.1 컷별 가이드 없음
+        → 카메라 좌상단 참고 영상 창이 아예 안 뜸
+```
+
+사장님이 "촬영 화면에 참고 영상이 하나도 안 나온다" 고 하신 게 이 증상입니다.
+프론트는 급한 대로 **사장님이 고른 포맷 번호를 카메라까지 직접 들고 가도록** 우회해
+참고 영상만 살려 뒀습니다. 하지만 **컷 목록이 없는 건 우회가 안 됩니다.**
+
+참고로 이 가게는 2.3 가져오기가 `IN_PROGRESS` 에서 멈춰 있고 메뉴가 0개입니다
+(아래 D-4). 기획 생성이 메뉴를 필요로 해서 죽는 것인지, 별개의 버그인지 알려 주세요.
+
+### D-2. 🔴 R06 AI 추천 — 대화는 되는데 **추천 생성이 503** 입니다
+
+```
+POST /stores/21/shortform-sessions        201  ✅  선택지 정상
+POST /shortform-sessions/34/turns         200  ✅  ASK → SAVE_AND_ASK → CONFIRM 정상
+   (메뉴 → 목적 → 촬영시간 → 얼굴노출 순으로 서버가 알아서 물어봅니다)
+POST .../turns  {"input":{"type":"CONFIRM","value":true}}
+                                          503  ❌  AI_SERVICE_UNAVAILABLE
+                                                   (4초 간격 3회 재시도 전부 동일)
+```
+
+대화 자체는 훌륭하게 돕니다. **마지막 추천 생성만** AI 서버에 못 붙습니다.
+사장님 화면에서는 "이대로 추천받기" 를 누르면 오류만 뜨고 끝납니다.
+
+### D-3. 🟡 추천을 여러 개 주는데 **어느 것을 골랐는지 알릴 방법이 없습니다**
+
+턴 응답의 키가 `recommendations` — **배열**입니다(추천 전에도 `[]` 로 옵니다).
+시안도 카드 세 장을 가로로 넘기는 그림이라 배열이 맞습니다.
+
+그런데 `POST /shortform-sessions/{id}/accept` 에는 **어느 추천인지 지정하는 자리가
+없습니다.** 사장님이 첫 번째 카드를 눌렀는데 세 번째가 만들어질 수 있습니다.
+
+프론트는 일단 `recommendation_id` 를 body 에 함께 보내고 있습니다.
+**서버가 이 값을 보고 고르도록 해 주시거나, 다른 방법을 알려 주세요.**
+
+### D-4. 🟡 추천 응답에 **영상·포맷 번호가 없습니다**
+
+`recommendations[]` 가 주는 것은 `recommendation_id · project_title · title ·
+concept · editing_template_id · editing_template_version` 입니다.
+포맷 번호(`video_format_id`)는 **채택한 뒤에야** 응답으로 돌아옵니다.
+
+그래서 시안의 추천 카드 안 **영상 자리(회색 상자)를 채울 수 없어 비워 뒀습니다.**
+추천 단계에서 `video_format_id` 나 썸네일 주소를 함께 주실 수 있나요?
+
+### D-5. 🟡 2.3 가져오기가 `PENDING` 에서 안 넘어갑니다
+
+```
+GET /stores/21/import-status
+  overall_status: IN_PROGRESS
+  기본정보 SUCCESS / 메뉴 PENDING / 사진 PENDING / 상권분석 PENDING
+GET /stores/21/menus             → { "menus": [] }
+GET /stores/21/target-customers  → { "target_customers": [] }
+```
+
+등록 직후부터 수십 분이 지나도 그대로였습니다. 네이버에서 가져온 유명 프랜차이즈
+지점인데도 메뉴가 0개입니다. 이 상태면 "어떤 메뉴를 홍보할까요?" 화면에서 고를 것이
+없습니다(프론트는 직접 입력으로 빠질 길을 열어 뒀습니다).
+
+### D-6. 🟡 2.1 검색 응답에 `kakao_place_id` 가 **아예 없습니다**
+
+```
+GET /stores/search?keyword=스타벅스
+  응답 키: source, name, address, phone, latitude, longitude,
+           category, distance_m, external_channel_url
+```
+
+명세 2.1 에는 있다고 되어 있어 프론트가 2.2 등록 때 그대로 돌려보내도록 만들어
+뒀는데, **받을 값이 없어 항상 null 로 나갑니다.** 대표메뉴 자동 수집 트리거가
+동작하지 않을 텐데, 명세에서 빼는 게 맞는지 서버에 추가하실 건지 알려 주세요.
+
+**좌표는 정상입니다** (`latitude: 37.5672475`, `longitude: 126.9780493`).
+지도가 안 뜨던 건 좌표 문제가 아니라 타일 서버 쪽이었고, 프론트에서 해결했습니다.
+
+### D-7. ⚪ 6.1 / 6.2 질문형 API 는 폐기된 것으로 이해했습니다
+
+```
+GET  /shorts-projects/34/quiz-questions   → 404 NOT_FOUND
+POST /shorts-projects/34/quiz-answers     → 404 NOT_FOUND
+```
+
+R06 이 대화형 에이전트로 바뀌면서 없어진 것으로 보입니다. 맞다면 **명세에서
+6.1·6.2·6.3 을 지워 주세요.** 프론트는 이 경로를 "서버에 아직 없는 것" 으로 보고
+앱 안에서 흉내 내고 있었는데, 그 장치를 걷어내야 합니다.
+
+### D-8. ⚪ `requires_face` 는 오는데 값이 전부 null 입니다
+
+5.1 응답에 `requires_face` 가 있습니다(프론트 스키마에도 반영했습니다).
+다만 20건 전부 `null` 이라 추천 카드의 `#얼굴미노출` 태그가 나오지 않습니다.
+`format_type` · `expected_duration_sec` · `shooting_difficulty` 도 같습니다
+(부록 C 2번과 같은 건입니다).
+
+**반가운 소식 하나** — `guide_video_url` 이 실제로 들어와 있고 대표 영상과
+**다른 주소**입니다. 부록 C 에서 요청드린 대로입니다. 감사합니다.
+
+```
+BAD 댄스 챌린지     대표 lYzMvH9CbLA  ≠  가이드 0Ez7Zjk1ehM
+스파이더맨 챌린지    대표 TJswcVAYqps  ≠  가이드 qC3dbcu1vaU
+```
+
+### 우선순위
+
+| | 항목 | 영향 |
+|---|---|---|
+| 1 | D-1 · 7.1 이 500 | 촬영 흐름 전체가 반쪽. 컷이 안 생겨 촬영을 시작할 수 없습니다 |
+| 2 | D-2 · 추천 생성 503 | AI 추천 탭이 마지막 단계에서 끝납니다 |
+| 3 | D-3 · accept 에 추천 지정 | 사장님이 고른 것과 다른 게 만들어질 수 있습니다 |
+| 4 | D-5 · 가져오기 PENDING | 메뉴가 비어 홍보 대상을 고를 수 없습니다 |
+| 5 | D-4 · 추천에 포맷 없음 | 카드 영상 자리를 못 채웁니다(시안과 다름) |
+| 6 | D-6 · D-7 · D-8 | 명세 정리 · 데이터 채우기 |
