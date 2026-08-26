@@ -93,14 +93,32 @@ interface Props {
   width?: number;
   /** 세로형(9:16) 자리에 넣을 때. 기본은 16:9 입니다. */
   portrait?: boolean;
+  /**
+   * 재생 위치(초)를 알려 줍니다. 초가 바뀔 때만 불립니다.
+   * PiP 와 확대 화면이 서로 위치를 이어받는 데 씁니다 — 그 외에는 안 써도 됩니다.
+   */
+  onTime?: (sec: number) => void;
 }
 
 /** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
-type PageMsg = { t: 'boot' } | { t: 'ready' } | { t: 'err'; c: number | string } | { t: 'apifail' };
+type PageMsg =
+  | { t: 'boot' }
+  | { t: 'ready' }
+  | { t: 'err'; c: number | string }
+  | { t: 'apifail' }
+  | { t: 'time'; s: number };
 
 type Phase = 'loading' | 'ready' | 'apiFailed' | 'embedBlocked' | 'videoBad';
 
-export function GuidePlayer({ url, startSec, compact = false, fullBleed = false, width: fixedWidth, portrait = false }: Props) {
+export function GuidePlayer({
+  url,
+  startSec,
+  compact = false,
+  fullBleed = false,
+  width: fixedWidth,
+  portrait = false,
+  onTime,
+}: Props) {
   const { width } = useWindowDimensions();
   const videoId = extractVideoId(url);
 
@@ -149,6 +167,10 @@ export function GuidePlayer({ url, startSec, compact = false, fullBleed = false,
     return () => clearTimeout(t);
   }, [videoId]);
 
+  /** 최신 콜백을 담아 둡니다 — onMessage 를 매번 새로 만들지 않기 위해서입니다. */
+  const onTimeRef = useRef(onTime);
+  onTimeRef.current = onTime;
+
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
     let m: PageMsg;
     try {
@@ -157,6 +179,10 @@ export function GuidePlayer({ url, startSec, compact = false, fullBleed = false,
       return;
     }
 
+    if (m.t === 'time') {
+      onTimeRef.current?.(m.s);
+      return;
+    }
     if (m.t === 'ready') {
       setPhase('ready');
       return;

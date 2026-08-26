@@ -34,7 +34,11 @@
  *    그래서 오류 감지를 DOM 긁기에서 **IFrame Player API 의 postMessage** 로 바꿉니다.
  *    (`enablejsapi=1` + `origin` → `onReady`·`onError` 를 유튜브가 직접 보내줍니다)
  *
- * 나가는 메시지: { t: 'boot' | 'ready' | 'err' | 'apifail' }  — 4차와 동일합니다.
+ * 나가는 메시지: { t: 'boot' | 'ready' | 'err' | 'apifail' | 'time' }
+ *
+ * `time` 은 2026-08-26 에 더했습니다. 작은 창(PiP)과 확대 화면이 **재생 위치를
+ * 이어받게** 하려고 씁니다 — 유튜브가 `infoDelivery` 로 계속 보내 주는 값을
+ * 초 단위로 바뀔 때만 올립니다(1초에 한 번꼴). 우리가 따로 물어보지 않습니다.
  */
 
 /** DB(명세 9.1 reference_video.reference_url)가 주는 주소에서 영상 id 를 꺼냅니다. */
@@ -92,7 +96,7 @@ const FRAME_SCRIPT = `
   post({ t: 'boot' });
 
   var frame = document.getElementById('yt');
-  var ready = false, settled = false;
+  var ready = false, settled = false, lastSec = -1;
 
   /** 유튜브에 "이 프레임의 이벤트를 보내달라" 고 신청합니다. */
   function listen() {
@@ -122,7 +126,14 @@ const FRAME_SCRIPT = `
       return;
     }
     if (m.event === 'onReady' || m.event === 'initialDelivery') { markReady(); return; }
-    if (m.event === 'infoDelivery' && m.info && typeof m.info.playerState === 'number') markReady();
+    if (m.event === 'infoDelivery' && m.info) {
+      if (typeof m.info.playerState === 'number') markReady();
+      // 재생 위치. 초가 바뀔 때만 올려 메시지가 쏟아지지 않게 합니다.
+      if (typeof m.info.currentTime === 'number') {
+        var sec = Math.floor(m.info.currentTime);
+        if (sec !== lastSec) { lastSec = sec; post({ t: 'time', s: sec }); }
+      }
+    }
   });
 
   frame.addEventListener('load', listen);
