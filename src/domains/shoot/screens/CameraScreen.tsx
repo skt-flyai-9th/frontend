@@ -41,7 +41,7 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
 const COUNTDOWN_FROM = 3;
 
 export default function CameraScreen({ navigation, route }: Props) {
-  const { projectId, taskId: firstTaskId } = route.params;
+  const { projectId, taskId: firstTaskId, formatId: pickedFormatId } = route.params;
   /**
    * 시안 V4: 촬영은 **한 화면에서 컷을 전부** 끝냅니다.
    * 컷 목록(옛 TaskBoard)은 아래 칩 줄로, 검수(옛 TakeReview)는 바텀시트로
@@ -71,7 +71,13 @@ export default function CameraScreen({ navigation, route }: Props) {
    * 그 영상입니다. 둘 다 없으면 창을 띄우지 않습니다(빈 창을 만들지 않습니다).
    */
   const { data: project } = useProject(projectId);
-  const { data: format } = useVideoFormat(project?.videoFormatId ?? undefined);
+  /*
+   * 포맷은 **route 로 받은 것이 먼저**입니다 (2026-08-26).
+   * 프로젝트의 video_format_id 는 7.1 기획 생성이 성공해야 붙는데, 실서버 7.1 이
+   * 500 을 내는 동안 계속 null 이라 참고 영상 창이 아예 안 떴습니다.
+   * route 값은 사장님이 촬영 준비에서 직접 고른 그 포맷이라 지어낸 값이 아닙니다.
+   */
+  const { data: format } = useVideoFormat(pickedFormatId ?? project?.videoFormatId ?? undefined);
   /*
    * 촬영 중에 따라 보는 화면이라 **가이드 영상** 입니다.
    * 9.1 이 주는 값이 먼저고, 없으면 포맷의 가이드 영상으로 떨어집니다
@@ -86,8 +92,8 @@ export default function CameraScreen({ navigation, route }: Props) {
   const goingToDance = guide?.guideType === 'DANCE';
   useEffect(() => {
     if (!taskId || !goingToDance) return;
-    navigation.replace('DanceCamera', { projectId, taskId });
-  }, [taskId, goingToDance, navigation, projectId]);
+    navigation.replace('DanceCamera', { projectId, taskId, formatId: pickedFormatId });
+  }, [taskId, goingToDance, navigation, projectId, pickedFormatId]);
 
   const guideVisible = useAppState((s) => s.guideVisible);
   const guideOpacity = useAppState((s) => s.guideOpacity);
