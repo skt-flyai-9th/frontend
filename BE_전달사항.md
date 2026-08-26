@@ -24,7 +24,7 @@
 | 🟡 | 14.1 을 진행 중에 다시 부르면? | 앱이 화면 재진입마다 부르고 있습니다 |
 | 🟡 | 3.1 명세 Body 가 실제 서버와 다릅니다 | 서버는 다 받습니다 — 문서만 |
 | 🟡 | 15.1 음원 메타데이터 · 3.6 로고 캐시 | 이전 질문 유지 |
-| 🔴 | **16.1 인스타 Invalid scope** | 연동이 여기서 막힙니다. `instagram_business_manage_insights` 가 앱에 안 열린 것으로 보입니다 — 가르는 주소 4개를 §2-8 에 뒀습니다 |
+| 🔴 | **16.1 인스타 `client_id` 가 페이스북 App ID** | 연동이 여기서 막힙니다. 인스타 authorize 에는 **Instagram App ID** 를 넣어야 합니다. 증거·고치는 법 §2-8 |
 | 🔴 | **16.1 요청 범위가 읽기 전용** | scope 에 올리는 권한이 없어 16.2 자동 게시가 불가능해 보입니다 (§2-8) |
 | ⚪ | 유료 플랜 MVP 여부 · 기존 대기 항목 | |
 
@@ -212,54 +212,63 @@ GET /sns-connections/callback (엉터리 code) → 400 "연동에 실패했습�
   테스트 모드면 연동해 볼 계정을 테스터로 등록해 주셔야 합니다.
   앱에는 계정 조건 안내를 동의 화면에 넣어 뒀습니다.
 
-#### 🔴 실패 원인 좁히기 — 인스타 "Invalid scope" (2026-08-26 추가)
+#### 🔴 원인을 찾았습니다 — `client_id` 가 **페이스북 App ID** 입니다 (2026-08-26)
 
-사장님 쪽에서 **비즈니스 계정 + 페이스북 페이지 연결이 된 상태로** 눌렀는데 이렇게 떴습니다.
+사장님 쪽 오류 원문입니다. **비즈니스 계정 + 페이스북 페이지 연결이 된 상태**였습니다.
 
 ```
 유효하지 않은 요청: 요청 매개변수가 유효하지 않습니다:
 Invalid scope: instagram_business_basic+instagram_business_manage_insights
 ```
 
-계정 조건은 아니라는 뜻입니다(§2-8f 는 이걸로 배제됩니다). 알아본 결과는 이렇습니다.
+처음에는 `instagram_business_manage_insights` 가 앱에 안 열린 것으로 봤는데,
+scope 만 바꾼 주소 4개를 시험해 보니 **`instagram_business_basic` 하나만 넣은 것까지
+전부 막혔습니다.** 특정 권한 문제가 아니라는 뜻이라 앱 설정 쪽을 팠습니다.
 
-**구분자는 문제가 아닐 가능성이 큽니다.** 메타 문서가 `scope` 를
-"comma-separated **또는 URL 인코딩된 space-separated**" 로 명시합니다. 서버는
-`%20`(인코딩된 공백)을 보내고 있어 규격상 맞습니다. 에러가 두 스코프를 `+` 로
-이어 되읊은 건, 메타가 받은 파라미터를 그대로 되돌려 쓰면서 공백을 `+` 로
-표기한 것으로 보입니다 — 파싱에 실패했다는 증거는 아닙니다.
+**결정적 증거 — 이 id 는 페이스북 앱 다이얼로그가 받습니다.**
 
-**유력한 원인은 `instagram_business_manage_insights` 가 앱에 열려 있지 않은 것입니다.**
-이 권한은 나중에 추가된 것이고 **앱 심사(App Review) 대상**입니다. 앱 대시보드에서
-권한이 추가·승인되지 않은 상태로 요청하면 메타는 `Invalid scope` 를 돌려줍니다.
-`instagram_business_basic` 은 기본 권한이라 그냥 통과합니다.
+```
+GET facebook.com/v21.0/dialog/oauth?client_id=1234567890123456  (아무 숫자)
+   → /oauth/error/?error_code=PLATFORM__INVALID_APP_ID
+     "앱 ID 오류: 입력된 앱 ID가 유효한 앱 ID와 다릅니다."
 
-- **Q2-8g. 아래 네 주소를 인스타에 로그인된 브라우저로 열어 보시고 결과를 알려주세요.**
-  어느 것이 통과하고 어느 것이 막히는지로 원인이 한 번에 갈립니다.
-  (`state=diag` 라 동의까지 눌러도 마지막 콜백은 실패합니다. **동의 화면이 뜨는지만** 보면 됩니다.)
+GET facebook.com/v21.0/dialog/oauth?client_id=1541622377157897  (지금 쓰는 id)
+   → 정상. 페이스북 로그인 화면이 뜹니다 (앱 ID 오류 없음)
+```
 
-  | | scope | 확인하는 것 |
-  |---|---|---|
-  | A | `instagram_business_basic` | 기본 권한만으로는 되는가 |
-  | B | `...basic,...manage_insights` (쉼표) | 구분자를 바꾸면 되는가 |
-  | C | `...basic%20...manage_insights` (공백) | 지금 서버가 보내는 것 |
-  | D | `instagram_business_manage_insights` | 성과 권한 자체가 열려 있는가 |
+**`1541622377157897` 은 유효한 페이스북 App ID 입니다.**
 
-  ```
-  A https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_basic&state=diag
-  B https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_insights&state=diag
-  C https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_basic%20instagram_business_manage_insights&state=diag
-  D https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_manage_insights&state=diag
-  ```
+그런데 메타 문서는 `https://www.instagram.com/oauth/authorize` 의 `client_id` 가
+**"Instagram App ID" — 페이스북 App ID 가 아니라고** 명시합니다.
 
-  **A 만 통과하면** → 성과 권한이 앱에 안 열린 것입니다. 앱 대시보드에서 권한을 추가하고
-  심사를 넣거나, **당장 연동만 살리려면 scope 에서 insights 를 빼 주세요.**
-  (그러면 17.x 성과 수치는 못 가져옵니다 — 대신 연동은 오늘 됩니다.)
-  **B 는 되고 C 는 안 되면** → 구분자를 쉼표로 바꿔 주세요.
+> App Dashboard > Instagram > API setup with Instagram login >
+> 3. Set up Instagram business login > **Business login settings > Instagram App ID**
+
+이 둘은 **서로 다른 숫자**입니다. 페이스북 App ID 를 인스타 authorize 에 넣으면
+인스타는 그 앱의 Instagram-Login 설정을 못 찾고, 등록된 scope 가 없으니
+**무슨 scope 를 넣든 `Invalid scope`** 가 납니다. 관측된 증상과 정확히 맞습니다
+(넷 다 실패 · 기본 권한 하나만 넣어도 실패).
+
+- **Q2-8g. 아래 둘 중 하나로 고쳐 주세요.**
+
+  **(가) 지금 흐름 유지 — `client_id` 만 교체 (권장)**
+  App Dashboard > Instagram > API setup with Instagram login > Business login settings
+  에서 **Instagram App ID** 를 찾아 그 값으로 바꾸시면 됩니다. 같은 화면의
+  **OAuth redirect URI** 목록에 `https://sarils.p-e.kr/sns-connections/callback` 이
+  들어 있는지도 같이 확인해 주세요. 앱 코드는 손댈 게 없습니다.
+
+  **(나) 페이스북 로그인 방식으로 전환**
+  authorize 주소를 `facebook.com/v21.0/dialog/oauth` 로 바꾸고 scope 를
+  `instagram_basic` · `instagram_manage_insights` · `pages_show_list` 등으로 교체.
+  지금 id 를 그대로 쓸 수 있지만, 사장님이 **페이스북 계정으로** 로그인하게 됩니다.
+  40~60대 사용자에게는 (가)가 낫다고 봅니다.
+
+  어느 쪽이든 **앱은 서버가 주는 `authorize_url` 을 열기만 하므로 프론트 수정은 없습니다.**
 
 - **Q2-8h.** 유튜브도 같은 종류의 벽이 있습니다. `yt-analytics.readonly` ·
   `youtube.readonly` 는 구글 **민감 범위**라, OAuth 동의 화면이 미검증이면
   **테스트 사용자로 등록된 계정만** 통과합니다. 지금 게시 상태인가요, 테스트인가요?
+  (인스타를 고친 뒤 유튜브도 같은 계정으로 한 번 확인이 필요합니다.)
 
 #### 이전 질문 (그대로 유지)
 
