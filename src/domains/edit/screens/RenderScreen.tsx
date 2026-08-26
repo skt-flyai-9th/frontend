@@ -35,11 +35,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Circle, CircleCheck, MapPin, TriangleAlert } from 'lucide-react-native';
+import { Circle, CircleCheck, TriangleAlert } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
+import { EditLoadingArt } from '../components/EditLoadingArt';
 import { Screen } from '../../../ui/Screen';
 import { Spinner, StateBlock } from '../../../ui/Feedback';
 import theme, { color, radius, space, text } from '../../../design/theme';
@@ -79,33 +80,6 @@ const RENDER_PLATFORM: TargetPlatform = 'INSTAGRAM';
  */
 const TIMEOUT_MS = 900000;
 
-/**
- * 미리보기 칩의 등장 효과 — 시안 `rise-in` / `pop-in` 을 그대로 옮겼습니다.
- *   rise  @keyframes rise{from{opacity:0;translateY(14px)}}  .3s cubic-bezier(.16,1,.3,1)
- *   pop   @keyframes pop {from{opacity:0;scale(.6)}}         .3s cubic-bezier(.34,1.4,.64,1)
- *
- * 단계가 지나갈 때 뭐가 더해졌는지 눈에 걸려야 진행이 읽힙니다. 그냥 나타나면
- * 사장님은 방금 무엇이 바뀌었는지 못 봅니다.
- */
-function ChipIn({ mode, style, children }: { mode: 'rise' | 'pop'; style: object; children: React.ReactNode }) {
-  const t = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(t, {
-      toValue: 1,
-      duration: 300,
-      easing:
-        mode === 'rise' ? Easing.bezier(0.16, 1, 0.3, 1) : Easing.bezier(0.34, 1.4, 0.64, 1),
-      useNativeDriver: true,
-    }).start();
-  }, [t, mode]);
-
-  const transform =
-    mode === 'rise'
-      ? [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }]
-      : [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }];
-
-  return <Animated.View style={[style, { opacity: t, transform }]}>{children}</Animated.View>;
-}
 
 export default function RenderScreen({ navigation, route }: Props) {
   const { projectId, platform } = route.params;
@@ -276,27 +250,14 @@ export default function RenderScreen({ navigation, route }: Props) {
           </Text>
         </View>
 
-        {/* ② 미리보기 — 아직 완성본이 없으므로 자리만 잡습니다. */}
-        <View style={styles.preview}>
-          <Text style={styles.previewLabel}>촬영된 영상</Text>
-          {/*
-            단계가 넣는 것을 상자 위에 얹어 보여줍니다. 완성본이 아니라 **예시**입니다 —
-            실제 자막·위치 태그는 서버가 만든 결과물에 들어갑니다.
-          */}
-          {stepIndex >= 2 && (
-            <ChipIn mode="rise" style={styles.captionChip}>
-              <Text style={styles.captionText}>이 한 그릇, 30년입니다</Text>
-            </ChipIn>
-          )}
-          {stepIndex >= 3 && (
-            <ChipIn mode="pop" style={styles.placeChip}>
-              <MapPin size={12} strokeWidth={2} color={color.paper} />
-              <Text style={styles.placeText} numberOfLines={1}>
-                {store?.name ?? '우리 가게'}
-              </Text>
-            </ChipIn>
-          )}
-        </View>
+        {/*
+          ② 편집 중 그림 (시안 9차).
+          8차까지는 "촬영된 영상" 회색 상자 + 자막칩·위치칩이었는데, 9차에서
+          **상자가 통째로 교체**됐습니다 — 칩들도 함께 사라집니다.
+          완성본이 아직 없는 자리라 예시를 얹어 두는 것보다 "지금 뭘 하는 중" 을
+          그림으로 말해 주는 편이 맞습니다 (EditLoadingArt 머리말).
+        */}
+        <EditLoadingArt done={done} />
 
         {/* ③ 단계 */}
         <View style={styles.steps}>
@@ -340,59 +301,6 @@ const styles = StyleSheet.create({
   sub: { ...text.bodySmall, color: color.ink[500] },
 
   // 시안: mx-auto mt-6 · w-[190px] · aspect-[9/16] · rounded-2xl · bg-hairline
-  preview: {
-    alignSelf: 'center',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: space[6],
-    width: 190,
-    aspectRatio: 9 / 16,
-    borderRadius: radius.lg,
-    borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    backgroundColor: color.ink[200],
-    overflow: 'hidden',
-  },
-  previewLabel: { ...text.caption, color: color.ink[500] },
-
-  // 시안: bottom-14 가운데 · ink/70 · 12 bold white
-  captionChip: {
-    position: 'absolute',
-    bottom: 56,
-    paddingHorizontal: space[2],
-    paddingVertical: 4,
-    borderRadius: radius.xs,
-    backgroundColor: 'rgba(15,23,42,0.7)',
-  },
-  captionText: {
-    ...text.label,
-    fontFamily: theme.text.heading.fontFamily,
-    fontWeight: theme.text.heading.fontWeight,
-    color: color.paper,
-  },
-  // 시안: bottom-3 left-3 · bg-brand · 11 semibold white
-  placeChip: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    maxWidth: 190 - 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: color.brand[600],
-  },
-  placeText: {
-    ...text.micro,
-    fontFamily: theme.text.chipLabel.fontFamily,
-    fontWeight: theme.text.chipLabel.fontWeight,
-    flexShrink: 1,
-    color: color.paper,
-  },
-
-  // 시안: mt-7(28) gap-2.5(10)
   steps: { marginTop: space[7], gap: 10 },
   /*
    * 시안 한 줄 높이는 24 입니다 — 아이콘 22 가 아니라 15px 글자의 줄높이가 잡습니다.

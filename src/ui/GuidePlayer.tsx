@@ -103,6 +103,19 @@ interface Props {
    * 유튜브 약관은 한 화면에 자동재생 플레이어를 하나로 제한합니다.
    */
   autoPlay?: boolean;
+  /**
+   * 구간 반복 — 이 구간만 되풀이합니다. 촬영 화면에서 **지금 찍을 컷**에 해당하는
+   * 부분만 보여 주려는 것입니다. 둘 중 하나라도 없으면 전체를 그대로 재생합니다.
+   *
+   * ⚠️ 값이 바뀌어도 **영상을 다시 받지 않습니다.** 주소를 갈아끼우면 iframe 이
+   *    새로 뜨면서 검은 화면이 스칩니다 — 컷을 넘길 때마다 그러면 안 됩니다.
+   *    대신 프레임 안의 `__setLoop` 만 부릅니다 (guidePlayerBridge.ts).
+   *
+   * 서버가 `start_ms`·`end_ms` 를 주면 그것을 초로 바꿔 넣으면 됩니다.
+   * 지금은 그 값이 API 에 없습니다 (BE_전달사항 §2-10).
+   */
+  loopStart?: number | null;
+  loopEnd?: number | null;
 }
 
 /** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
@@ -124,6 +137,8 @@ export function GuidePlayer({
   portrait = false,
   onTime,
   autoPlay = false,
+  loopStart,
+  loopEnd,
 }: Props) {
   const { width } = useWindowDimensions();
   const videoId = extractVideoId(url);
@@ -177,6 +192,25 @@ export function GuidePlayer({
   /** 최신 콜백을 담아 둡니다 — onMessage 를 매번 새로 만들지 않기 위해서입니다. */
   const onTimeRef = useRef(onTime);
   onTimeRef.current = onTime;
+
+  /*
+   * 구간 반복을 프레임에 밀어 넣습니다.
+   *
+   * 플레이어가 **준비된 뒤**에 걸어야 합니다 — 준비 전에 seekTo 를 보내면 유튜브가
+   * 무시합니다. 그래서 `phase` 도 함께 봅니다.
+   *
+   * 영상 주소(frameHtml)는 이 값에 의존하지 않습니다. 그래야 컷이 바뀌어도 iframe 이
+   * 그대로 남아 검은 화면이 안 스칩니다 (실측: 컷 3개를 넘겨도 재로딩 0회).
+   */
+  const webRef = useRef<WebView>(null);
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    const ok = typeof loopStart === 'number' && typeof loopEnd === 'number' && loopEnd > loopStart;
+    const js = ok
+      ? `window.__setLoop && window.__setLoop(${loopStart}, ${loopEnd}); true;`
+      : 'window.__clearLoop && window.__clearLoop(); true;';
+    webRef.current?.injectJavaScript(js);
+  }, [phase, loopStart, loopEnd]);
 
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
     let m: PageMsg;
@@ -257,6 +291,7 @@ export function GuidePlayer({
       ]}
     >
       <WebView
+        ref={webRef}
         /*
          * ⚠️ baseUrl 은 필수입니다. 이게 없으면 문서 origin 이 null 이 되어
          *    유튜브가 임베드를 거부합니다(오류 153, 2026-08-25 실측).

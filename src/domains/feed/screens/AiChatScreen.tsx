@@ -232,6 +232,8 @@ export default function AiChatScreen() {
   const [freeInput, setFreeInput] = useState(false);
   /** "직접 입력" 을 눌러 연 칸에 커서를 넣어 키보드까지 함께 올립니다. */
   const inputRef = useRef<TextInput>(null);
+  /** 세션 생성이 진행 중인지. 자동 시작과 새로고침이 겹쳐 세션을 두 개 만드는 것을 막습니다. */
+  const starting = useRef(false);
 
   const createSession = useCreateShortformSession(storeId ?? undefined);
   const submitTurn = useSubmitShortformTurn(sessionId);
@@ -260,8 +262,22 @@ export default function AiChatScreen() {
     [append]
   );
 
+  /**
+   * 대화를 처음부터 시작합니다 — 화면 진입과 상단 새로고침이 같이 씁니다.
+   *
+   * ⚠️ `createSession.isPending` 만으로는 중복을 못 막습니다 (2026-08-26 실측).
+   *    새로고침을 누르면 이 함수가 **먼저 상태를 비우고**(sessionId·log) 옛 세션을
+   *    지우려 `await` 합니다. 그 사이 자동 시작 effect 가 "세션도 없고 대화도
+   *    비었네" 하고 다시 들어오는데, `mutate` 는 아직 안 불렸으니 isPending 은
+   *    false 라 그대로 통과합니다. **한 번 눌렀는데 세션이 두 개 생겼습니다**
+   *    (`201 /stores/21/shortform-sessions` 가 두 번 찍혔습니다).
+   *
+   *    ref 는 렌더를 기다리지 않고 그 자리에서 바뀌므로 이 틈을 막습니다.
+   *    RenderScreen 의 14.1 중복 호출과 같은 종류의 버그입니다.
+   */
   const begin = useCallback(async () => {
-    if (!storeId || createSession.isPending) return;
+    if (!storeId || createSession.isPending || starting.current) return;
+    starting.current = true;
     const oldSessionId = sessionId;
     setSessionId(undefined);
     setRecommendations([]);
@@ -284,6 +300,10 @@ export default function AiChatScreen() {
         setLog([
           { role: 'ai', content: session.assistantMessage ?? '오늘 어떤 영상을 찍을까요?' },
         ]);
+      },
+      // 실패해도 반드시 풀어 줍니다 — 안 그러면 다시 시작할 길이 막힙니다.
+      onSettled: () => {
+        starting.current = false;
       },
     });
   }, [createSession, sessionId, storeId]);

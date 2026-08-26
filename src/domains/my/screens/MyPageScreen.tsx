@@ -5,7 +5,7 @@
  *   ① 헤더: 가게 이름(중앙 18·bold) + 메뉴 아이콘
  *   ② 아바타 92 + 링 · 오른쪽에 Videos / Views 통계
  *   ③ 카테고리 · place+ · 인스타그램 · 유튜브
- *   ④ "프로필 수정하기" 전체폭 아웃라인 버튼
+ *   ④ "매장 정보 수정" 전체폭 아웃라인 버튼 (시안 9차 문구)
  *   ⑤ Professional Insight 카드 (brand-tint + brand-border)
  *   ⑥ 3열 그리드 **풀블리드** (간격 2px, 좌우 여백 0)
  *
@@ -179,7 +179,7 @@ export default function MyPageScreen() {
 
         {/* ── ④ 시안: 전체폭 h-9 아웃라인 버튼 ── */}
         <Button
-          label="프로필 수정하기"
+          label="매장 정보 수정"
           variant="secondary"
           onPress={() => nav.navigate('EditProfile')}
           style={styles.editBtn}
