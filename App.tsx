@@ -9,12 +9,11 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { Text, View } from 'react-native';
+import { Image, View } from 'react-native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAppFonts } from './src/design/fonts';
 import { useHydrated } from './src/lib/appState';
 import { ApiError } from './src/api/http';
-import { PlayTri } from './src/ui/RealsLogo';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -127,23 +126,21 @@ export default function App() {
 
   if (!ready) {
     /**
-     * 시안 splash — 폰트 로딩 공백을 빈 화면 대신 로고(Reals▶)로 채웁니다.
+     * splash — 폰트·저장값이 올라오는 공백을 빈 화면 대신 로고로 채웁니다.
      *
-     * ⚠️ 여기서는 ui/RealsLogo 를 쓰지 않습니다.
-     *    그 컴포넌트는 Pretendard 패밀리를 지정하는데, 이 화면이 그려지는 시점은
-     *    폰트가 **아직 로딩되기 전**입니다. 없는 패밀리를 지정하면 기기에 따라
-     *    글자가 잠깐 깨져 보입니다. 그래서 글자는 시스템 폰트로 두고,
-     *    삼각형만 시안과 같은 도형(PlayTri)을 씁니다.
-     *    시안 비율: 삼각형 = 글자 크기 × 0.31 → 34 × 0.31 ≈ 11
+     * 2026-08-26: 새 로고 이미지로 바꾸면서 **폰트 걱정이 없어졌습니다.**
+     * 예전에는 글자로 그렸는데, 이 화면은 Pretendard 가 아직 로딩되기 전이라
+     * 없는 패밀리를 지정하면 글자가 잠깐 깨져 보였습니다. 이미지는 그 문제가 없습니다.
+     * 폭 168 은 예전 글자(34) 로고와 눈으로 같은 무게가 되는 값입니다.
      */
     return (
       <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-          <Text style={{ fontSize: 34, fontWeight: '600', letterSpacing: -0.68, color: '#0F172A' }}>Reals</Text>
-          <View style={{ marginLeft: 34 * 0.06, marginBottom: 34 * 0.1 }}>
-            <PlayTri size={11} />
-          </View>
-        </View>
+        <Image
+          source={require('./assets/logo-wordmark.png')}
+          style={{ width: 168, height: 168 / (813 / 263) }}
+          resizeMode="contain"
+          tintColor="#0F172A"
+        />
       </View>
     );
   }
