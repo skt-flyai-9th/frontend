@@ -111,6 +111,30 @@ const FRAME_SCRIPT = `
   var frame = document.getElementById('yt');
   var ready = false, settled = false, lastSec = -1;
 
+  /**
+   * 구간 반복. null 이면 끄고 전체를 그대로 재생합니다.
+   * 값은 **밖에서 바꿉니다** — 컷이 넘어갈 때마다 iframe 을 다시 만들면 검은 화면이
+   * 스치므로, 주소를 갈아끼우지 않고 이 변수만 바꾸고 그 자리로 보냅니다.
+   */
+  var loop = null;
+
+  /** IFrame API 명령 채널. 문서 안 <video> 를 잡지 않습니다 — 그 방식이 예전에 먹통이었습니다. */
+  function cmd(func, args) {
+    try {
+      frame.contentWindow.postMessage(
+        JSON.stringify({ event: 'command', func: func, args: args || [] }), '*'
+      );
+    } catch (e) {}
+  }
+
+  window.__setLoop = function (s, e) {
+    if (typeof s !== 'number' || typeof e !== 'number' || !(e > s)) { loop = null; return; }
+    loop = { start: s, end: e };
+    cmd('seekTo', [s, true]);
+    cmd('playVideo');
+  };
+  window.__clearLoop = function () { loop = null; };
+
   /** 유튜브에 "이 프레임의 이벤트를 보내달라" 고 신청합니다. */
   function listen() {
     try {
@@ -141,9 +165,18 @@ const FRAME_SCRIPT = `
     if (m.event === 'onReady' || m.event === 'initialDelivery') { markReady(); return; }
     if (m.event === 'infoDelivery' && m.info) {
       if (typeof m.info.playerState === 'number') markReady();
-      // 재생 위치. 초가 바뀔 때만 올려 메시지가 쏟아지지 않게 합니다.
       if (typeof m.info.currentTime === 'number') {
-        var sec = Math.floor(m.info.currentTime);
+        var t = m.info.currentTime;
+        /*
+         * 구간 반복은 **여기 프레임 안에서** 판단합니다. 밖으로 올리는 time 은 초 단위로
+         * 깎여 있어(아래) 3초짜리 컷에서는 쓸 수가 없습니다. 여기 t 는 원본 그대로입니다.
+         *
+         * 유튜브는 위치를 ~0.25초 간격으로 알려줍니다. 그래서 끝점을 그만큼 지나쳤다가
+         * 되감깁니다 — 더 줄일 방법이 없고, 실측으로 0.1~0.2초였습니다.
+         */
+        if (loop && (t >= loop.end || t < loop.start - 0.5)) cmd('seekTo', [loop.start, true]);
+        // 재생 위치. 초가 바뀔 때만 올려 메시지가 쏟아지지 않게 합니다.
+        var sec = Math.floor(t);
         if (sec !== lastSec) { lastSec = sec; post({ t: 'time', s: sec }); }
       }
     }

@@ -69,10 +69,19 @@ const DRAG_SLOP = 6;
 
 export function PipGuide({
   url,
+  loopStart,
+  loopEnd,
   startSec,
   width: pipWidth = DEFAULT_WIDTH,
 }: {
   url?: string | null;
+  /**
+   * 구간 반복 — 지금 찍는 컷에 해당하는 부분만 되풀이합니다.
+   * 작은 창과 확대 화면 **둘 다** 같은 구간을 씁니다.
+   * 서버가 `start_ms`·`end_ms` 를 주면 초로 바꿔 넣으면 됩니다 (BE §2-10).
+   */
+  loopStart?: number | null;
+  loopEnd?: number | null;
   startSec?: number;
   /** 창 폭. 기본 170(카메라) · 안무 카메라는 180 을 넘겨줍니다 — 위 머리말 참고. */
   width?: number;
@@ -205,6 +214,8 @@ export function PipGuide({
             width={pipWidth}
             portrait
             compact
+            loopStart={loopStart}
+            loopEnd={loopEnd}
             onTime={(s) => {
               lastSec.current = s;
             }}
@@ -220,6 +231,8 @@ export function PipGuide({
             startSec={bigStart}
             width={bigWidth}
             portrait
+            loopStart={loopStart}
+            loopEnd={loopEnd}
             onTime={(s) => {
               lastSec.current = s;
             }}

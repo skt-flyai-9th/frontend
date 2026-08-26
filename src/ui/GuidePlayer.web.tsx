@@ -37,6 +37,14 @@ interface Props {
   width?: number;
   /** 세로형(9:16) 자리에 넣을 때. 기본은 16:9 입니다. */
   portrait?: boolean;
+  /*
+   * 아래 셋은 웹 자리표시자에서 **쓰지 않습니다.** 그래도 받아 둡니다 —
+   * 네이티브와 타입이 갈라지면 화면 쪽에서 넘기다 컴파일이 깨집니다.
+   */
+  onTime?: (sec: number) => void;
+  autoPlay?: boolean;
+  loopStart?: number | null;
+  loopEnd?: number | null;
 }
 
 export function GuidePlayer({ url, compact = false, fullBleed = false, width: fixedWidth, portrait = false }: Props) {
