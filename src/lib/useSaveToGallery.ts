@@ -70,8 +70,21 @@ export function useSaveToGallery(): State & {
       // 내려받은 결과 파일을 그대로 씁니다 — 서버가 파일명을 바꾸는 경우까지 안전합니다.
       const downloaded = await File.downloadFileAsync(videoUrl, dest);
 
-      // SDK 57 정식 API. saveToLibraryAsync 는 deprecated 되었습니다.
-      await MediaLibrary.Asset.create(downloaded.uri);
+      /*
+       * ⚠️ `Asset.create` 의 인자 이름은 **filePath** 입니다 (uri 가 아닙니다).
+       *    `file:///…` 형태를 그대로 받는 기기도 있고, 스킴을 뗀 경로만 받는 기기도
+       *    있습니다. 어느 쪽인지 밖에서는 알 수 없어 **둘 다 시도**합니다.
+       *    한쪽이 실패했다고 저장을 포기하면, 영상은 멀쩡히 받아 놓고
+       *    "저장하지 못했습니다" 만 뜹니다 — 실제로 그 상태였습니다.
+       */
+      const uri = downloaded.uri;
+      const plain = uri.replace(/^file:\/\//, '');
+      try {
+        await MediaLibrary.Asset.create(uri);
+      } catch (first) {
+        console.warn('[saveToGallery] uri 로 실패, 경로로 재시도', first);
+        await MediaLibrary.Asset.create(plain);
+      }
       setSaved(true);
     } catch (e) {
       console.warn('[saveToGallery] 저장 실패', e);

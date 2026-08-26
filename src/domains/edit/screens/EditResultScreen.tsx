@@ -15,9 +15,9 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -127,6 +127,43 @@ export default function EditResultScreen({ navigation, route }: Props) {
   const createOutputs = useCreateOutputs(projectId);
   const { data: outputs } = useOutputs(projectId);
   const { saving, saved, save } = useSaveToGallery();
+
+  /**
+   * "내보내기" — 완성 영상을 인스타·유튜브 등 다른 앱으로 보냅니다.
+   *
+   * 🔴 2026-08-26 — 눌러도 아무 일이 없던 원인
+   *    `Share.share({ message, url })` 을 쓰고 있었는데 **안드로이드의 RN Share 는
+   *    `url` 을 통째로 무시합니다.** 글자만 공유되고 영상은 안 갑니다. 게다가 캡션이
+   *    비어 있으면 `message` 가 빈 문자열이라 Share 가 예외를 던지는데
+   *    `.catch(() => {})` 로 삼켜서 **정말 아무 일도 일어나지 않았습니다.**
+   *
+   * 영상 파일 자체를 다른 앱으로 넘기려면 `expo-sharing` 이 필요한데 네이티브 모듈이라
+   * **APK 를 다시 만들어야** 합니다. 다음 빌드에 넣기로 하고, 그때까지는 사장님이
+   * 실제로 밟는 순서를 대신 해 줍니다.
+   *
+   *   ① 사진첩에 저장하고
+   *   ② 올릴 문구를 클립보드에 복사한 뒤
+   *   ③ 어디서 이어서 하면 되는지 알립니다
+   *
+   * 조용히 실패하지 않는 것이 핵심입니다 — 저장이 안 되면 그 이유가 그대로 뜹니다.
+   */
+  const [exporting, setExporting] = useState(false);
+  const exportToApps = async (videoUrl?: string | null, fileKey?: string | number) => {
+    setExporting(true);
+    try {
+      await save(videoUrl, fileKey);
+      const caption = [postTitle, postBody].filter(Boolean).join('\n\n');
+      if (caption) await Clipboard.setStringAsync(caption);
+      Alert.alert(
+        '사진첩에 저장했습니다',
+        caption
+          ? '올릴 문구도 복사해 두었습니다.\n인스타그램·유튜브 앱에서 사진첩의 영상을 고르고 문구를 붙여넣어 주세요.'
+          : '인스타그램·유튜브 앱에서 사진첩의 영상을 골라 올려 주세요.'
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
   const ready = outputs?.outputs?.find((o) => o.renderStatus === 'COMPLETED');
   const kit = outputs?.publishKit;
   const requested = useRef(false);
@@ -259,18 +296,11 @@ export default function EditResultScreen({ navigation, route }: Props) {
             onPress={() => ready && save(ready.videoUrl, ready.id)}
           />
           <Button
-            label="내보내기"
+            label={exporting ? '준비 중…' : '내보내기'}
             icon={Upload}
-            disabled={!ready}
+            disabled={!ready || exporting}
             style={styles.actionBtn}
-            onPress={() =>
-              ready &&
-              Share.share({
-                // 제목·내용은 화면에서만 나눠 보여 줍니다. 공유는 원래 한 덩어리(caption)로 갑니다.
-                message: [postTitle, postBody].filter(Boolean).join('\n\n'),
-                url: ready.videoUrl,
-              }).catch(() => {})
-            }
+            onPress={() => ready && exportToApps(ready.videoUrl, ready.id)}
           />
         </View>
 

@@ -175,15 +175,53 @@ export default function EditProfileScreen() {
     setForm((p) => ({ ...p, [k]: v }));
   };
 
+  /**
+   * 프로필 사진 고르기 → 3.6 업로드.
+   *
+   * 🔴 2026-08-26 — "사진이 안 바뀐다" 는 보고
+   *
+   *    서버는 정상입니다. 실서버에 직접 올려 **200 과 `logo_url`** 을 받았습니다
+   *    (multipart 필드명 `file` 이 맞고, 다른 이름은 422 입니다).
+   *
+   *    코드에서 찾은 구멍은 **가게가 없을 때**입니다. `useUploadLogo(storeId ?? 0)` 라
+   *    가게를 아직 등록하지 않았으면 `/stores/0/logo` 로 나가 무조건 실패합니다.
+   *    화면에는 "사진을 올리지 못했습니다" 만 떠서 원인을 알 수 없었습니다.
+   *    → 가게가 없으면 아예 시도하지 않고 그 사실을 말해 줍니다.
+   *
+   *    함께 손본 것
+   *      · 실패 사유를 Alert 에 그대로 띄웁니다 — 그 문구가 다음 진단입니다
+   *      · 권한을 아예 거부해 둔 경우 설정으로 가는 길
+   */
   const pickImage = async () => {
+    if (!storeId) {
+      Alert.alert(
+        '가게 정보를 먼저 등록해 주세요',
+        '프로필 사진은 가게에 붙는 값이라, 가게를 등록해야 올릴 수 있습니다.'
+      );
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('사진 권한이 필요합니다', '설정에서 사진 접근을 켜 주세요.');
+      Alert.alert(
+        '사진 권한이 필요합니다',
+        perm.canAskAgain
+          ? '프로필 사진을 고르려면 사진 접근을 허용해 주세요.'
+          : '전에 거부하셔서 앱에서는 켤 수 없습니다. 설정에서 허용해 주세요.',
+        [{ text: '닫기' }, { text: '설정 열기', onPress: () => Linking.openSettings() }]
+      );
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (res.canceled || !res.assets[0]) return;
-    uploadLogo.mutate(res.assets[0].uri);
+    uploadLogo.mutate(res.assets[0].uri, {
+      onError: (e) =>
+        Alert.alert(
+          '사진을 올리지 못했습니다',
+          `신호를 확인하고 다시 시도해 주세요.
+
+(${e instanceof Error ? e.message : String(e)})`
+        ),
+    });
   };
 
   const save = () => {

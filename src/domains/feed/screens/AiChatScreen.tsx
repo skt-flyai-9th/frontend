@@ -11,9 +11,14 @@
  *    이전 코드는 단수 `recommendation` 을 읽어 **항상 undefined** 였습니다.
  *
  * ② 답은 **객관식이 기본**입니다. 사장님이 40~60대라 빈 칸을 보면 무엇을 적어야
- *    할지 막막해집니다. 선택지 칩이 먼저 눈에 들어오고, 직접 입력은 그 옆 한 줄
- *    링크로 물러납니다. **입력창 자체는 항상 열려 있습니다** — 시안 6차 원문이
- *    `const composerOpen = true` 입니다(한때 닫아 뒀다가 시안대로 되돌렸습니다).
+ *    할지 막막해집니다. 선택지 칩이 먼저 눈에 들어오고, **"직접 입력" 도 같은 모양의
+ *    칩**입니다 — 누르면 그때 아래 입력창이 올라오고 키보드가 함께 뜹니다
+ *    (2026-08-26 사장님 지시).
+ *
+ *    ⚠️ 시안 6차 원문은 `const composerOpen = true` 로 입력창을 항상 열어 둡니다.
+ *       실기기에서 써 보니 "빈 칸이 늘 떠 있으면 뭘 적으라는 건지 모르겠다" 는
+ *       판단이 나와 **시안과 다르게** 닫아 두기로 했습니다. 되돌리려면
+ *       `showInput` 을 `!!sessionId` 로 되돌리면 됩니다.
  *
  * ③ 기다리는 동안은 화면 바깥 스피너가 아니라 **말풍선 안에서** 점이 움직입니다.
  *
@@ -225,6 +230,8 @@ export default function AiChatScreen() {
   const [input, setInput] = useState('');
   /** 자유 입력창을 사장님이 직접 열었는지. 기본은 닫힘입니다. */
   const [freeInput, setFreeInput] = useState(false);
+  /** "직접 입력" 을 눌러 연 칸에 커서를 넣어 키보드까지 함께 올립니다. */
+  const inputRef = useRef<TextInput>(null);
 
   const createSession = useCreateShortformSession(storeId ?? undefined);
   const submitTurn = useSubmitShortformTurn(sessionId);
@@ -351,14 +358,14 @@ export default function AiChatScreen() {
   const hasRecs = recommendations.length > 0;
 
   /**
-   * 입력창은 **항상 열려 있습니다** (시안 6차 원문: `const composerOpen = true`).
-   *
-   * 한때 닫아 뒀습니다 — "객관식이 기본" 이라는 지시를 입력창을 숨기는 것으로 풀었는데,
-   * 시안은 **선택지를 기본으로 보여주되 입력창은 열어 두는** 쪽입니다. 6차 화면 코드에
-   * 그렇게 박혀 있어 시안을 따릅니다. "객관식이 기본" 은 선택지 칩이 먼저 눈에 들어오고
-   * 직접 입력은 그 옆 한 줄 링크로 물러나는 배치로 지킵니다.
+   * 입력창을 여는 조건 (2026-08-26 사장님 지시 — 시안과 다릅니다).
+   *   · "직접 입력" 칩을 눌렀을 때
+   *   · 추천을 받은 뒤 (조건을 적어 다시 받을 수 있게)
+   *   · 서버가 **선택지 없이** 물어볼 때 (열린 질문이라 적는 수밖에 없습니다)
+   *   · 오류가 났을 때 (선택지가 없으니 길이 막힙니다)
    */
-  const showInput = !!sessionId;
+  const openEnded = !!sessionId && !pending && options.length === 0 && !hasRecs;
+  const showInput = !!sessionId && (freeInput || hasRecs || openEnded || hasError);
 
   return (
     <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
@@ -437,18 +444,26 @@ export default function AiChatScreen() {
           )}
 
           {/*
-            "직접 입력" 은 선택지가 아니라 그 아래 **한 줄 링크**입니다.
-            객관식이 기본이라는 것이 눈으로 보여야 합니다.
+            "직접 입력" 도 **선택지와 같은 칩**입니다 (사장님 지시).
+            누르면 아래 입력창이 올라오고 커서가 들어가 키보드까지 같이 뜹니다.
+            선택지 줄 안에 들어가야 같은 높이로 나란히 서므로 위 블록과 한 몸입니다.
           */}
           {!pending && options.length > 0 && !freeInput && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setFreeInput(true)}
-              hitSlop={6}
-              style={({ pressed }) => [styles.freeLink, pressed && { opacity: 0.6 }]}
-            >
-              <Text style={styles.freeLinkText}>보기에 없어요 · 직접 입력</Text>
-            </Pressable>
+            <View style={styles.options}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="보기에 없는 답을 직접 입력"
+                hitSlop={6}
+                onPress={() => {
+                  setFreeInput(true);
+                  // 칸이 그려진 다음에 커서를 넣어야 키보드가 뜹니다.
+                  setTimeout(() => inputRef.current?.focus(), 80);
+                }}
+                style={({ pressed }) => [styles.option, styles.optionGhost, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={[styles.optionText, { color: color.ink[500] }]}>직접 입력</Text>
+              </Pressable>
+            </View>
           )}
 
           {/* 추천 카드 — 시안 `image (1).png`. 가로로 넘겨 봅니다. */}
@@ -490,6 +505,7 @@ export default function AiChatScreen() {
         {showInput && (
           <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
             <TextInput
+              ref={inputRef}
               value={input}
               onChangeText={setInput}
               // 시안: 추천을 받은 뒤에는 "다시 추천받고 싶어요" 가 안내 문구입니다.
@@ -565,6 +581,8 @@ const styles = StyleSheet.create({
     backgroundColor: color.canvas,
   },
   optionText: { ...theme.text.bodySmall, fontWeight: '600', color: color.brand[600] },
+  // "직접 입력" — 같은 칩이되 색만 물러납니다. 객관식이 먼저 눈에 들어와야 합니다.
+  optionGhost: { borderColor: color.ink[200], backgroundColor: color.surface },
 
   // 객관식보다 약하게 보여야 하는 보조 동선(직접 입력 · 다른 추천)
   freeLink: { alignSelf: 'flex-start', marginLeft: 40, paddingVertical: space[2] },
