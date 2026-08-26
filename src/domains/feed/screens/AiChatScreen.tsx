@@ -72,6 +72,20 @@ const CARD_W = 176;
 /**
  * "생각하는 중" 말풍선.
  *
+ * 값은 시안 원문 `@keyframes typing-dot` 그대로입니다 (V4·5차 동일).
+ *
+ * ```css
+ * 0%,100% { opacity:.3; transform:translateY(0) }
+ * 50%     { opacity:1;  transform:translateY(-3px) }
+ * ```
+ *
+ * **투명도만이 아니라 위로 3px 튀어오릅니다.** 처음에는 투명도만 넣었는데
+ * 시안을 다시 보니 튀어오르는 값이 있었습니다 — 그게 있어야 "말하는 중" 으로 읽힙니다.
+ *
+ * ⚠️ 점 하나하나의 지연(animation-delay)은 시안 원문에 없습니다. 키프레임만
+ *    스타일에 들어 있고 붙이는 곳은 화면 코드 안이라, 5차 껍데기에는 안 옵니다.
+ *    그래서 한 주기 1200ms 를 셋이 1/3 씩 나눠 갖는 방식으로 뒀습니다.
+ *
  * ⚠️ `useNativeDriver: false` 입니다. `Animated.loop` 은 반복을 네이티브 모듈에 맡기는데
  *    웹에는 그 모듈이 없어 **한 바퀴만 돌고 멈춥니다** (CLAUDE.md §5-④).
  *    시계는 **하나**입니다 — 점마다 따로 돌리면 서로 어긋납니다.
@@ -91,11 +105,18 @@ function Thinking({ label }: { label: string }) {
     return () => anim.stop();
   }, [t]);
 
-  const dim = 0.25;
-  const ranges: number[][] = [
+  // 시안 원문값: 흐릴 때 0.3, 진할 때 1
+  const dim = 0.3;
+  const fade: number[][] = [
     [1, dim, dim, 1],
     [dim, 1, dim, dim],
     [dim, dim, 1, dim],
+  ];
+  // 진해지는 순간 위로 3px (시안 원문값)
+  const lift: number[][] = [
+    [-3, 0, 0, -3],
+    [0, -3, 0, 0],
+    [0, 0, -3, 0],
   ];
 
   return (
@@ -106,12 +127,22 @@ function Thinking({ label }: { label: string }) {
       <View style={[styles.bubble, styles.ai, styles.thinking]}>
         <Text style={styles.bubbleText}>{label}</Text>
         <View style={styles.dots}>
-          {ranges.map((out, i) => (
+          {fade.map((out, i) => (
             <Animated.View
               key={i}
               style={[
                 styles.dot,
-                { opacity: t.interpolate({ inputRange: [0, 1, 2, 3], outputRange: out }) },
+                {
+                  opacity: t.interpolate({ inputRange: [0, 1, 2, 3], outputRange: out }),
+                  transform: [
+                    {
+                      translateY: t.interpolate({
+                        inputRange: [0, 1, 2, 3],
+                        outputRange: lift[i],
+                      }),
+                    },
+                  ],
+                },
               ]}
             />
           ))}

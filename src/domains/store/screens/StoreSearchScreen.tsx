@@ -37,6 +37,7 @@ import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
 import { Banner, Spinner } from '../../../ui/Feedback';
 import { MapPreview } from '../../../ui/MapPreview';
+import { DropIn } from '../../../ui/DropIn';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
@@ -263,8 +264,8 @@ export default function StoreSearchScreen({ navigation }: Props) {
                 <Text style={styles.hint}>내 가게를 눌러 주세요</Text>
                 <View style={styles.results}>
                   {nameCandidates.map((r, i) => (
+                    <DropIn key={`${r.name}-${r.address}`} index={i}>
                     <Pressable
-                      key={`${r.name}-${r.address}`}
                       accessibilityRole="button"
                       accessibilityLabel={`${r.name} ${r.address}`}
                       onPress={() => pickStore(r)}
@@ -284,6 +285,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
                         </Text>
                       </View>
                     </Pressable>
+                    </DropIn>
                   ))}
                 </View>
               </>
@@ -363,8 +365,8 @@ export default function StoreSearchScreen({ navigation }: Props) {
             {candidates.length > 0 && (
               <View style={styles.results}>
                 {candidates.map((r, i) => (
+                  <DropIn key={`${r.name}-${r.address}`} index={i}>
                   <Pressable
-                    key={`${r.name}-${r.address}`}
                     accessibilityRole="button"
                     onPress={() => {
                       setPicked(r);
@@ -387,12 +389,13 @@ export default function StoreSearchScreen({ navigation }: Props) {
                       </Text>
                     </View>
                   </Pressable>
+                  </DropIn>
                 ))}
               </View>
             )}
 
             {picked && (
-              <View style={styles.mapCard}>
+              <DropIn style={styles.mapCard}>
                 <MapPreview latitude={picked.latitude} longitude={picked.longitude} />
                 <View style={styles.mapAddr}>
                   <MapPin size={16} strokeWidth={2} color={color.brand[600]} style={styles.pinIcon} />
@@ -405,7 +408,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
                     </Text>
                   </View>
                 </View>
-              </View>
+              </DropIn>
             )}
           </View>
         </View>
