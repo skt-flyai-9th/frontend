@@ -24,7 +24,8 @@
 | 🟡 | 14.1 을 진행 중에 다시 부르면? | 앱이 화면 재진입마다 부르고 있습니다 |
 | 🟡 | 3.1 명세 Body 가 실제 서버와 다릅니다 | 서버는 다 받습니다 — 문서만 |
 | 🟡 | 15.1 음원 메타데이터 · 3.6 로고 캐시 | 이전 질문 유지 |
-| 🔴 | **16.1 OAuth 요청 범위** | 연결 자체는 확인됨. scope 가 전부 **읽기 전용**이라 16.2 자동 게시가 불가능해 보입니다 (§2-8) |
+| 🔴 | **16.1 인스타 Invalid scope** | 연동이 여기서 막힙니다. `instagram_business_manage_insights` 가 앱에 안 열린 것으로 보입니다 — 가르는 주소 4개를 §2-8 에 뒀습니다 |
+| 🔴 | **16.1 요청 범위가 읽기 전용** | scope 에 올리는 권한이 없어 16.2 자동 게시가 불가능해 보입니다 (§2-8) |
 | ⚪ | 유료 플랜 MVP 여부 · 기존 대기 항목 | |
 
 ---
@@ -210,6 +211,55 @@ GET /sns-connections/callback (엉터리 code) → 400 "연동에 실패했습�
   Meta 앱·Google OAuth 동의 화면이 지금 **개발/테스트 모드인가요, 게시(공개) 상태인가요?**
   테스트 모드면 연동해 볼 계정을 테스터로 등록해 주셔야 합니다.
   앱에는 계정 조건 안내를 동의 화면에 넣어 뒀습니다.
+
+#### 🔴 실패 원인 좁히기 — 인스타 "Invalid scope" (2026-08-26 추가)
+
+사장님 쪽에서 **비즈니스 계정 + 페이스북 페이지 연결이 된 상태로** 눌렀는데 이렇게 떴습니다.
+
+```
+유효하지 않은 요청: 요청 매개변수가 유효하지 않습니다:
+Invalid scope: instagram_business_basic+instagram_business_manage_insights
+```
+
+계정 조건은 아니라는 뜻입니다(§2-8f 는 이걸로 배제됩니다). 알아본 결과는 이렇습니다.
+
+**구분자는 문제가 아닐 가능성이 큽니다.** 메타 문서가 `scope` 를
+"comma-separated **또는 URL 인코딩된 space-separated**" 로 명시합니다. 서버는
+`%20`(인코딩된 공백)을 보내고 있어 규격상 맞습니다. 에러가 두 스코프를 `+` 로
+이어 되읊은 건, 메타가 받은 파라미터를 그대로 되돌려 쓰면서 공백을 `+` 로
+표기한 것으로 보입니다 — 파싱에 실패했다는 증거는 아닙니다.
+
+**유력한 원인은 `instagram_business_manage_insights` 가 앱에 열려 있지 않은 것입니다.**
+이 권한은 나중에 추가된 것이고 **앱 심사(App Review) 대상**입니다. 앱 대시보드에서
+권한이 추가·승인되지 않은 상태로 요청하면 메타는 `Invalid scope` 를 돌려줍니다.
+`instagram_business_basic` 은 기본 권한이라 그냥 통과합니다.
+
+- **Q2-8g. 아래 네 주소를 인스타에 로그인된 브라우저로 열어 보시고 결과를 알려주세요.**
+  어느 것이 통과하고 어느 것이 막히는지로 원인이 한 번에 갈립니다.
+  (`state=diag` 라 동의까지 눌러도 마지막 콜백은 실패합니다. **동의 화면이 뜨는지만** 보면 됩니다.)
+
+  | | scope | 확인하는 것 |
+  |---|---|---|
+  | A | `instagram_business_basic` | 기본 권한만으로는 되는가 |
+  | B | `...basic,...manage_insights` (쉼표) | 구분자를 바꾸면 되는가 |
+  | C | `...basic%20...manage_insights` (공백) | 지금 서버가 보내는 것 |
+  | D | `instagram_business_manage_insights` | 성과 권한 자체가 열려 있는가 |
+
+  ```
+  A https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_basic&state=diag
+  B https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_insights&state=diag
+  C https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_basic%20instagram_business_manage_insights&state=diag
+  D https://www.instagram.com/oauth/authorize?client_id=1541622377157897&redirect_uri=https%3A%2F%2Fsarils.p-e.kr%2Fsns-connections%2Fcallback&response_type=code&scope=instagram_business_manage_insights&state=diag
+  ```
+
+  **A 만 통과하면** → 성과 권한이 앱에 안 열린 것입니다. 앱 대시보드에서 권한을 추가하고
+  심사를 넣거나, **당장 연동만 살리려면 scope 에서 insights 를 빼 주세요.**
+  (그러면 17.x 성과 수치는 못 가져옵니다 — 대신 연동은 오늘 됩니다.)
+  **B 는 되고 C 는 안 되면** → 구분자를 쉼표로 바꿔 주세요.
+
+- **Q2-8h.** 유튜브도 같은 종류의 벽이 있습니다. `yt-analytics.readonly` ·
+  `youtube.readonly` 는 구글 **민감 범위**라, OAuth 동의 화면이 미검증이면
+  **테스트 사용자로 등록된 계정만** 통과합니다. 지금 게시 상태인가요, 테스트인가요?
 
 #### 이전 질문 (그대로 유지)
 
