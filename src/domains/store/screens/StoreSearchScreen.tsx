@@ -25,9 +25,19 @@
  *    실제 데이터로 만들려면 어차피 시안과 달라져야 하는 자리입니다.
  *    이 블록이 생기면서 06_store-sync 의 시안 대조 세로 위치는 그만큼 밀립니다.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Check, ChevronDown, Link2, MapPin, Search, Store, X } from 'lucide-react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { Check, ChevronDown, Link2, MapPin, Phone, Search, Store, X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -41,6 +51,7 @@ import { Banner, Spinner } from '../../../ui/Feedback';
 import { MapPreview } from '../../../ui/MapPreview';
 import { DropIn } from '../../../ui/DropIn';
 import { pressTap } from '../../../ui/press';
+import { phoneText, shortCategory } from '../../../lib/format';
 import { useAppState } from '../../../lib/appState';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
@@ -75,6 +86,7 @@ const CATEGORIES = [
 
 export default function StoreSearchScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const setStoreId = useAppState((st) => st.setStoreId);
   // 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -89,6 +101,11 @@ export default function StoreSearchScreen({ navigation }: Props) {
   const [addrAll, setAddrAll] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [synced, setSynced] = useState(false);
+  /**
+   * 확인 시트에 올라와 있는 후보. **아직 고른 것이 아닙니다** — "이 매장으로 선택"
+   * 을 눌러야 `picked` 로 넘어갑니다 (StorePreviewSheet 머리말).
+   */
+  const [preview, setPreview] = useState<PlaceResult | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const createStore = useCreateStore();
@@ -289,7 +306,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`${r.name} ${r.address}`}
-                      onPress={() => pickStore(r)}
+                      onPress={() => setPreview(r)}
                       style={({ pressed }) => [
                         styles.resultRow,
                         i < shownNames.length - 1 && styles.resultDivider,
@@ -484,7 +501,150 @@ export default function StoreSearchScreen({ navigation }: Props) {
           />
         </View>
       </ScrollView>
+
+      {/*
+        확인 시트. ScrollView **밖**이라 화면 전체를 덮습니다 — 안에 두면 스크롤을
+        따라 올라가고 가림막이 화면을 다 못 가립니다.
+      */}
+      {preview && (
+        <StorePreviewSheet
+          store={preview}
+          width={windowWidth}
+          onCancel={() => setPreview(null)}
+          onConfirm={() => {
+            pickStore(preview);
+            setPreview(null);
+          }}
+        />
+      )}
     </Screen>
+  );
+}
+
+/**
+ * StorePreviewSheet — 후보를 누르면 올라오는 **매장 확인 시트**.
+ *
+ * ─────────────────────────────────────────────────────────────
+ * 왜 시트인가 (시안 8차 · `매장조회지도.jpg`)
+ * ─────────────────────────────────────────────────────────────
+ * 예전에는 후보를 누르면 **곧바로** 폼에 값이 박혔습니다. 같은 이름의 가게가
+ * 여럿인 동네에서는 옆 가게를 등록해 놓고도 모릅니다. 그래서 시안이 확인 단계를
+ * 넣었습니다 — 지도와 주소·전화를 보고 **"이 매장으로 선택"** 을 눌러야 확정됩니다.
+ *
+ * 시안 원문 수치
+ *   가림막 rgba(15,23,42,0.45) · 시트 rounded-t-[28px] bg-canvas
+ *   지도 196 · 본문 px-6 pt-5 pb-8
+ *   이름 19 bold · 업종 칩 11 semibold (bg-surface, rounded-full)
+ *   주소 줄 map-pin 17 brand + 도로명 14 semibold + 지번 12 slate
+ *   전화 줄 phone 17 brand + 14 medium
+ *   버튼 h52 · [다시 검색] flex 1 · [이 매장으로 선택] flex 1.6
+ *
+ * ⚠️ **지번 주소는 그리지 않습니다.** 시안에는 "지번 신대방동 395-69" 줄이 있지만
+ *    그건 시안 목업(`STORE_DB`)의 값입니다. 실서버 2.1 응답 필드는
+ *    `source·name·address·phone·latitude·longitude·category·distance_m·
+ *    external_channel_url` 뿐이라 **지번이 없습니다.** 없는 값을 지어내지 않습니다
+ *    (CLAUDE.md §2). BE 에 요청해 두고, 내려오면 이 자리에 한 줄 더 넣으면 됩니다.
+ *
+ * ⚠️ **전화도 자주 `null` 입니다** (스타벅스 한국프레스센터점 실측). 값이 있을 때만
+ *    그 줄을 그립니다 — 빈 줄을 남기면 번호가 있는데 안 나온 것처럼 보입니다.
+ */
+function StorePreviewSheet({
+  store,
+  width,
+  onCancel,
+  onConfirm,
+}: {
+  store: PlaceResult;
+  width: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const rise = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // 한 번짜리라 네이티브 드라이버를 그대로 씁니다 (CLAUDE.md §5-④ 는 loop 얘기입니다).
+    Animated.timing(rise, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [rise]);
+
+  const phone = phoneText(store.phone);
+  const category = shortCategory(store.category);
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {/* 가림막을 누르면 닫힙니다 — 시안과 같습니다. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="닫기"
+        onPress={onCancel}
+        style={[StyleSheet.absoluteFill, styles.scrim]}
+      />
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            paddingBottom: Math.max(insets.bottom, space[8]),
+            transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [320, 0] }) }],
+          },
+        ]}
+      >
+        {/*
+          지도는 시트 맨 위에 꽉 채웁니다. 손가락으로 확대·축소할 수 있고
+          **핀은 언제나 한가운데 고정**입니다 (MapPreview 머리말).
+        */}
+        <MapPreview
+          latitude={store.latitude}
+          longitude={store.longitude}
+          width={width}
+          height={196}
+          zoomable
+        />
+
+        <View style={styles.sheetBody}>
+          <Text style={styles.sheetName}>{store.name}</Text>
+          {category ? (
+            <View style={styles.catChip}>
+              <Text style={styles.catText}>{category}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.sheetRows}>
+            <View style={styles.sheetRow}>
+              <MapPin size={17} strokeWidth={2} color={color.brand[600]} style={styles.rowIcon} />
+              <Text style={styles.sheetAddr}>{store.address}</Text>
+            </View>
+            {phone ? (
+              <View style={styles.sheetRow}>
+                <Phone size={17} strokeWidth={2} color={color.brand[600]} />
+                <Text style={styles.sheetPhone}>{phone}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.sheetCta}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCancel}
+              style={({ pressed }) => [styles.ghostBtn, pressTap(pressed, 'button')]}
+            >
+              <Text style={styles.ghostText}>다시 검색</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onConfirm}
+              style={({ pressed }) => [styles.pickBtn, pressTap(pressed, 'button')]}
+            >
+              <Text style={styles.pickText}>이 매장으로 선택</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -624,4 +784,86 @@ const styles = StyleSheet.create({
 
   // 시안: mt-auto pt-8
   cta: { marginTop: 'auto', paddingTop: space[8] },
+  // ── 매장 확인 시트 (시안 8차 · 매장조회지도.jpg) ──────────────────
+  // 시안: bg-[rgba(15,23,42,0.45)]
+  scrim: { backgroundColor: 'rgba(15,23,42,0.45)' },
+  // 시안: inset-x-0 bottom-0 rounded-t-[28px] bg-canvas
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    backgroundColor: color.canvas,
+    overflow: 'hidden',
+  },
+  // 시안: px-6 pt-5 pb-8 (pb 는 안전영역과 큰 쪽으로)
+  sheetBody: { paddingHorizontal: space[6], paddingTop: space[5] },
+  // 시안: 19 bold tracking-tighter-title
+  sheetName: { ...theme.text.heading, fontSize: 19, lineHeight: 25, color: color.ink[900] },
+  // 시안: mt-1 rounded-full bg-surface px-2 py-0.5 · 11 semibold
+  catChip: {
+    alignSelf: 'flex-start',
+    marginTop: space[1],
+    paddingHorizontal: space[2],
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: color.surface,
+  },
+  catText: {
+    ...theme.text.micro,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[500],
+  },
+  // 시안: mt-4 gap-2.5
+  sheetRows: { marginTop: space[4], gap: 10 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // 아이콘 윗변을 글자 첫 줄에 맞춥니다 (주소가 두 줄로 감길 수 있습니다).
+  rowIcon: { marginTop: 2, alignSelf: 'flex-start' },
+  // 시안: 14 semibold ink
+  sheetAddr: {
+    ...text.bodySmall,
+    flex: 1,
+    minWidth: 0,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[900],
+  },
+  // 시안: 14 medium ink-2
+  sheetPhone: { ...text.bodySmall, color: color.ink[800] },
+  // 시안: mt-6 gap-2.5 · h52
+  sheetCta: { flexDirection: 'row', gap: 10, marginTop: space[6] },
+  ghostBtn: {
+    flex: 1,
+    height: sizing.inputHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.canvas,
+  },
+  ghostText: {
+    ...text.button,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[800],
+  },
+  // 시안: flex-[1.6] — 무엇이 기본 동작인지 크기로 말합니다
+  pickBtn: {
+    flex: 1.6,
+    height: sizing.inputHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: color.brand[600],
+  },
+  pickText: {
+    ...text.button,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.paper,
+  },
 });
