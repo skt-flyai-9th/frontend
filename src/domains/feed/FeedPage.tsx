@@ -27,6 +27,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Camera, Heart } from 'lucide-react-native';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
+import { Marquee } from '../../ui/Marquee';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
@@ -104,9 +105,14 @@ export function FeedPage({
 
         <View style={styles.metaRow}>
           {tags.length > 0 ? (
-            <Text style={styles.tags} numberOfLines={1}>
+            /*
+              태그는 하트·촬영 버튼과 한 줄을 나눠 쓰느라 자리가 좁습니다.
+              `#촬영30초 #난이도하 #얼…` 로 잘리면 **얼굴이 나와야 하는지**가 사라지는데,
+              그건 찍기 전에 꼭 알아야 하는 값입니다. 잘리는 대신 흘려보냅니다.
+            */
+            <Marquee style={styles.tags} containerStyle={styles.tagsBox}>
               {tags.join(' ')}
-            </Text>
+            </Marquee>
           ) : (
             <View style={{ flex: 1 }} />
           )}
@@ -157,7 +163,8 @@ const styles = StyleSheet.create({
   },
   title: { ...theme.text.subheading, color: color.ink[900] },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  tags: { ...theme.text.caption, flex: 1, minWidth: 0, color: color.brand[600] },
+  tagsBox: { flex: 1, minWidth: 0 },
+  tags: { ...theme.text.caption, color: color.brand[600] },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   heartBtn: {

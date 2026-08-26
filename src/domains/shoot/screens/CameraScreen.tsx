@@ -20,6 +20,7 @@ import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
+import { Marquee } from '../../../ui/Marquee';
 import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
@@ -286,16 +287,21 @@ export default function CameraScreen({ navigation, route }: Props) {
                 style={[styles.chip, done && styles.chipDone, !done && active && styles.chipActive]}
               >
                 {done && <Check size={13} strokeWidth={3} color={color.paper} />}
-                <Text
+                {/*
+                  컷 이름은 AI 가 만들어서 길이를 우리가 못 정합니다. 시안이 정한
+                  칸(maxWidth 150)에 안 들어가면 지금 **뭘 찍어야 하는지가 잘립니다.**
+                  촬영 중에는 눌러서 확인할 수도 없으므로 전광판으로 흘려 보여줍니다.
+                */}
+                <Marquee
+                  containerStyle={styles.chipTextBox}
                   style={[
                     styles.chipText,
                     done && { color: color.paper },
                     !done && active && { color: color.ink[900] },
                   ]}
-                  numberOfLines={1}
                 >
                   {t.taskTitle}
-                </Text>
+                </Marquee>
               </Pressable>
             );
           })}
@@ -422,7 +428,8 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: color.paper },
   chipDone: { backgroundColor: color.done[500] },
-  chipText: { ...text.label, color: 'rgba(255,255,255,0.8)', flexShrink: 1 },
+  chipTextBox: { flexShrink: 1 },
+  chipText: { ...text.label, color: 'rgba(255,255,255,0.8)' },
 
   // 시안 ReviewSheet
   sheetScrim: {
