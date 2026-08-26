@@ -314,6 +314,68 @@ PowerShell here-string(`@'...'@`)은 커밋 메시지에 `@` 를 흘립니다 �
 
 ---
 
+## 7-1. 앱에 반영하기 — OTA (EAS Update)
+
+**깔아둔 앱을 다시 설치하지 않고** 코드를 반영합니다. `expo-updates` 가 들어간
+2026-08-26 이후 APK 부터 됩니다.
+
+```bash
+npx tsc --noEmit                          # 먼저 통과시킵니다
+npx eas update --branch preview -m "무엇을 바꿨는지"
+```
+
+앱은 **켤 때 조용히 받아두고 다음 실행에 적용합니다** (`fallbackToCacheTimeout: 0`
+이라 스플래시에서 기다리지 않습니다). 그래서 폰에서는 **껐다 켜기를 두 번** 해야
+보입니다. 인터넷이 안 되면 이미 받아둔 마지막 버전으로 그냥 뜹니다 — 개발 서버
+없이도 앱이 정상적으로 열립니다.
+
+### 무선으로 가는 것 / 안 가는 것
+
+| 무선 O | 무선 X — APK 재빌드 |
+|---|---|
+| 화면 코드·문구·레이아웃·스타일 | `app.json` 의 `plugins`·권한·아이콘·스플래시 |
+| `src/**` 전부, 목업 `fixtures.ts` | 새 네이티브 패키지 (`npx expo install ...`) |
+| `assets/` 이미지·폰트 | Expo SDK 업그레이드 |
+
+지금 하는 시안 대조 작업은 **사실상 전부 왼쪽 칸**입니다.
+
+### 🔴 `runtimeVersion` 은 `appVersion` — 네이티브를 바꾸면 `version` 을 올리세요
+
+`app.json` 의 `version`(지금 `1.0.0`)이 그대로 runtimeVersion 입니다. **같은 값을 가진
+APK 는 전부 그 업데이트를 받습니다.** 그래서 위 표의 오른쪽 칸(네이티브)을 건드렸는데
+`version` 을 안 올리고 `npm run ota` 를 하면, **옛 APK 가 맞지 않는 JS 를 받아 죽습니다.**
+네이티브를 건드렸으면 순서가 이렇습니다.
+
+```
+app.json 의 version 올리기 (1.0.0 → 1.0.1)  →  npm run build:preview  →  APK 새로 설치
+```
+
+`fingerprint` 정책을 쓰면 이걸 자동으로 막아 주지만, **Windows 에서 계산한 값이 EAS
+리눅스 빌더의 값과 달라 빌드가 `CONFIGURE_EXPO_UPDATES` 단계에서 실패합니다**
+(2026-08-26 실제로 겪음: "Runtime version calculated on local machine not equal to
+runtime version calculated during build"). 그래서 `appVersion` 으로 두고 사람이 지킵니다.
+
+```bash
+npx eas update:list --branch preview               # 올라간 업데이트 목록
+npx eas build:list --platform android --limit 1    # 폰에 깔린 APK 의 Runtime Version
+```
+
+두 곳의 Runtime Version 이 같아야 폰이 업데이트를 받습니다.
+
+### 채널
+
+`eas.json` 의 프로필 이름 = 채널 이름입니다 (`development` · `preview` · `production`).
+폰에 까는 APK 는 `preview` 프로필이므로 **`--branch preview`** 로 올립니다.
+
+### API 주소
+
+`EXPO_PUBLIC_API_BASE_URL` 은 `eas.json` 의 빌드 프로필에만 있어서 `eas update` 로
+만든 번들에는 안 들어갑니다. `src/api/http.ts` 가 `app.json` 의 `extra.apiBaseUrl`
+(같은 `https://sarils.p-e.kr`)로 떨어지므로 결과는 같습니다. **주소를 바꿀 일이
+생기면 두 곳을 같이 고치세요.**
+
+---
+
 ## 8. 문서
 
 | 파일 | 내용 |
