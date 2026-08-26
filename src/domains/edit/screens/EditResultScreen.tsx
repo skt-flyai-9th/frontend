@@ -174,24 +174,16 @@ export default function EditResultScreen({ navigation, route }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, outputs?.outputs?.length]);
 
-  /**
-   * 시안은 게시글을 제목·내용 두 칸으로 나눠 각각 고치고 복사하게 합니다.
-   * 15.1 에는 제목 필드가 없고 caption 한 덩어리뿐이라, **첫 줄을 제목으로** 봅니다
-   * (인스타 캡션의 첫 줄이 곧 후킹 문구입니다. 시안 목업도 같은 모양입니다).
-   * 없는 값을 지어내지 않고 받은 caption 만 나눠 씁니다.
-   *
-   * 고친 값은 기기에만 남습니다 — 15.1 에 저장 API 가 없습니다(시안도 로컬입니다).
-   */
+  /** 제목과 본문은 서버 계약에서 분리해 받으며, 수정값은 기기에만 남습니다. */
   const [postTitle, setPostTitle] = useState('');
   const [postBody, setPostBody] = useState('');
   const seeded = useRef(false);
   useEffect(() => {
     if (seeded.current || !kit) return;
     seeded.current = true;
-    const [first = '', ...rest] = (kit.caption ?? '').split('\n');
     const tags = (kit.hashtags ?? []).map((t) => (t.startsWith('#') ? t : `#${t}`)).join(' ');
-    setPostTitle(first);
-    setPostBody([rest.join('\n').trim(), tags].filter(Boolean).join('\n\n'));
+    setPostTitle(kit.title ?? '');
+    setPostBody([kit.caption?.trim(), tags].filter(Boolean).join('\n\n'));
   }, [kit]);
 
   // 명세 14.2 preview_video_url — 완성본을 직접 보여줍니다.
@@ -258,6 +250,7 @@ export default function EditResultScreen({ navigation, route }: Props) {
    */
   const track = kit?.track ?? null;
   const trackName = track ? [track.title, track.artist].filter(Boolean).join(' - ') : '';
+  const trackSearchKeyword = track?.searchKeyword ?? '';
   const trackMood = track && !trackName ? (track.mood ?? '') : '';
   const trackSegment =
     track && track.startSec !== null && track.endSec !== null
@@ -327,6 +320,16 @@ export default function EditResultScreen({ navigation, route }: Props) {
               <View style={styles.trackRow}>
                 <Text style={styles.value}>{trackName}</Text>
                 <CopyBtn value={trackName} label="음원 정보" />
+              </View>
+            </Card>
+          ) : null}
+
+          {trackSearchKeyword ? (
+            <Card style={styles.card}>
+              <CardLabel icon={Music2}>음원 검색 키워드</CardLabel>
+              <View style={styles.trackRow}>
+                <Text style={styles.value}>{trackSearchKeyword}</Text>
+                <CopyBtn value={trackSearchKeyword} label="음원 검색 키워드" />
               </View>
             </Card>
           ) : null}

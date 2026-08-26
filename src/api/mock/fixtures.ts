@@ -523,23 +523,22 @@ export const outputs = [
 ];
 
 export const publishKit = {
+  title: '난곡에서 만나는 손칼국수 한 그릇',
   caption:
-    '면은 매일 아침 직접 밉니다.\n바지락만 넣고 두 시간 끓인 국물, 한 그릇 9,000원.\n관악구 난곡로 42 · 일요일 휴무',
-  hashtags: ['#난곡맛집', '#칼국수', '#관악구맛집', '#손칼국수'],
-  post_note: "Instagram 음악 탭에서 'BAD - 최산'을 검색해 1:12 지점부터 붙여주세요.",
+    '면은 매일 아침 직접 밉니다.\n바지락만 넣고 두 시간 끓인 국물을 만나보세요.',
+  hashtags: ['#난곡맛집', '#칼국수', '#관악구맛집', '#손칼국수', '#동네맛집'],
+  post_note: "Instagram 음악 탭에서 '주술회전'을 검색해 직접 추가해주세요.",
   /**
-   * 명세 15.1 track (2026-08-24 확정, 챌린지형 FIXED 표본).
-   * start_sec 은 **원곡에서의 위치**입니다. 실서버는 당분간 null 을 주지만
-   * (곡명 식별 주체 확정 대기) Mock 은 값을 채워 화면을 검증합니다.
-   * SUGGESTED·null 케이스는 화면 가드로 처리됩니다.
+   * 정확한 곡명과 시작 위치를 검증하기 전에는 검색 키워드만 제공합니다.
    */
   track: {
-    mode: 'FIXED',
-    title: 'BAD',
-    artist: '최산',
-    start_sec: 72,
-    end_sec: 87,
+    mode: 'SUGGESTED',
+    title: null,
+    artist: null,
+    start_sec: null,
+    end_sec: null,
     mood: null,
+    search_keyword: '주술회전',
   },
 };
 

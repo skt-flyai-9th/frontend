@@ -766,9 +766,12 @@ export interface Track {
   startSec: number | null;
   endSec: number | null;
   mood: string | null;
+  /** 곡명 미확인 시 플랫폼 음원 검색창에 입력할 키워드 */
+  searchKeyword: string | null;
 }
 
 export interface PublishKit {
+  title: string;
   caption: string;
   hashtags: string[];
   /** 명세 15.1: 음원을 붙이는 절차 안내 */
