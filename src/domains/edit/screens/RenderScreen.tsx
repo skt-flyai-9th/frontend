@@ -61,7 +61,18 @@ const STEPS = ['컷 편집', '자막 입히기', '위치 태그 · 매장 브랜
  */
 const RENDER_PLATFORM: TargetPlatform = 'INSTAGRAM';
 
-/** 렌더가 끝나지 않을 때를 대비한 상한 */
+/**
+ * 렌더가 끝나지 않을 때를 대비한 상한 — **3분**입니다.
+ *
+ * 진행률(14.2)은 1초마다 조회하고, 상태가 PENDING·PROCESSING 인 동안만 돕니다
+ * (`api/queries/edit.ts`). 이 상한은 그 조회와 별개로 **화면에 들어온 순간부터
+ * 벽시계로 3분**을 재는 것입니다 — "3분 동안 응답이 없으면" 이 아니라
+ * 진행률이 잘 올라오고 있어도 3분이 되면 실패 화면으로 넘깁니다.
+ *
+ * 서버가 얼마나 걸리는지 실측치가 없어 일단 3분으로 두었습니다. 실제 렌더가
+ * 이보다 오래 걸리는 것이 확인되면 이 값을 올려야 합니다 — 사장님이 멀쩡히
+ * 만들어지고 있는 영상을 "실패" 로 보게 됩니다.
+ */
 const TIMEOUT_MS = 180000;
 
 /**
@@ -120,6 +131,24 @@ export default function RenderScreen({ navigation, route }: Props) {
     []
   );
 
+  /**
+   * 끝났으면 상한 타이머를 끕니다 (2026-08-26).
+   *
+   * ⚠️ 이게 없으면 **완성된 화면이 3분째에 실패 화면으로 뒤집힙니다.**
+   *    렌더가 40초에 끝나도 이 화면은 자동으로 넘어가지 않고 "숏폼이 완성됐어요" 로
+   *    기다립니다. 사장님이 바로 안 누르고 3분이 지나면 타이머가 그대로 터져
+   *    `timedOut` 이 켜지고, 아래 `failed` 가 참이 되어 실패 화면이 뜹니다.
+   *    다 만들어 놓고 실패했다고 말하는 셈입니다.
+   */
+  const renderStatus = result?.renderStatus;
+  useEffect(() => {
+    if (renderStatus !== 'COMPLETED' && renderStatus !== 'FAILED') return;
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  }, [renderStatus]);
+
   function begin() {
     setTimedOut(false);
     setStarted(true);
@@ -138,8 +167,9 @@ export default function RenderScreen({ navigation, route }: Props) {
       ? ((err.detail?.incompleteTasks as IncompleteTask[] | undefined) ?? [])
       : null;
 
-  const failed = result?.renderStatus === 'FAILED' || startEdit.isError || timedOut;
   const done = result?.renderStatus === 'COMPLETED';
+  // 이미 완성됐으면 상한에 걸려도 실패가 아닙니다 (위 타이머 정리와 짝입니다).
+  const failed = result?.renderStatus === 'FAILED' || startEdit.isError || (timedOut && !done);
   const percent = (result?.progressPercent ?? 0) / 100;
   /** 지금 돌고 있는 단계. 다 끝나면 목록 전체가 체크로 바뀝니다. */
   const stepIndex = done ? STEPS.length : Math.min(STEPS.length - 1, Math.floor(percent * STEPS.length));

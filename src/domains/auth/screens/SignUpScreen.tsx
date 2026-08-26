@@ -9,11 +9,19 @@
  *          틀린 칸은 테두리·아이콘이 빨강이 되고 아래에 12·heart 한 줄
  *   ③      mt-auto pt-8 "다음" + mt-4 "이미 계정이 있으신가요? 로그인"
  *
- * ⚠️ 시안의 **아이디 칸을 이름으로 바꿨습니다**.
- *    시안은 아이디를 만들게 해 놓고 정작 로그인 화면은 이메일로 로그인합니다.
- *    그대로 두면 사장님이 만든 아이디로 로그인을 시도하다 못 들어옵니다.
- *    명세 1.2 가 받는 값도 name·email·phone·password 라 아이디를 보낼 데가 없습니다.
- *    자리(첫 칸)와 아이콘(user)은 시안 그대로 두고 받는 값만 이름으로 했습니다.
+ * ⚠️ 첫 칸은 시안대로 **"아이디"** 입니다 (2026-08-26, 사장님 지시).
+ *
+ *    한때 "이름" 으로 바꿔 뒀었습니다 — 시안은 아이디를 만들게 해 놓고 정작 로그인은
+ *    이메일로 하기 때문입니다(시안 6차 AuthScreen 도 이메일 로그인입니다). 그래서
+ *    사장님이 만든 아이디로 로그인을 시도하면 못 들어옵니다.
+ *
+ *    사장님 판단은 **시안 우선**이라 되돌렸습니다. 다만 명세 1.2 가 받는 값은
+ *    name·email·phone·password 뿐이라 아이디를 따로 보낼 자리가 없어,
+ *    **적어 주신 아이디를 `name` 으로 보냅니다.**
+ *
+ *    ⚠️ 그래서 마이페이지·프로필 등 "이름" 이 보이는 자리에는 사장님 성함이 아니라
+ *       **아이디가 표시됩니다.** 서버에 아이디 컬럼이 생기면 그때 갈라야 합니다
+ *       (BE_전달사항). 로그인은 지금도 이메일로만 됩니다 — 안내 문구가 그렇게 말합니다.
  *
  * ⚠️ 시안의 "다음 → 본인 인증(문자 6자리)" 단계는 **없습니다**.
  *    인증번호를 보내고 확인하는 API 가 명세에 없습니다. 화면만 만들면 아무 번호나
@@ -77,7 +85,8 @@ export default function SignUpScreen({ navigation }: Props) {
   /** 시안 validate 원문 규칙에 명세 1.2 필수값(이름)을 얹었습니다. */
   const validate = () => {
     const next: Partial<Record<FormKey, string>> = {};
-    if (!form.name.trim()) next.name = '이름을 입력해주세요.';
+    // 시안 6차 원문 규칙: 아이디 4자 이상
+    if (form.name.trim().length < 4) next.name = '아이디는 4자 이상 입력해주세요.';
     if (form.password.length < 8) next.password = '비밀번호는 8자 이상 입력해주세요.';
     if (form.password2 !== form.password) next.password2 = '비밀번호가 일치하지 않습니다.';
     if (!EMAIL.test(form.email)) next.email = '올바른 이메일 주소를 입력해주세요.';
@@ -130,19 +139,31 @@ export default function SignUpScreen({ navigation }: Props) {
         {/* ① */}
         <Text style={text.title}>계정을 만들어 볼까요?</Text>
         <Text style={styles.lead}>
+          {/*
+            ⚠️ 시안 원문은 "로그인에 사용할 **아이디와** 비밀번호" 입니다. 그대로 옮기면
+               거짓말이 됩니다 — 로그인 화면은 시안 6차에서도 **이메일**로만 받습니다.
+               그 문구를 믿고 아이디로 로그인을 시도하면 못 들어옵니다.
+               25_푸시 안내 문구를 사실대로 바꿨던 것과 같은 이유입니다(CLAUDE.md §2).
+               서버에 아이디 로그인이 생기면 시안 문구로 되돌리세요.
+          */}
           로그인에 사용할 이메일과 비밀번호, 연락받을 정보를 입력해주세요.
         </Text>
 
         {/* ② */}
         <View style={styles.fields}>
+          {/*
+            시안 6차: 첫 칸은 "아이디" 입니다. 명세 1.2 에 아이디 자리가 없어
+            이 값이 `name` 으로 나갑니다 — 위 머리말 참고.
+          */}
           <AuthField
             icon={User}
-            label="이름"
-            placeholder="가게 사장님 성함"
+            label="아이디"
+            placeholder="4자 이상"
             value={form.name}
             onChangeText={set('name')}
             error={errors.name}
             autoCapitalize="none"
+            autoCorrect={false}
             returnKeyType="next"
           />
           <AuthField
