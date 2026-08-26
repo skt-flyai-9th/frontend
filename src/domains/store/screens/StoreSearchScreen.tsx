@@ -32,6 +32,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
@@ -62,6 +64,7 @@ const CATEGORIES = [
 ];
 
 export default function StoreSearchScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const setStoreId = useAppState((st) => st.setStoreId);
   // 등록이 끝나면 이 스택을 통째로 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -196,7 +199,7 @@ export default function StoreSearchScreen({ navigation }: Props) {
 
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: Math.max(insets.bottom, space[6]) }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -440,7 +443,9 @@ export default function StoreSearchScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   // 시안: px-6 pb-6
-  body: { flexGrow: 1, paddingHorizontal: space[6], paddingBottom: space[6], paddingTop: space[3] },
+  // paddingBottom 은 화면에서 안전영역과 함께 계산합니다 — 시안 pb-6 만으로는
+  // 제스처 내비게이션 폰에서 시작하기 버튼이 시스템 바에 덮입니다.
+  body: { flexGrow: 1, paddingHorizontal: space[6], paddingTop: space[3] },
 
   lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
 

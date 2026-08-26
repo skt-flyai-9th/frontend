@@ -38,7 +38,15 @@
  * 자체 처리를 하는 화면만 `keyboardAvoiding={false}` 로 끄세요.
  */
 import React from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View, ViewStyle } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { SafeAreaView, Edge } from 'react-native-safe-area-context';
 import { color, space } from '../design/theme';
 import { AppBar } from './AppBar';
@@ -72,6 +80,37 @@ export function Screen({
   const inner = padded ? { paddingHorizontal: space[5] } : null;
 
   /**
+   * 포커스된 입력칸을 키보드 위로 끌어올리는 안전장치 (2026-08-26).
+   *
+   * `KeyboardAvoidingView` 가 상자를 줄여 주면 **보통은** 안드로이드 ScrollView 가
+   * 포커스된 자식을 알아서 화면 안으로 당깁니다. 그런데 순서가 어긋날 때가 있습니다 —
+   * 포커스가 먼저 잡히고 키보드는 그 뒤에 올라오므로, 당길 시점에는 아직 상자가
+   * 안 줄어 있어 "이미 보인다" 고 판단하고 넘어갑니다. 그러면 칸이 키보드에 덮인 채
+   * 남습니다.
+   *
+   * 그래서 **키보드가 다 올라온 뒤에** 한 번 더 확인합니다. 덮였으면 그만큼만 스크롤합니다.
+   * 안 덮였으면 아무 일도 하지 않습니다 — 멀쩡한 화면을 흔들지 않습니다.
+   */
+  const scrollRef = React.useRef<ScrollView>(null);
+  const offsetY = React.useRef(0);
+
+  React.useEffect(() => {
+    if (!keyboardAvoiding || !scroll) return;
+    const sub = Keyboard.addListener('keyboardDidShow', (e) => {
+      const input = TextInput.State.currentlyFocusedInput();
+      const sv = scrollRef.current;
+      if (!input || !sv) return;
+      const keyboardTop = e.endCoordinates.screenY;
+      input.measureInWindow((_x, y, _w, h) => {
+        // 입력칸 아래끝이 키보드 윗선보다 아래면 그만큼 올립니다. 여유 12.
+        const overlap = y + h + 12 - keyboardTop;
+        if (overlap > 0) sv.scrollTo({ y: offsetY.current + overlap, animated: true });
+      });
+    });
+    return () => sub.remove();
+  }, [keyboardAvoiding, scroll]);
+
+  /**
    * footer 가 있으면 하단 안전영역을 SafeAreaView 가 먹지 않습니다.
    * BottomAction 이 직접 처리해야 버튼 배경이 화면 끝까지 이어집니다.
    */
@@ -88,10 +127,15 @@ export function Screen({
     <>
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={[styles.scrollContent, inner, contentStyle]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={(e) => {
+            offsetY.current = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={32}
         >
           {body}
         </ScrollView>

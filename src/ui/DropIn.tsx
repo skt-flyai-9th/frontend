@@ -11,11 +11,10 @@
  *
  * 위 세 값(-10px · 340ms · 곡선)은 시안 원문 그대로입니다.
  *
- * ⚠️ **항목 사이 지연(stagger)은 시안에 없습니다.** 5차 파일은 껍데기만 와서
- *    `.drop-in` 을 어디에 몇 ms 간격으로 붙이는지가 담긴 화면 코드(`js/screens-*.jsx`)가
- *    빠져 있습니다. 45ms 는 제가 고른 값입니다 — 다섯 줄이 떨어지는 데 총 520ms 로,
- *    "차례로 온다" 가 읽히면서 기다린다는 느낌은 안 드는 지점입니다.
- *    화면 코드가 오면 그 값으로 맞추세요.
+ * 항목 사이 지연은 **60ms** 입니다. 5차에는 껍데기만 와서 몰랐는데, 6차 zip 의
+ * 화면 코드에 실제 값이 있었습니다 — `style={{ animationDelay: ".06s" }}` 를
+ * 매장 바텀시트 항목마다 한 단계씩 늘려 붙입니다
+ * (`js/screens-onboarding.jsx` StoreSearchField).
  *
  * 네이티브 드라이버를 씁니다. CLAUDE.md §5-④ 가 경고하는 건 `Animated.loop` 이고,
  * 이건 **한 번짜리 timing** 이라 웹에서도 멀쩡합니다. opacity·transform 둘 다
@@ -27,8 +26,8 @@ import { Animated, Easing, type ViewStyle } from 'react-native';
 /** 시안 원문 */
 const DURATION = 340;
 const RISE = 10;
-/** 시안에 없는 값 — 위 머리말 참고 */
-const STEP = 45;
+/** 시안 6차 원문: animationDelay .06s 씩 */
+const STEP = 60;
 
 export function DropIn({
   index = 0,

@@ -37,6 +37,8 @@ import { ArrowUp, Camera as CameraIcon, RotateCcw, Sparkles } from 'lucide-react
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { AppBar } from '../../../ui/AppBar';
 import { Banner } from '../../../ui/Feedback';
 import { Screen } from '../../../ui/Screen';
@@ -200,6 +202,7 @@ function RecCard({
 export default function AiChatScreen() {
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const mounted = useRef(true);
   const [sessionId, setSessionId] = useState<number>();
@@ -466,8 +469,9 @@ export default function AiChatScreen() {
           )}
         </ScrollView>
 
+        {/* 입력줄이 시스템 바에 덮이지 않게 안전영역만큼 더 띄웁니다 */}
         {showInput && (
-          <View style={styles.inputRow}>
+          <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
             <TextInput
               value={input}
               onChangeText={setInput}

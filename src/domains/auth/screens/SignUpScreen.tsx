@@ -29,6 +29,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CircleAlert, Lock, Mail, Phone, User } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
 import { AppBar } from '../../../ui/AppBar';
@@ -49,6 +51,7 @@ type FormKey = 'name' | 'password' | 'password2' | 'email' | 'phone';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignUpScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   // 가입이 끝나면 이 스택을 벗어나므로 루트 내비게이션을 씁니다.
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [form, setForm] = useState<Record<FormKey, string>>({
@@ -117,7 +120,13 @@ export default function SignUpScreen({ navigation }: Props) {
     >
       <AppBar onBack={() => navigation.goBack()} title="회원가입" />
 
-      <View style={styles.body}>
+      {/*
+        하단 여백은 **시안값과 기기 안전영역 중 큰 쪽**입니다 (2026-08-26).
+        시안 pb-8(32) 만 주면 제스처 내비게이션 폰에서 "이미 계정이 있으신가요? 로그인"
+        이 시스템 바에 덮입니다 — 눌러도 안 눌리고 뒤로가기 제스처로 먹혀 앱이 나갑니다.
+        브라우저 시안에는 시스템 바가 없어 드러나지 않던 문제입니다 (CLAUDE.md §5-③).
+      */}
+      <View style={[styles.body, { paddingBottom: Math.max(insets.bottom, space[8]) }]}>
         {/* ① */}
         <Text style={text.title}>계정을 만들어 볼까요?</Text>
         <Text style={styles.lead}>
@@ -212,7 +221,8 @@ export default function SignUpScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   // 시안: px-6 pb-8 · 헤더(98) 아래로 pt-[110px] → 12 만큼 띄웁니다
-  body: { flex: 1, paddingHorizontal: space[6], paddingTop: space[3], paddingBottom: space[8] },
+  // paddingBottom 은 화면에서 안전영역과 함께 계산합니다 (위 주석 참고)
+  body: { flex: 1, paddingHorizontal: space[6], paddingTop: space[3] },
 
   // 시안: mt-2 · 14 · slate-muted · leading-relaxed
   lead: { ...text.bodySmall, marginTop: space[2], color: color.ink[500] },
