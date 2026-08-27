@@ -17,7 +17,7 @@
  * step(온보딩 진행바)은 시안에 없지만 기능 요구라 유지합니다 — 스타일만 시안 토큰.
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Bell, ChevronLeft, Menu } from 'lucide-react-native';
 import theme, { color, radius, sizing, space } from '../design/theme';
@@ -69,12 +69,6 @@ function IconBtn({
 }
 
 export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) {
-  /** 제목이 쓸 수 있는 폭 — 행 여백(16×2)과 좌우 아이콘 자리(36+4)를 뺀 나머지. */
-  const { width } = useWindowDimensions();
-  const titleMaxWidth = Math.max(
-    120,
-    width - space[4] * 2 - (sizing.iconButton + space[1]) * 2
-  );
   return (
     <View style={styles.wrap}>
       {/* 시안의 backdrop-blur. 흰 0.95 가 위에 얹혀 은은하게만 비칩니다. */}
@@ -115,11 +109,11 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
 
         {/* 시안: 중앙 요소는 절대 배치 — 좌우 요소 폭에 밀리지 않습니다 */}
         {home ? (
-          <View pointerEvents="none" style={styles.centerWrap}>
+          <View pointerEvents="none" style={styles.center}>
             <RealsLogo size={22} />
           </View>
         ) : title ? (
-          <View pointerEvents="none" style={styles.centerWrap}>
+          <View pointerEvents="none" style={styles.center}>
             {/*
               🔴 폭 상한은 **숫자**입니다 — 퍼센트를 쓰면 안 됩니다 (2026-08-27).
 
@@ -135,15 +129,14 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
               글꼴 배율은 1.3 까지 허용합니다. 사장님 연배에 글씨를 키워 쓰시는 분이
               많고, 281pt 면 1.3 배(111pt)도 넉넉히 들어갑니다.
             */}
-            <Text
-              style={[styles.title, { maxWidth: titleMaxWidth }]}
-              numberOfLines={1}
-              maxFontSizeMultiplier={1.3}
-            >
+            <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={1.3}>
               {title}
             </Text>
           </View>
-        ) : null}
+        ) : (
+          // 가운데에 아무것도 없어도 칸은 남깁니다 — 좌우가 양끝에 붙어 있어야 합니다
+          <View style={styles.center} />
+        )}
 
         <View style={[styles.side, styles.sideRight]}>
           {home ? <IconBtn icon={Menu} label="설정" onPress={home.onMenu} edge="right" /> : right}
@@ -211,15 +204,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: color.paper,
   },
-  // 시안: 중앙 요소는 `absolute left-1/2 -translate-x-1/2` — 좌우 요소 폭에 밀리지 않습니다.
-  centerWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  // 시안: 18·700 · tracking-tighter-title. 폭 상한은 화면에서 숫자로 계산합니다(아래)
-  title: theme.text.heading,
+  /**
+   * 🔴 **절대배치를 걷어냈습니다** (2026-08-27, 두 번째 수정).
+   *
+   * 시안은 `absolute left-1/2 -translate-x-1/2` 로 가운데를 잡습니다. 그대로 옮겼더니
+   * 기기에서 "AI 숏폼 추천"(85pt)이 82pt 언저리에서 잘렸습니다. `maxWidth` 를 퍼센트에서
+   * 숫자로 바꿔도 그대로였습니다 — **폭을 `left/right` 로만 정하는 절대배치 자체**가
+   * 기기에서 우리가 기대한 폭으로 안 풀립니다.
+   *
+   * 그래서 평범한 flex 세 칸으로 바꿉니다. 가운데 칸이 `flex: 1` 이라 **좌우 버튼을 뺀
+   * 나머지 전부**를 가집니다. 계산도, 퍼센트도, 절대배치도 없습니다.
+   *
+   * 가운데 정렬도 유지됩니다 — 좌우 `side` 가 둘 다 `minWidth: 36` 이고 우리 헤더는
+   * 한쪽에 아이콘이 최대 하나라, 두 칸 폭이 같아 시안의 절대 중앙과 결과가 같습니다.
+   */
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  // 시안: 18·700 · tracking-tighter-title
+  title: { ...theme.text.heading, textAlign: 'center' },
   stepBar: { flexDirection: 'row', gap: 3, paddingHorizontal: space[5], paddingBottom: space[3] },
   stepSeg: { flex: 1, height: 4, borderRadius: radius.pill },
 });
