@@ -394,6 +394,38 @@ export function MenuManager({ storeId }: { storeId?: number }) {
   );
 }
 
+/**
+ * 🔴 안드로이드에서 **입력칸 글자 윗부분이 잘리던 것** (2026-08-28, 실기기 보고).
+ *
+ * 이 화면의 입력칸은 시안 `h-9` 라 **36** 입니다 — 앱에서 가장 낮은 입력칸입니다
+ * (다른 곳은 전부 `sizing.inputHeight` = 52). 낮은 칸에서 아래 셋이 겹치면서
+ * 글자 위쪽이 테두리에 잘렸습니다.
+ *
+ *   ① **세로 패딩을 0 으로 안 잡았습니다.** 안드로이드 `TextInput` 은 기본 세로 패딩이
+ *      붙는데, `paddingHorizontal` 만 주면 그 기본값이 그대로 남습니다.
+ *      `ui/AuthField.tsx` · `StoreSearchScreen` 의 입력칸은 전부 `padding: 0` 입니다 —
+ *      52 짜리 칸은 여유가 30 이나 돼서 티가 안 났을 뿐, 같은 실수였습니다.
+ *   ② **토큰을 펼치면서 `lineHeight` 까지 딸려 왔습니다** (bodySmall 21).
+ *      안드로이드는 `TextInput` 에 줄높이가 있으면 첫 줄을 그만큼 위로 끌어올립니다.
+ *      한 줄짜리 입력칸에 줄높이는 의미도 없습니다.
+ *   ③ `includeFontPadding` 기본값(true)이 폰트 권장 여백을 더 얹습니다.
+ *      21 + 기본 패딩 + 폰트 여백이 36 을 넘기면서 위가 잘렸습니다.
+ *
+ * 그래서 셋을 함께 끕니다. **높이 36 은 시안 값이라 그대로 둡니다** — 칸을 키워서
+ * 가리는 게 아니라 글자를 칸 안에 제대로 앉히는 것이 맞습니다.
+ * iOS 는 `includeFontPadding` · `textAlignVertical` 을 무시하므로 영향이 없습니다.
+ *
+ * ⚠️ 낮은 입력칸을 새로 만들면 이걸 같이 펴세요. 52 짜리는 여유가 있어 안 드러나지만
+ *    같은 조합입니다.
+ */
+const INPUT_FIT = {
+  /** 토큰에서 딸려 온 줄높이를 끕니다 (위 ②) */
+  lineHeight: undefined,
+  paddingVertical: 0,
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+} as const;
+
 const styles = StyleSheet.create({
   // ── 지우기 확인창 (연동 실패 얼럿과 같은 규격) ──────────────
   scrim: {
@@ -528,6 +560,7 @@ const styles = StyleSheet.create({
     ...text.bodySmall,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
+    ...INPUT_FIT,
     height: 36,
     paddingHorizontal: 10,
     borderRadius: radius.sm,
@@ -547,7 +580,14 @@ const styles = StyleSheet.create({
     borderColor: color.ink[200],
     backgroundColor: color.canvas,
   },
-  priceInput: { ...text.bodySmall, flex: 1, minWidth: 0, padding: 0, color: color.ink[900] },
+  priceInput: {
+    ...text.bodySmall,
+    ...INPUT_FIT,
+    flex: 1,
+    minWidth: 0,
+    padding: 0,
+    color: color.ink[900],
+  },
   won: { ...text.caption, color: color.ink[500] },
 
   trash: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },

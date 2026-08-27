@@ -131,6 +131,25 @@ export default function RenderScreen({ navigation, route }: Props) {
       armTimeout();
       return;
     }
+    /**
+     * 🔴 **실패·부족 상태에서는 자동으로 다시 걸지 않습니다** (2026-08-27).
+     *
+     * 여기가 예전에는 무조건 `begin()` 이었습니다. 그래서 마지막 렌더가 실패한
+     * 프로젝트는 **편집 화면에 들어가기만 해도 새 편집이 걸렸습니다.** 사장님이
+     * 아무것도 안 눌러도, 들어갔다 나왔다 세 번이면 AI 런이 세 개입니다.
+     *
+     * 편집 한 번은 **실제 요금**입니다. AI 레포를 열어 보니 한 런이 최대 네 번
+     * LLM 을 부르고(`editing_max_repair_attempts=2` + SOURCE_GAP 축소구조 재시도),
+     * 멈춘 런은 15~20분마다 서버가 알아서 다시 돌립니다(상한 없음).
+     * 하루 $18 이 그렇게 나왔습니다 — 자세한 건 `AI_전달사항.md`.
+     *
+     * 이제 실패 화면을 보여주고, **사장님이 "다시 시도" 를 누를 때만** 겁니다.
+     */
+    if (s === 'FAILED' || s === 'SOURCE_GAP') {
+      decided.current = true;
+      setStarted(true);
+      return;
+    }
     decided.current = true;
     begin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,6 +261,46 @@ export default function RenderScreen({ navigation, route }: Props) {
     해야 할 일이 다릅니다 — ②는 **기다리면 될 수도** 있고(서버는 계속 돌고 있습니다),
     ③은 **다시 걸어야** 합니다. 그래서 문구도 버튼도 갈랐습니다.
   */
+  /**
+   * `SOURCE_GAP` — 촬영본이 모자라 편집을 끝내지 못한 경우.
+   *
+   * 서버가 부족한 장면을 알려주므로(`missing_scene_roles`) **TASKS_INCOMPLETE 와
+   * 같은 화면**으로 안내합니다 — 사장님이 할 일이 "더 찍기" 로 똑같습니다.
+   * 새 화면을 만들지 않고 아래 `incomplete` 갈래가 쓰는 StateBlock 을 그대로 씁니다.
+   *
+   * ⚠️ 지금은 이 값이 오지 않습니다(AI 가 폴백으로 넘깁니다). 오는 순간 화면이
+   *    "편집 중" 에서 멈추기 때문에 미리 막아 두는 것입니다 — `types.ts` 의
+   *    RenderStatus 주석 참고.
+   */
+  if (renderStatus === 'SOURCE_GAP') {
+    const roles = result?.missingSceneRoles ?? [];
+    return (
+      <Screen scroll={false} padded={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>
+        <View style={styles.failBody}>
+          <StateBlock
+            icon={TriangleAlert}
+            tone="brand"
+            title="촬영본이 조금 모자라요"
+            body={
+              roles.length > 0
+                ? `${roles.join(', ')} 장면을 더 찍으면 영상을 만들 수 있습니다.`
+                : '몇몇 장면이 부족해서 편집을 끝내지 못했어요. 촬영 목록을 확인해 주세요.'
+            }
+            primaryLabel="더 찍으러 가기"
+            onPrimary={() => navigation.replace('Camera', { projectId })}
+          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => rootNav.navigate('Main', { screen: 'HomeFeed' })}
+            style={styles.laterLink}
+          >
+            <Text style={styles.laterText}>나중에 하기</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
   if (incomplete) {
     return (
       <Screen scroll={false} padded={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>

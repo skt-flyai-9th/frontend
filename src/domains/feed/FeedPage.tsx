@@ -24,10 +24,9 @@
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Camera, Heart } from 'lucide-react-native';
+import { Heart, Play } from 'lucide-react-native';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
-import { Marquee } from '../../ui/Marquee';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
@@ -98,13 +97,18 @@ export function FeedPage({
         <View style={styles.metaRow}>
           {tags.length > 0 ? (
             /*
-              태그는 하트·촬영 버튼과 한 줄을 나눠 쓰느라 자리가 좁습니다.
-              `#촬영30초 #난이도하 #얼…` 로 잘리면 **얼굴이 나와야 하는지**가 사라지는데,
-              그건 찍기 전에 꼭 알아야 하는 값입니다. 잘리는 대신 흘려보냅니다.
+              🔴 2026-08-27: **전광판처럼 흐르던 것을 세웠습니다** (사장님 지시).
+
+              예전에는 태그가 하트·촬영 버튼과 한 줄을 나눠 쓰느라 자리가 좁아, 잘리는
+              대신 흘려보냈습니다. 옆 버튼이 아이콘으로 작아지면서 자리가 넉넉해졌고,
+              움직이는 글씨는 읽기 어렵다는 지적이 있었습니다.
+
+              시안도 흐르지 않습니다 — `truncate` 한 줄입니다(`shell.jsx:321`).
+              다만 세 태그가 한 줄에 안 들어가는 기기가 있어 **두 줄까지** 허용합니다.
             */
-            <Marquee style={styles.tags} containerStyle={styles.tagsBox}>
+            <Text style={[styles.tags, styles.tagsBox]} numberOfLines={2}>
               {tags.join(' ')}
-            </Marquee>
+            </Text>
           ) : (
             <View style={{ flex: 1 }} />
           )}
@@ -126,14 +130,27 @@ export function FeedPage({
             />
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${format.formatTitle} 이 방식으로 만들기`}
-            onPress={() => onCreate(format)}
-            style={({ pressed }) => [styles.createBtn, pressTap(pressed, 'button')]}
-          >
-            <Camera size={16} strokeWidth={2} color={color.paper} />
-              <Text style={styles.createText}>이 방식으로 찍기</Text>
+          {/*
+              🔴 2026-08-27: 파란 알약 "이 방식으로 찍기" → **시안 아이콘 버튼**.
+
+              시안 원문 (`js/shell.jsx:325`)
+                <button aria-label="영상 촬영 준비하기"
+                        className="h-9 w-9 rounded-full active:scale-90">
+                  <PlayGlyph size={24} color="#334155" strokeWidth={1.7} />
+                </button>
+
+              글자 대신 재생 아이콘 하나입니다. 색도 브랜드 파랑이 아니라 slate(#334155
+              = ink[700]) 입니다. 터치 영역은 44 로 두되(40~60대 손끝), 보이는 크기는
+              시안과 같습니다. 무엇을 하는 버튼인지는 accessibilityLabel 이 말합니다.
+            */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${format.formatTitle} 영상 촬영 준비하기`}
+              hitSlop={8}
+              onPress={() => onCreate(format)}
+              style={({ pressed }) => [styles.createBtn, pressTap(pressed, 'icon')]}
+            >
+              <Play size={24} strokeWidth={1.7} color={color.ink[700]} />
             </Pressable>
           </View>
         </View>
@@ -156,7 +173,12 @@ const styles = StyleSheet.create({
   title: { ...theme.text.subheading, color: color.ink[900] },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   tagsBox: { flex: 1, minWidth: 0 },
-  tags: { ...theme.text.caption, color: color.brand[600] },
+  /*
+    시안: `text-[12px] font-medium text-slate-muted` (`shell.jsx:321`).
+    브랜드 파랑 13 이었는데 시안값으로 맞췄습니다 — 관심목록 카드(FormatCard)도
+    같은 값이라 두 화면의 같은 태그가 이제 같아 보입니다.
+  */
+  tags: { ...theme.text.label, color: color.ink[500], lineHeight: 18 },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   heartBtn: {
@@ -166,19 +188,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 시안: h-9 w-9 rounded-full (아이콘만). 터치는 44 로 넓힙니다
   createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    width: 44,
     height: 44,
-    paddingHorizontal: space[4],
     borderRadius: radius.pill,
-    backgroundColor: color.brand[600],
-  },
-  createText: {
-    ...text.bodySmall,
-    fontFamily: theme.text.bodyStrong.fontFamily,
-    fontWeight: theme.text.bodyStrong.fontWeight,
-    color: color.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
