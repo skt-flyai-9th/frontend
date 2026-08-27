@@ -17,7 +17,7 @@
  * step(온보딩 진행바)은 시안에 없지만 기능 요구라 유지합니다 — 스타일만 시안 토큰.
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Bell, ChevronLeft, Menu } from 'lucide-react-native';
 import theme, { color, radius, sizing, space } from '../design/theme';
@@ -69,6 +69,12 @@ function IconBtn({
 }
 
 export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) {
+  /** 제목이 쓸 수 있는 폭 — 행 여백(16×2)과 좌우 아이콘 자리(36+4)를 뺀 나머지. */
+  const { width } = useWindowDimensions();
+  const titleMaxWidth = Math.max(
+    120,
+    width - space[4] * 2 - (sizing.iconButton + space[1]) * 2
+  );
   return (
     <View style={styles.wrap}>
       {/* 시안의 backdrop-blur. 흰 0.95 가 위에 얹혀 은은하게만 비칩니다. */}
@@ -114,7 +120,26 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
           </View>
         ) : title ? (
           <View pointerEvents="none" style={styles.centerWrap}>
-            <Text style={styles.title} numberOfLines={1}>
+            {/*
+              🔴 폭 상한은 **숫자**입니다 — 퍼센트를 쓰면 안 됩니다 (2026-08-27).
+
+              예전에는 `maxWidth: '62%'` 였습니다. 이 상자는 `left/right` 로만 폭이
+              정해지는 **절대배치**라, 그 퍼센트가 기기에서 기대대로 풀리지 않습니다.
+              실기기에서 "AI 숏폼 추천"(85pt)이 **82pt 에서 잘려** "AI 숏폼 추…" 로
+              떴습니다(사장님 캡처를 픽셀로 재서 확인 — 글꼴 배율은 1.0 이었습니다.
+              같은 캡처의 "관심 목록" 은 62pt 라 아슬아슬하게 살아남았습니다).
+
+              화면 폭에서 좌우 아이콘 자리(36+4)와 행 여백(16)을 뺀 값이 상한입니다.
+              393 폭이면 281pt — 제목이 버튼 밑으로 들어가지도, 잘리지도 않습니다.
+
+              글꼴 배율은 1.3 까지 허용합니다. 사장님 연배에 글씨를 키워 쓰시는 분이
+              많고, 281pt 면 1.3 배(111pt)도 넉넉히 들어갑니다.
+            */}
+            <Text
+              style={[styles.title, { maxWidth: titleMaxWidth }]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+            >
               {title}
             </Text>
           </View>
@@ -186,17 +211,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: color.paper,
   },
+  // 시안: 중앙 요소는 `absolute left-1/2 -translate-x-1/2` — 좌우 요소 폭에 밀리지 않습니다.
   centerWrap: {
     position: 'absolute',
     left: 0,
     right: 0,
     alignItems: 'center',
   },
-  // 시안: 18·700 · tracking-tighter-title
-  title: {
-    ...theme.text.heading,
-    maxWidth: '62%',
-  },
+  // 시안: 18·700 · tracking-tighter-title. 폭 상한은 화면에서 숫자로 계산합니다(아래)
+  title: theme.text.heading,
   stepBar: { flexDirection: 'row', gap: 3, paddingHorizontal: space[5], paddingBottom: space[3] },
   stepSeg: { flex: 1, height: 4, borderRadius: radius.pill },
 });
