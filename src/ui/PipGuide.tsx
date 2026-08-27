@@ -78,7 +78,7 @@ export function PipGuide({
   /**
    * 구간 반복 — 지금 찍는 컷에 해당하는 부분만 되풀이합니다.
    * 작은 창과 확대 화면 **둘 다** 같은 구간을 씁니다.
-   * 서버가 `start_ms`·`end_ms` 를 주면 초로 바꿔 넣으면 됩니다 (BE §2-2).
+   * 서버가 `start_ms`·`end_ms` 를 주면 초로 바꿔 넣으면 됩니다 (BE §2-1).
    */
   loopStart?: number | null;
   loopEnd?: number | null;
