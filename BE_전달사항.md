@@ -16,6 +16,8 @@
 | | 항목 | 한 줄 |
 |---|---|---|
 | ✅ | ~~14.1 편집 실패~~ **철회** | 저희 테스트 파일이 원인이었습니다. 실제 촬영본으로는 345초에 완성 (§1-0) |
+| 🔴 | **`stage`·`error_message` 가 배포에 안 올라가 있습니다** | 레포에는 이미 있습니다. 배포만 해 주시면 됩니다 (§1-5) |
+| 🔴 | **끝나지 않는 편집을 확정해 줄 곳이 없습니다** | AI가 안 끝내면 아무도 안 끝냅니다 — 요금이 계속 나갑니다 (§1-6) |
 | 🔴 | **2.3 가져오기가 `PENDING` 에서 안 넘어감** | 메뉴·사진·상권분석이 전부 비어 있습니다 (§1-1) |
 | 🔴 | **5.1 포맷이 3건뿐** | 홈 피드가 세 편으로 끝납니다 (§1-2) |
 | 🟡 | 참고 영상 `start_ms`·`end_ms` 가 **키만 있고 값이 `null`** | 구간 반복을 못 붙입니다. 앱은 준비 끝 (§2-1) |
@@ -216,9 +218,107 @@ project 56 · video_format_id 46
 
 ---
 
+### 1-5. 🔴 **`stage` · `error_message` — 코드엔 있는데 배포가 안 됐습니다** (2026-08-27)
+
+레포를 직접 받아 확인했습니다. **이미 만들어 두셨습니다.**
+
+```python
+# backend-develop/app/schemas/shorts_project.py:398
+class EditResultResponse(BaseSchema):
+    video_output_id: int
+    render_status: RenderStatus
+    progress_percent: int
+    stage: str | None = None            # ← 405줄
+    preview_video_url: str | None
+    timeline_summary: list[TimelineItem]
+    missing_scene_roles: list[str] | None = None
+    available_options: list[str] | None = None
+    error_message: str | None = None    # ← 414줄
+```
+
+그런데 **실서버 `openapi.json` 에는 이 둘이 없습니다.**
+
+```
+실서버 EditResultResponse
+  video_output_id, render_status, progress_percent,
+  preview_video_url, timeline_summary, missing_scene_roles, available_options
+```
+
+`sync_output()` 도 `render_stage`·`render_progress`·`error_message` 를 매번 갱신하도록
+이미 고쳐져 있습니다(`app/services/video_edit.py:196~205`). **배포만 하시면 됩니다.**
+
+이게 올라오면 앱이 두 가지를 바로 할 수 있습니다.
+- 진행률(%)에서 단계를 **역산하던 것**을 그만두고 `stage` 를 그대로 씁니다
+- 실패했을 때 사장님께 **"다시 시도하면 됩니다" / "촬영본을 다시 올려 주세요"** 를
+  구분해 말할 수 있습니다 (지금은 "편집을 끝내지 못했어요" 한 문장뿐입니다)
+
+### 1-6. 🔴 **끝나지 않는 편집을 확정해 줄 곳이 없습니다** (2026-08-27)
+
+**하루 만에 AI 요금이 $18 나왔습니다.** 사장님 화면은 몇 시간째 "편집중" 이었습니다.
+AI 레포까지 읽어 경로를 찾았고, 자세한 내용은 **`AI_전달사항.md`** 에 정리해 AI팀에
+따로 전달합니다. 요약하면 —
+
+```
+AI  editing_orphan_stale_seconds = 900   (15분 이상 RUNNING 이면 고아 판정)
+AI  recover_orphaned_editing_runs()      → status=QUEUED 로 되돌리고 재실행
+    ⚠️ 시도 횟수 상한이 없습니다 → 15~20분마다 영원히 반복 → 매번 LLM 요금
+```
+
+**백엔드는 잘 막고 있습니다** — `start_edit()` 이 진행 중 산출물을 재사용하므로
+(`app/services/video_edit.py:122`) 사장님이 "다시 시도" 를 눌러도 새 런이 안 생깁니다.
+문제는 **AI 가 스스로 계속 돌린다**는 것이고, 그 사이 `render_status` 는
+`PENDING ↔ PROCESSING` 만 오가서 **아무도 이 편집을 끝내지 않습니다.**
+
+`sync_output()` 은 AI 상태를 비추기만 합니다(`still_in_progress` 가 아니면 그대로 반환).
+즉 **AI 가 끝내지 않으면 백엔드도 끝내지 않고, 앱도 영원히 기다립니다.**
+
+**부탁드립니다 — 안전장치를 백엔드에 하나 두시면 좋겠습니다**
+
+AI 쪽 상한(§AI 문서 1번)이 근본 해결이지만, 그것과 별개로 백엔드에도 마지막 방어선이
+있으면 좋겠습니다.
+
+```
+VideoOutput.created_at 기준 N분(예: 40분)이 지나도 PENDING/PROCESSING 이면
+  → render_status = FAILED
+  → error_message = "편집이 시간 안에 끝나지 않았습니다"
+```
+
+이유는 둘입니다.
+1. **화면이 사장님께 상황을 말할 수 있습니다.** 지금은 앱이 자체 타이머(15분)로만
+   판단하는데, 서버는 여전히 진행 중이라고 하니 둘이 어긋납니다.
+2. **편집 완료 푸시가 이 상태에 걸려 있습니다.** 끝나야 발송되는 구조라
+   (`app/services/edit_notify.py`), 안 끝나면 알림도 영영 안 옵니다.
+
+### 1-7. 🟡 촬영 가이드에 가게 정보가 전달되지 않습니다 — **원인을 찾았습니다**
+
+§1-0-B 에서 "같은 포맷이면 가게·목적·메뉴와 무관하게 기획이 동일하다" 고 올렸던 건인데,
+레포를 보니 **의도된 설계**였습니다.
+
+```python
+# app/services/ai_client.py:308
+del store, project  # 현재 AI 조회 계약은 템플릿 id와 버전만 받는다.
+
+GET /api/v1/editing-templates/{editing_template_id}/versions/{version}/shooting-guide
+```
+
+가게·프로젝트를 받아서 **그 자리에서 버리고** 템플릿 id + 버전만으로 부릅니다.
+주석에 인용된 AI팀 지침(`docs/AI_연동_입출력.md` 13번)이 근거로 보입니다.
+
+**그래서 이건 백엔드 버그가 아닙니다.** AI 쪽 계약이 가게 컨텍스트를 받도록 열려야
+풀립니다 — `AI_전달사항.md` §4 로 요청했습니다.
+
+다만 **그 계약이 열리면 백엔드 수정은 한 줄입니다** — 이미 `store`·`project` 를 손에
+쥔 채 버리고 있으니, 그대로 실어 보내기만 하면 됩니다. 미리 알아 두시면 좋겠습니다.
+
+---
+
 ## 1-1~1-2. 🔴 이전부터 막고 있던 것 둘
 
-### 1-0-B. 🔴 **7.1 촬영 기획이 포맷 하나로만 정해집니다 — 매장이 반영되지 않습니다** (2026-08-27 신규)
+### 1-0-B. 🟡 7.1 촬영 기획이 포맷 하나로만 정해집니다 — 매장이 반영되지 않습니다
+
+> **2026-08-27 후속: 원인을 찾았습니다 → §1-7.** 백엔드가 가게·프로젝트를 버리고
+> 템플릿 id + 버전만으로 AI 를 부르는 구조였습니다(의도된 설계). 아래는 그 전에
+> 블랙박스로 확인한 실측 기록이라 근거로 남깁니다.
 
 같은 포맷이면 **어느 가게든, 어떤 목적이든, 메뉴가 있든 없든 장면 문구가 글자 하나까지
 똑같습니다.** 사장님이 "구간별로 나눠주는 글이 매번 같은 것 아니냐" 고 하셔서 확인했습니다.
