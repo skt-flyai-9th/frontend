@@ -39,7 +39,6 @@ import type { CreateStackParamList } from '../../../navigation/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
 
-const COUNTDOWN_FROM = 3;
 
 export default function CameraScreen({ navigation, route }: Props) {
   const { projectId, taskId: firstTaskId, formatId: pickedFormatId } = route.params;
@@ -120,7 +119,6 @@ export default function CameraScreen({ navigation, route }: Props) {
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
   /** 대사가 없는 B-roll 은 마이크 권한을 요구하지 않습니다. */
@@ -132,7 +130,6 @@ export default function CameraScreen({ navigation, route }: Props) {
       if (state !== 'active' && recording) {
         cameraRef.current?.stopRecording();
         setRecording(false);
-        setCountdown(null);
       }
     });
     return () => sub.remove();
@@ -183,17 +180,6 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   // 화면을 벗어나면 업로드를 정리합니다. 안 하면 백그라운드에서 계속 돕니다.
   useEffect(() => () => upload.cancel(), []);
-
-  useEffect(() => {
-    if (countdown === null) return;
-    if (countdown === 0) {
-      setCountdown(null);
-      void beginRecording();
-      return;
-    }
-    const t = setTimeout(() => setCountdown((c) => (c === null ? null : c - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [countdown, beginRecording]);
 
   // 안무 컷으로 넘어가는 사이에 이 화면이 한 프레임 스쳐 보이지 않게 검은 판만 둡니다.
   if (goingToDance) return <View style={styles.black} />;
@@ -295,12 +281,6 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
       </SafeAreaView>
 
-      {countdown !== null && (
-        <View style={styles.countdownLayer} pointerEvents="none">
-          <Text style={styles.countdownText}>{countdown === 0 ? '시작' : countdown}</Text>
-        </View>
-      )}
-
       {recording && (
         <View style={styles.recPill} pointerEvents="none">
           <View style={styles.recDot} />
@@ -352,14 +332,19 @@ export default function CameraScreen({ navigation, route }: Props) {
         <View style={styles.controls}>
           <Shutter
             recording={recording}
-            disabled={!ready || countdown !== null}
+            disabled={!ready}
+            /*
+              🔴 2026-08-27: 누르면 **바로 찍습니다.** 예전에는 3·2·1 을 세고 시작했습니다.
+                 사장님 지시로 뺐습니다 — 준비는 이미 화면 보면서 하시고, 세 박자를
+                 기다리는 동안 놓치는 순간이 생깁니다.
+            */
             onPress={
               recording
                 ? () => {
                     cameraRef.current?.stopRecording();
                     setRecording(false);
                   }
-                : () => setCountdown(COUNTDOWN_FROM)
+                : () => void beginRecording()
             }
           />
 
@@ -516,22 +501,6 @@ const styles = StyleSheet.create({
   taskOrder: { ...text.micro, color: 'rgba(255,255,255,0.78)' },
   taskTitle: { ...text.bodyStrong, color: color.paper },
   stripWrap: { paddingHorizontal: space[5], paddingTop: space[3] },
-
-  countdownLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countdownText: {
-    fontSize: theme.font.size.countdown,
-    lineHeight: theme.font.lineHeight.countdown,
-    color: color.paper,
-    fontFamily: theme.text.display.fontFamily,
-  },
 
   recPill: {
     position: 'absolute',
