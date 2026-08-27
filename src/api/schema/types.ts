@@ -542,7 +542,12 @@ export type FootageType = 'VIDEO' | 'IMAGE' | 'AUDIO';
 
 export interface FootageResponse {
   taskId: Id;
-  footageUrl: string;
+  /**
+   * ⚠️ 서버는 `file_url` 을 줍니다 — `footage_url` 이 아닙니다 (2026-08-27 정정).
+   * 실서버 `FootageUploadResponse` 스키마와 실제 응답 둘 다로 확인했습니다.
+   * 지금 이 값을 읽는 화면이 없어 증상은 없었지만, 읽는 순간 undefined 였습니다.
+   */
+  fileUrl: string;
   footageType: FootageType;
   footageDurationSec: number;
   taskStatus: TaskStatus;
@@ -675,7 +680,20 @@ export interface Evaluation {
 // R14 AI 자동편집
 // ══════════════════════════════════════════════════
 
-export type RenderStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+/**
+ * 명세 14.2. **다섯 값입니다** — `SOURCE_GAP` 이 빠져 있었습니다 (2026-08-27 정정).
+ *
+ * 실서버 `openapi.json` 의 `RenderStatus` enum 을 직접 떠서 확인했습니다.
+ * 빠져 있는 동안 그 값이 오면 화면이 `done`(COMPLETED)도 `failed`(FAILED)도 아니라
+ * **"편집 중..." 에서 멈춥니다** — 폴링도 그때 함께 멈춰(`api/queries/edit.ts` 의
+ * refetchInterval 이 PENDING·PROCESSING 일 때만 돕니다) 진행률조차 안 바뀝니다.
+ *
+ * ⚠️ **지금은 이 값이 오지 않습니다.** AI 쪽 `execute()` 가 SOURCE_GAP 판정을 받으면
+ *    축소구조 재시도 → 순서기반 폴백으로 넘겨서 결국 COMPLETED/FAILED 로만 끝납니다
+ *    (AI 레포 `app/agents/editing/service.py`). 백엔드 매핑에는 이미 있으므로
+ *    **AI 가 쓰기 시작하는 순간** 화면이 멈춥니다 — 그 전에 막아 둡니다.
+ */
+export type RenderStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'SOURCE_GAP';
 export type TargetPlatform = 'INSTAGRAM' | 'YOUTUBE' | 'NAVER';
 
 /**
@@ -706,6 +724,14 @@ export interface EditResult {
   progressPercent: number;
   previewVideoUrl?: string;
   timelineSummary?: TimelineItem[];
+  /**
+   * `renderStatus === 'SOURCE_GAP'` 일 때 **부족한 장면 역할**입니다.
+   * 그 외에는 항상 `null` 입니다. 서버가 어떤 장면이 모자란지 알려주므로
+   * 촬영으로 안내할 때 그대로 씁니다.
+   */
+  missingSceneRoles?: string[] | null;
+  /** `SOURCE_GAP` 일 때 서버가 제시하는 선택지. 지금은 화면에서 쓰지 않습니다. */
+  availableOptions?: string[] | null;
 }
 
 export interface ReviseBody {
