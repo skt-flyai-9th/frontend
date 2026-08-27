@@ -47,6 +47,7 @@ import { Banner, Spinner } from '../../../ui/Feedback';
 import { MenuManager } from '../components/MenuManager';
 import { BrandMark } from '../../../ui/BrandMark';
 import { pressTap } from '../../../ui/press';
+import { ApiError } from '../../../api/http';
 import { useAppState } from '../../../lib/appState';
 import { useStore, useUpdateStore, useUploadLogo } from '../../../api/queries/store';
 import { useDisconnectSns, useSnsAuthorize, useSnsConnections } from '../../../api/queries/edit';
@@ -250,9 +251,10 @@ export default function EditProfileScreen() {
       onError: (e) =>
         Alert.alert(
           '사진을 올리지 못했습니다',
+          // 사장님께 할 말 + 진짜 원인. e.message 는 코드별 안내문이라 원인이 아닙니다
           `신호를 확인하고 다시 시도해 주세요.
 
-(${e instanceof Error ? e.message : String(e)})`
+(${e instanceof ApiError ? (e.serverMessage ?? e.code) : e instanceof Error ? e.message : String(e)})`
         ),
     });
   };

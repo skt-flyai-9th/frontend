@@ -154,3 +154,76 @@ export function uploadFootage(input: UploadInput): UploadHandle {
     cancel: () => task?.cancel(),
   };
 }
+
+/**
+ * 이미지 한 장 올리기 — 가게 로고(3.6)·가게 사진(3.3)·메뉴 사진처럼 `multipart` 로
+ * 파일 하나만 보내는 곳이 씁니다.
+ *
+ * 🔴 **왜 `fetch` + `FormData` 를 안 쓰는가** (2026-08-27)
+ *
+ * 프로필 사진 업로드가 실기기에서 계속 "연결이 끊겼습니다" 로 실패했습니다. 서버는
+ * 멀쩡합니다 — 같은 파일을 직접 올리면 200 과 `logo_url` 이 옵니다. 갈린 지점은
+ * **전송 방법**이었습니다. 촬영본(9.2)은 아래 `UploadTask` 로 30초짜리 영상도 잘
+ * 올라가는데, 로고만 `fetch` + `FormData({uri,name,type})` 이라 그 경로에서 터졌습니다.
+ * (RN 의 `FormData` 파일 첨부는 fetch 구현에 기대는 부분이라 기기·빌드에 따라 갈립니다.)
+ *
+ * **이미 증명된 길로 통일합니다.** 영상이 올라가는 그 경로로 사진도 올립니다.
+ * 진행률이 필요 없으면 `onProgress` 를 안 주면 됩니다.
+ */
+export async function uploadImageFile<T>(input: {
+  /** `API.storeLogo(id)` 처럼 완성된 경로. */
+  path: string;
+  uri: string;
+  /** 서버가 받는 필드 이름. 3.6 은 `file` 입니다 (다른 이름은 422). */
+  fieldName?: string;
+  mimeType?: string;
+  /** 함께 보낼 form 값 (snake_case 그대로). */
+  parameters?: Record<string, string>;
+}): Promise<T> {
+  const { path, uri, fieldName = 'file', mimeType = 'image/jpeg', parameters } = input;
+
+  if (isMocked(path)) {
+    return toCamel<T>(await mockRequest(path, 'POST'));
+  }
+
+  const tokens = await getTokens();
+  const file = new File(uri);
+  if (!file.exists) {
+    throw new ApiError(0, 'UPLOAD_FAILED', `사진 파일을 찾을 수 없습니다: ${uri}`);
+  }
+
+  const task = new UploadTask(file, `${BASE_URL}${path}`, {
+    httpMethod: 'POST',
+    uploadType: UploadType.MULTIPART,
+    fieldName,
+    mimeType,
+    parameters,
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+  });
+
+  let result;
+  try {
+    result = await task.uploadAsync();
+  } catch (e) {
+    // 원인을 삼키지 않습니다 — 다음 진단이 이 문구에서 시작합니다.
+    throw new ApiError(0, 'NETWORK_ERROR', e instanceof Error ? e.message : String(e));
+  } finally {
+    task.release();
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    let code = 'UPLOAD_FAILED';
+    let serverMessage: string | undefined;
+    try {
+      const parsed = JSON.parse(result.body);
+      code = parsed?.error_code ?? code;
+      serverMessage = parsed?.message;
+    } catch {
+      serverMessage = result.body?.slice(0, 200);
+    }
+    if (result.status === 413) code = 'FILE_TOO_LARGE';
+    throw new ApiError(result.status, code, serverMessage);
+  }
+
+  return toCamel<T>(JSON.parse(result.body));
+}

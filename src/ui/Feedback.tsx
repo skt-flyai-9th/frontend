@@ -116,7 +116,14 @@ export function StateBlock({
         />
       ) : null}
       {secondaryLabel && onSecondary ? (
-        <Button label={secondaryLabel} onPress={onSecondary} variant="quiet" size="small" full={false} />
+        <Button
+          label={secondaryLabel}
+          onPress={onSecondary}
+          variant="quiet"
+          size="small"
+          full={false}
+          style={styles.blockSecondary}
+        />
       ) : null}
     </View>
   );
@@ -273,7 +280,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: space[2],
   },
-  blockButton: { height: 44, marginTop: space[3] },
+  /**
+   * 🔴 `alignSelf: 'center'` 가 핵심입니다 — 2026-08-27 정정.
+   *
+   * `Button` 은 `full={false}` 일 때 스스로 `alignSelf: 'flex-start'` 를 겁니다.
+   * 그러면 **부모의 `alignItems: 'center'` 를 이겨서** 제목·본문만 가운데고 버튼 둘은
+   * 왼쪽에 붙습니다. 시안 StateBlock 은 `flex-col items-center` 라 버튼도 가운데입니다.
+   * 편집 실패 화면에서 사장님이 잡아 주셨고, StateBlock 을 쓰는 화면 전부가 같았습니다.
+   *
+   * 높이 44 는 시안 `h-11` (기본 48 / small 36 의 사이), marginTop 12 + 블록 gap 8 = 시안 mt-5(20).
+   */
+  blockButton: { height: 44, marginTop: space[3], alignSelf: 'center' },
+  // 시안: `mt-2 py-2 text-[14px] font-semibold text-slate-muted` — 색까지 slate 입니다
+  blockSecondary: { alignSelf: 'center' },
   banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',

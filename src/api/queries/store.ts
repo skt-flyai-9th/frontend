@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { request } from '../http';
 import { API } from '../endpoints';
+import { uploadImageFile } from '../upload';
 import { qk } from './keys';
 import type {
   CreateStoreBody,
@@ -160,16 +161,11 @@ export function useUploadMenuPhoto(storeId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ menuId, uri }: { menuId: number; uri: string }) => {
-      const form = new FormData();
-      form.append('file', {
+      // 전송 방법을 촬영본과 통일했습니다 — `api/upload.ts` 의 uploadImageFile 머리말
+      const photo = await uploadImageFile<{ id: number; fileUrl: string }>({
+        path: API.photos(storeId),
         uri,
-        name: `store_${storeId}_menu_${menuId}_${Date.now()}.jpg`,
-        type: 'image/jpeg',
-      } as unknown as Blob);
-      form.append('category', '메뉴');
-      const photo = await request<{ id: number; fileUrl: string }>(API.photos(storeId), {
-        method: 'POST',
-        formData: form,
+        parameters: { category: '메뉴' },
       });
       return request<Menu>(API.menu(storeId, menuId), {
         method: 'PATCH',
@@ -198,17 +194,13 @@ export function usePhotos(storeId?: number, category?: string) {
 export function useAddPhoto(storeId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ uri, category }: { uri: string; category: string }) => {
-      const form = new FormData();
-      form.append('file', {
+    mutationFn: ({ uri, category }: { uri: string; category: string }) =>
+      // 전송 방법을 촬영본과 통일했습니다 — `api/upload.ts` 의 uploadImageFile 머리말
+      uploadImageFile<StorePhoto>({
+        path: API.photos(storeId),
         uri,
-        name: `store_${storeId}_${Date.now()}.jpg`,
-        type: 'image/jpeg',
-      } as unknown as Blob);
-      form.append('category', category);
-
-      return request<StorePhoto>(API.photos(storeId), { method: 'POST', formData: form });
-    },
+        parameters: { category },
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['store', storeId, 'photos'] }),
   });
 }
@@ -223,18 +215,19 @@ export function useAddPhoto(storeId: number) {
 export function useUploadLogo(storeId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (uri: string) => {
-      const form = new FormData();
-      form.append('file', {
+    /*
+      🔴 2026-08-27 — `fetch` + `FormData` 에서 **네이티브 업로드**로 바꿨습니다.
+
+      실기기에서 프로필 사진이 계속 "연결이 끊겼습니다" 로 실패했습니다. 서버는 정상이고
+      (직접 올리면 200 + logo_url), 30초짜리 촬영본은 같은 서버에 잘 올라갑니다 —
+      **다른 건 전송 방법뿐이었습니다.** 영상이 쓰는 그 길(expo-file-system UploadTask)로
+      통일합니다. 자세한 근거는 `api/upload.ts` 의 `uploadImageFile` 머리말.
+    */
+    mutationFn: (uri: string) =>
+      uploadImageFile<{ storeId: number; logoUrl: string; updatedAt: string }>({
+        path: API.storeLogo(storeId),
         uri,
-        name: `store_${storeId}_logo_${Date.now()}.jpg`,
-        type: 'image/jpeg',
-      } as unknown as Blob);
-      return request<{ storeId: number; logoUrl: string; updatedAt: string }>(
-        API.storeLogo(storeId),
-        { method: 'POST', formData: form }
-      );
-    },
+      }),
     onSuccess: (res) => {
       qc.setQueryData<Store>(qk.store(storeId), (old) =>
         old ? { ...old, logoUrl: res.logoUrl } : old

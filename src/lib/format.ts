@@ -68,6 +68,36 @@ export function shootTime(totalSec?: number | null): string | null {
 }
 
 /**
+ * 포맷 해시태그 세 개 — **홈 피드 · 관심 목록 · AI 추천 카드가 같은 것을 씁니다.**
+ *
+ * 시안은 `#촬영시간5분 #1인촬영 #얼굴미노출` 세 개인데, 가운데 **인원은 API 에 없어**
+ * 난이도로 대신합니다(FormatCard 머리말, BE 미확정). 셋 다 5.1·5.2 가 주는 값입니다.
+ *
+ * 같은 세 가지를 화면마다 각자 조립하고 있었습니다(FeedPage · FormatCard). 세 번째로
+ * 베끼는 대신 여기로 모읍니다 — 문구가 갈리면 같은 포맷이 화면마다 달라 보입니다.
+ *
+ * 값이 없는 항목은 **줄에서 빠집니다.** `#난이도null` 같은 걸 쓰지 않습니다.
+ */
+export function formatHashtags(format?: {
+  expectedDurationSec?: number | null;
+  shootingDifficulty?: string | null;
+  requiresFace?: boolean | null;
+}): string[] {
+  if (!format) return [];
+  const time = shootTime(format.expectedDurationSec);
+  return [
+    // 찍는 데 걸리는 시간입니다 — 완성 영상 길이가 아닙니다 (BE 확인 2026-08-26)
+    time ? `#촬영${time}` : null,
+    format.shootingDifficulty ? `#난이도${format.shootingDifficulty}` : null,
+    typeof format.requiresFace === 'boolean'
+      ? format.requiresFace
+        ? '#얼굴촬영O'
+        : '#얼굴촬영X'
+      : null,
+  ].filter((tag): tag is string => tag !== null);
+}
+
+/**
  * 전화번호 표시 — **저장은 숫자만, 보여줄 때만 하이픈.**
  *
  * 시안 `formatPhone` 과 같은 규칙입니다. 서버 2.1 은 `phone` 을 `null` 로 주는

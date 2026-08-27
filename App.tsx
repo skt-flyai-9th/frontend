@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   SafeAreaFrameContext,
@@ -9,11 +9,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { Image, View } from 'react-native';
+// 로고 splash 는 인트로 화면(IntroSplash)이 대신합니다 — Image·View 를 여기서 쓰지 않습니다
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAppFonts } from './src/design/fonts';
 import { useHydrated } from './src/lib/appState';
 import { usePushNotifications } from './src/lib/push';
+import { IntroSplash } from './src/domains/onboarding/components/IntroSplash';
 import { ApiError } from './src/api/http';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -129,29 +130,32 @@ export default function App() {
 
   const ready = fontsReady && hydrated && updateSettled;
 
+  /*
+    인트로 — 시안 `SplashScreen`. **켤 때마다** 2.2 초 지나갑니다 (누르면 바로 넘어갑니다).
+
+    화면이 아니라 네비게이터 **앞을 덮는 방식**입니다. 시안은 이 화면에서 `auth` 로
+    보내지만, 우리는 이미 로그인한 분을 로그인 화면으로 보내면 안 되기 때문입니다.
+    덮개라 그 뒤에서 네비게이터가 정상적으로 첫 화면을 정합니다.
+  */
+  /*
+    ⚠️ 캡처 모드에서는 인트로를 건너뜁니다. 이 덮개가 떠 있는 동안은 RootNavigator 가
+       아직 없어서 `__realsNav` 도 없습니다 — 캡처 스크립트가 바로 라우트를 부르면
+       2.2초 동안 실패합니다 (CLAUDE.md §3 의 QA 전역).
+  */
+  const [introDone, setIntroDone] = useState(QA_CAPTURE);
+  const endIntro = useCallback(() => setIntroDone(true), []);
+
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
-  if (!ready) {
-    /**
-     * splash — 폰트·저장값이 올라오는 공백을 빈 화면 대신 로고로 채웁니다.
-     *
-     * 2026-08-26: 새 로고 이미지로 바꾸면서 **폰트 걱정이 없어졌습니다.**
-     * 예전에는 글자로 그렸는데, 이 화면은 Pretendard 가 아직 로딩되기 전이라
-     * 없는 패밀리를 지정하면 글자가 잠깐 깨져 보였습니다. 이미지는 그 문제가 없습니다.
-     * 폭 168 은 예전 글자(34) 로고와 눈으로 같은 무게가 되는 값입니다.
-     */
-    return (
-      <View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-        <Image
-          source={require('./assets/logo-wordmark.png')}
-          style={{ width: 168, height: 168 / (813 / 263) }}
-          resizeMode="contain"
-          tintColor="#0F172A"
-        />
-      </View>
-    );
+  /*
+    폰트·저장값이 아직이면 **한 줄 없이** 로고만 돌립니다 — Pretendard 가 없는 상태에서
+    글자를 그리면 잠깐 깨져 보입니다. 준비되면 같은 화면에 한 줄이 떠오릅니다.
+    타이머는 이 컴포넌트가 처음 붙는 순간부터라, 로딩이 길어도 인트로가 늘어지지 않습니다.
+  */
+  if (!ready || !introDone) {
+    return <IntroSplash onDone={endIntro} showTagline={ready} />;
   }
 
   return (

@@ -133,7 +133,7 @@ node scrollshot.mjs <시안화면> <라우트> <params|null> <폴더> <파일> [
 
 ---
 
-## 5. 반복해서 걸린 함정 네 가지
+## 5. 반복해서 걸린 함정 다섯 가지
 
 ### ① 줄높이 — 시안은 `leading-*` 이 없으면 **글자크기 × 1.5**
 
@@ -317,6 +317,36 @@ Math.round(new DOMMatrixReadOnly(getComputedStyle(el).transform).m41)
 같은 화면에서 값을 둘로 쪼개면 두 시계가 어긋나고, **한 노드의 style 에 두 드라이버를
 섞으면 RN 이 예외를 냅니다**(`navigation/SwipeTabs.tsx` 주석). 반복 애니는 시계 하나로
 통일하는 게 안전합니다 (`domains/onboarding/components/TutorialArt.tsx`).
+
+### ⑤ 로고 크기는 `size` 가 아니라 **`size × 0.86`**
+
+시안 워드마크는 `size` 를 **글자 크기 자리**로 받고 이미지 높이는 그보다 낮게 그립니다.
+
+```js
+// 시안 js/shell.jsx:134
+function RealsLogo({ size = 18, tone }) { const h = Math.round(size * 0.86); ... }
+```
+
+이 계수를 빠뜨려 **2026-08-26~27 사이 앱의 로고가 전부 시안보다 16% 컸습니다.**
+`size` 는 시안과 같은 값을 넘기고 있었는데 높이를 그대로 써서 헤더·로그인·스플래시가
+한꺼번에 어긋났습니다. **캡처 % 로는 안 잡힙니다** — 로고는 화면에서 차지하는 면적이
+작아 밝기 차가 1% 도 안 움직입니다. 눈으로도 "좀 큰가?" 정도라 그냥 넘어갑니다.
+
+같이 틀렸던 값들 (시안 9차 원문):
+
+| 자리 | 시안 원문 | 높이 |
+|---|---|---|
+| 홈 헤더 (`HomeHeader`) | `<RealsLogo size={22} />` 가운데 절대배치 | 19 |
+| 일반 헤더 (`TopHeader variant="logo"`) | `<RealsLogo size={18} />` 좌측 | 15 |
+| 로그인 | `<RealsLogo size={48} tone="#64748B" />` | 41 |
+| 스플래시 | `<RealsLogo size={44} />` + 문구 + pulse | 38 |
+
+`tone` 은 **마스크로 색을 갈아끼우는 것**입니다(우리 `tint`). 로그인 로고는 검정이
+아니라 slate(`#64748B` = `ink[500]`) 입니다 — 색까지 봐야 합니다.
+
+⚠️ 시안은 이미지를 그냥 놓지만 우리 `RealsLogo` 는 예전 글자 로고의 줄상자
+(`size × 1.5`)를 유지합니다. **바로 아래 문구와의 간격이 정해진 자리**(로그인 `mt-2`)는
+그 여백이 간격에 더해지므로 `lineBox={false}` 로 끕니다.
 
 ---
 
