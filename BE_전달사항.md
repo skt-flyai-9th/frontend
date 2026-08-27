@@ -139,12 +139,56 @@ POST /shorts-projects/56/edit  {"target_platform":"INSTAGRAM"}
 - *멱등 처리?* 이미 실패한 뒤 다시 걸면 새 `video_output_id` 가 생깁니다(59→60→61→62).
   거기까지는 정상입니다.
 
+### 프론트가 실패 사유를 알 방법이 **하나도 없습니다** (스키마로 확인)
+
+응답 스키마를 전부 확인했습니다. **어디에도 오류를 담는 자리가 없습니다.**
+
+```
+EditStartResponse    video_output_id · render_status
+EditResultResponse   video_output_id · render_status · progress_percent ·
+                     preview_video_url · timeline_summary · missing_scene_roles ·
+                     available_options
+OutputItem           id · target_platform · resolution · has_licensed_audio ·
+                     render_status · video_url · cover_image_url
+```
+
+공통 오류 형식(`{error_code, message}`)은 4xx·5xx 일 때만 옵니다. 그런데 렌더 실패는
+**HTTP 200 에 `render_status: "FAILED"`** 로 오기 때문에 그 봉투 자체가 없습니다.
+`progress_percent` 는 0, 나머지는 전부 `null` 입니다.
+
+**그래서 앱이 할 수 있는 말은 "편집을 끝내지 못했어요" 가 전부입니다.** 다시 시도하면
+될 일인지, 촬영본을 다시 올려야 하는지, 서버가 아픈 것인지 구분해 드릴 수가 없습니다.
+
+### 로그를 찾으실 끈 — `x-request-id`
+
+응답 헤더에 `x-request-id` 가 붙습니다. **편집을 시작한 요청의 것**을 잡아 뒀습니다.
+
+```
+POST /shorts-projects/62/edit   {"target_platform":"INSTAGRAM"}
+  요청 시각      2026-08-27 03:15:52 UTC  (KST 12:15:52)
+  x-request-id   3cd5f70e
+  응답           200 {"video_output_id":65,"render_status":"PENDING"}
+  5초 뒤          render_status FAILED · progress 0%
+```
+
+**실패한 video_output — 전부 QA 계정(user 25 · store 21) 것입니다.**
+
+| output | project | 컷 | 걸린 시간 |
+|---|---|---|---|
+| 59 | 58 | 5 | 즉시 |
+| 60 · 62 | 56 | 3 | 159초 · 144초 (`PROCESSING 50%` 까지 갔다가) |
+| 61 | 49 | 3 | 5초 |
+| 63 | 50 | 6 | 10초 |
+| 64 · **65** | 62 (새로 만든 것) | 6 | 10초 · 5초 ← **65 가 위 request-id** |
+
 **부탁드리는 것 둘**
-1. `video_output` 59·60·61·62 의 **서버 쪽 실패 사유**를 봐 주세요. API 로는 이유를
-   알 수 없습니다 — 14.x 응답에 `error_code`·`error_message` 가 없어서, 앱은
-   "편집을 끝내지 못했어요" 밖에 말할 수 없습니다.
-2. 가능하면 **실패 사유를 응답에 넣어 주세요.** 지금은 사장님께 무엇이 잘못됐는지,
-   다시 시도하면 될 일인지조차 말해 줄 수가 없습니다.
+1. 위 `x-request-id 3cd5f70e` 와 `video_output 65` 로 **서버 쪽 실패 사유**를 봐 주세요.
+   나머지 output 들도 같은 계정이라 함께 보실 수 있습니다.
+2. **실패 사유를 응답에 넣어 주세요.** `EditResultResponse` 에 `error_code` ·
+   `error_message`(사장님께 보여줄 한 줄) 두 개면 충분합니다. 그러면 앱이
+   "다시 시도해 보세요" 와 "촬영본을 다시 올려 주세요" 를 구분해 드릴 수 있습니다.
+
+> 5분 넘게 계속 지켜봤지만 서버가 스스로 다시 걸지도, `DONE` 으로 바뀌지도 않습니다.
 
 > ⏱ **"느린 것" 이 아닙니다.** 처음에는 오래 걸리는 것인지 의심했는데, 10분을 기다려도
 > `FAILED` 에서 더 가지 않습니다. 가장 오래 버틴 것도 159초에 끝났습니다.
