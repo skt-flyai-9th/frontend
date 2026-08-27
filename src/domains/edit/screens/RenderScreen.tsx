@@ -33,18 +33,20 @@
  *    (측정: 시안 버튼 위 여백 258px @2x, 앱 202px → 차이 28 design px + 버튼 위치 6px)
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, CircleCheck, TriangleAlert } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
+import { EditProblem } from '../components/EditProblem';
 import { EditLoadingArt } from '../components/EditLoadingArt';
 import { Screen } from '../../../ui/Screen';
 import { Spinner, StateBlock } from '../../../ui/Feedback';
 import theme, { color, radius, space, text } from '../../../design/theme';
 import { useEditResult, useStartEdit } from '../../../api/queries/edit';
+import { useDraft } from '../../../api/queries/project';
 import { useStore } from '../../../api/queries/store';
 import { useAppState } from '../../../lib/appState';
 import { ApiError } from '../../../api/http';
@@ -91,6 +93,8 @@ export default function RenderScreen({ navigation, route }: Props) {
   const startEdit = useStartEdit(projectId);
   const [timedOut, setTimedOut] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 편집을 건 시각. 백그라운드에 다녀와도 이 값으로 판정합니다. */
+  const startedAt = useRef<number | null>(null);
 
   /**
    * 🔴 2026-08-26 — 화면에 들어올 때마다 편집을 **다시 걸던 것**
@@ -107,6 +111,8 @@ export default function RenderScreen({ navigation, route }: Props) {
    *    (BE_전달사항 §2-4). 답이 오기 전까지는 프론트에서 안 부르는 쪽으로 막아 둡니다.
    */
   const editResult = useEditResult(projectId);
+  /** 시간 초과 화면의 "마지막 자동 저장" 시각 (9.3). 없으면 그 줄을 다르게 씁니다. */
+  const draft = useDraft(projectId);
   const result = editResult.data;
   /** 이 화면에서 우리가 편집을 걸었는지 (상한 타이머를 걸 시점 판단용) */
   const [started, setStarted] = useState(false);
@@ -138,6 +144,28 @@ export default function RenderScreen({ navigation, route }: Props) {
   );
 
   /**
+   * 앱으로 **돌아왔을 때** 두 가지를 합니다.
+   *   ① 벽시계로 15분이 지났는지 다시 봅니다 (위 armTimeout 머리말)
+   *   ② 진행 상황을 곧바로 새로 받습니다 — 백그라운드에서는 폴링이 멈춰 있어서
+   *      돌아온 직후 화면이 옛 진행률을 보여주다가 뒤늦게 바뀝니다.
+   *
+   * **렌더 자체는 서버가 합니다.** 앱을 내려놔도, 꺼도 계속 만들어집니다.
+   * 다 되면 서버가 푸시로 알려주고(1.6 토큰 등록 · `lib/push.ts`), 그 알림을 누르면
+   * 완성 화면으로 들어옵니다. 이 화면을 붙잡고 있을 필요가 없습니다.
+   */
+  const refetchRef = useRef(editResult.refetch);
+  refetchRef.current = editResult.refetch;
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      checkElapsed();
+      void refetchRef.current();
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
    * 끝났으면 상한 타이머를 끕니다 (2026-08-26).
    *
    * ⚠️ 이게 없으면 **완성된 화면이 상한 시각에 실패 화면으로 뒤집힙니다.**
@@ -155,10 +183,25 @@ export default function RenderScreen({ navigation, route }: Props) {
     }
   }, [renderStatus]);
 
-  /** 상한 타이머를 겁니다. 이미 걸려 있으면 다시 겁니다. */
+  /**
+   * 상한 타이머를 겁니다.
+   *
+   * 🔴 **`setTimeout` 만 믿으면 안 됩니다** (2026-08-27).
+   *    편집은 5분 넘게 걸리는 일이라 사장님이 앱을 내려놓고 다른 걸 하십니다. 그동안
+   *    안드로이드는 JS 타이머를 늦추거나 아예 멈춥니다 — 돌아왔을 때 15분이 지났는데도
+   *    타이머가 안 터져 있거나, 반대로 한참 뒤에 몰아서 터집니다.
+   *    그래서 **시작 시각을 적어 두고 벽시계로 판정**합니다. 타이머는 화면을 보고 있을 때
+   *    바로 반응하라고 함께 걸어 두는 보조 장치입니다.
+   */
   function armTimeout() {
+    startedAt.current = Date.now();
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+  }
+
+  /** 시작한 지 15분이 지났는지 **벽시계로** 확인합니다. */
+  function checkElapsed() {
+    if (startedAt.current && Date.now() - startedAt.current >= TIMEOUT_MS) setTimedOut(true);
   }
 
   function begin() {
@@ -180,52 +223,42 @@ export default function RenderScreen({ navigation, route }: Props) {
 
   const done = result?.renderStatus === 'COMPLETED';
   // 이미 완성됐으면 상한에 걸려도 실패가 아닙니다 (위 타이머 정리와 짝입니다).
-  const failed = result?.renderStatus === 'FAILED' || startEdit.isError || (timedOut && !done);
+  /** 서버가 실패를 통보한 경우 — 기다려도 안 됩니다. */
+  const serverFailed = result?.renderStatus === 'FAILED' || startEdit.isError;
+  const failed = serverFailed || (timedOut && !done);
   const percent = (result?.progressPercent ?? 0) / 100;
   /** 지금 돌고 있는 단계. 다 끝나면 목록 전체가 체크로 바뀝니다. */
   const stepIndex = done ? STEPS.length : Math.min(STEPS.length - 1, Math.floor(percent * STEPS.length));
 
-  // ── 실패 (시안 EditingFailed) ─────────────────────────
+  // ── 막혔을 때 ────────────────────────────────────────
   /*
-   * 시안: flex-1 justify-center · px-2 · pb-16(64) · StateBlock 한 덩어리 +
-   *       그 아래 가운데 밑줄 링크.
-   * 시안에 없는 "연결이 끊겼나요? 오류 화면 보기" 는 프로토타입 데모용이라 뺐습니다.
-   */
-  if (failed) {
+    갈래가 셋입니다. **앞의 둘은 서로 다른 화면**입니다 (2026-08-27 시안 2종).
+
+      ① 아직 안 찍은 컷이 있음 (400 TASKS_INCOMPLETE)  → 촬영으로 안내
+      ② 15분이 지나도 안 끝남                          → "편집 시간 초과"
+      ③ 서버가 FAILED 를 줌 (편집 자체가 안 됨)          → "편집을 완료할 수 없습니다"
+
+    예전에는 ②·③ 을 "편집을 끝내지 못했어요" 한 화면으로 뭉쳐 놓았습니다. 둘은 사장님이
+    해야 할 일이 다릅니다 — ②는 **기다리면 될 수도** 있고(서버는 계속 돌고 있습니다),
+    ③은 **다시 걸어야** 합니다. 그래서 문구도 버튼도 갈랐습니다.
+  */
+  if (incomplete) {
     return (
       <Screen scroll={false} padded={false} edges={['top']} contentStyle={{ paddingTop: 0, gap: 0 }}>
         <View style={styles.failBody}>
-          {incomplete ? (
-            /*
-             * 시안에는 없는 갈래입니다 — 서버가 실제로 주는 400 이라 남깁니다.
-             * 망가진 게 아니라 아직 안 찍은 것이므로 heart(빨강) 대신 brand 를 씁니다.
-             */
-            <StateBlock
-              icon={TriangleAlert}
-              tone="brand"
-              title={`아직 안 찍은 장면이 ${incomplete.length}개 있습니다`}
-              body={
-                incomplete.length > 0
-                  ? `${incomplete.map((t) => t.taskTitle).join(', ')}을(를) 찍으면 영상을 만들 수 있습니다.`
-                  : '촬영 목록에서 남은 장면을 확인해 주세요.'
-              }
-              primaryLabel="남은 컷 찍으러 가기"
-              onPrimary={() => navigation.replace('Camera', { projectId })}
-            />
-          ) : (
-            <StateBlock
-              icon={TriangleAlert}
-              tone="heart"
-              title={timedOut ? '편집이 너무 오래 걸려요' : '편집을 끝내지 못했어요'}
-              body="촬영본은 그대로 있으니 다시 시도해도 처음부터 찍지 않아도 돼요."
-              primaryLabel="편집 다시 시도"
-              onPrimary={begin}
-              secondaryLabel="촬영부터 다시 하기"
-              onSecondary={() => navigation.replace('Camera', { projectId })}
-            />
-          )}
-
-          {/* 시안: mx-auto mt-6 py-2 · 13 medium slate · 밑줄 */}
+          {/* 망가진 게 아니라 아직 안 찍은 것이라 heart(빨강)가 아니라 brand 입니다 */}
+          <StateBlock
+            icon={TriangleAlert}
+            tone="brand"
+            title={`아직 안 찍은 장면이 ${incomplete.length}개 있습니다`}
+            body={
+              incomplete.length > 0
+                ? `${incomplete.map((t) => t.taskTitle).join(', ')}을(를) 찍으면 영상을 만들 수 있습니다.`
+                : '촬영 목록에서 남은 장면을 확인해 주세요.'
+            }
+            primaryLabel="남은 컷 찍으러 가기"
+            onPrimary={() => navigation.replace('Camera', { projectId })}
+          />
           <Pressable
             accessibilityRole="button"
             onPress={() => rootNav.navigate('Main', { screen: 'HomeFeed' })}
@@ -235,6 +268,17 @@ export default function RenderScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       </Screen>
+    );
+  }
+
+  if (failed) {
+    return (
+      <EditProblem
+        kind={timedOut && !serverFailed ? 'timeout' : 'failed'}
+        savedAt={draft.data?.lastSavedAt}
+        onRetry={begin}
+        onHome={() => rootNav.navigate('Main', { screen: 'HomeFeed' })}
+      />
     );
   }
 
