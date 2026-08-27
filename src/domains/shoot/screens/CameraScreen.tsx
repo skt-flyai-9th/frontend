@@ -8,7 +8,7 @@
  *   - 권한을 한 번에 묶어 요청하지 않는다          → 카메라 먼저, 마이크는 필요할 때만
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Easing, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import {
@@ -16,11 +16,17 @@ import {
   CameraPreview,
   type CameraPreviewHandle,
 } from '../../../ui/CameraPreview';
-import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  RotateCcw,
+  SwitchCamera,
+} from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
-import { Marquee } from '../../../ui/Marquee';
 import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
@@ -36,9 +42,156 @@ import {
 import { useProject, useVideoFormat } from '../../../api/queries/project';
 import { useAppState } from '../../../lib/appState';
 import type { CreateStackParamList } from '../../../navigation/types';
+import type { Id, ShootTask } from '../../../api/schema/types';
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
 
+/**
+ * 시안 11차 `TaskToggle` · `TaskCard` — 셔터 위 컷 칩 줄을 대신합니다.
+ *
+ * 9차까지는 셔터 위(bottom 190)에 컷 칩이 줄줄이 깔려 있었고, 이름이 길면
+ * 전광판(`Marquee`)으로 흘려 보여줬습니다. 11차는 그 줄을 걷어내고 **접히는
+ * 목록 카드**로 바꿨습니다 — 평소에는 "테스크 보기" 토글 하나만 있고, 누르면
+ * 토글 바로 위로 목록이 올라옵니다. 화면이 가려지는 면적이 그만큼 줄어듭니다.
+ *
+ * 시안 원문 실측값 (11차 `js/screens-shoot.jsx`)
+ *   TaskToggle  bottom-[58px] left-[22px] · h-[34px] · px-3.5 · gap-1.5
+ *               text-[13px] font-semibold · chevron 14
+ *               닫힘 bg rgba(20,20,30,.75) · 테두리/글자 #FFFFFF
+ *               열림 bg rgba(255,255,255,.96) · 테두리/글자 #3200F9
+ *   TaskCard    bottom-[104px] left-[16px] · w-[258px] · rounded-2xl(16)
+ *               테두리 white/15 · 행 px-3.5 py-2.5 · 구분선 white/10(마지막 행 없음)
+ *               현재 행 bg rgba(255,255,255,.96) · 등장 rise-in(14px, .3s)
+ *   TaskMark    완료 check 13 #fff · 현재 ✦ 12 bold · 미촬영 ○ 12 white/45
+ *               이미 찍은 행은 표식 대신 rotate-ccw 13 white/80 (재촬영을 뜻합니다)
+ *
+ * ⚠️ `#3200F9` 는 **이 목록 전용 색입니다.** 시안 전체를 훑어도 여기 한 곳
+ *    (`TASK_ACCENT`)에만 쓰이고 `--brand` 토큰은 11차에서도 `#2563EB` 그대로입니다.
+ *    `theme.ts` 로 올리면 38개 화면이 함께 바뀝니다 — 이 파일에서만 둡니다.
+ * ⚠️ 시안의 `backdrop-blur-md` 는 넣지 않았습니다. 같은 화면의 다른 카메라 크롬
+ *    (전환 버튼 `flipBtn`)도 같은 이유로 불투명 `CHROME` 색만 씁니다.
+ */
+const TASK_GLASS = 'rgba(20, 20, 30, 0.75)';
+const TASK_ACCENT = '#3200F9';
+
+type TaskMarkState = 'done' | 'current' | 'todo';
+
+/** 상태 표식 — 완료 ✓ / 현재 ✦ / 미촬영 ○ */
+function TaskMark({ state }: { state: TaskMarkState }) {
+  if (state === 'done') return <Check size={13} strokeWidth={2} color={color.paper} />;
+  if (state === 'current') return <Text style={styles.taskMarkCurrent}>✦</Text>;
+  return <Text style={styles.taskMarkTodo}>○</Text>;
+}
+
+function TaskToggle({
+  open,
+  disabled,
+  onPress,
+}: {
+  open: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const Chevron = open ? ChevronDown : ChevronUp;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel="테스크 보기"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.taskToggle,
+        open ? styles.taskToggleOpen : styles.taskToggleClosed,
+        pressTap(pressed, 'icon'),
+      ]}
+    >
+      <Text style={[styles.taskToggleText, open && styles.taskToggleTextOpen]}>테스크 보기</Text>
+      <Chevron size={14} strokeWidth={2} color={open ? TASK_ACCENT : color.paper} />
+    </Pressable>
+  );
+}
+
+function TaskCard({
+  tasks,
+  taskId,
+  isShot,
+  disabled,
+  onSelectTask,
+}: {
+  tasks: ShootTask[];
+  taskId?: Id;
+  isShot: (t: ShootTask) => boolean;
+  disabled: boolean;
+  onSelectTask: (id: Id) => void;
+}) {
+  /* 시안 `.rise-in` — opacity 0→1 · translateY 14→0 · .3s cubic-bezier(.16,1,.3,1) */
+  const rise = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(rise, {
+      toValue: 1,
+      duration: 300,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [rise]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.taskCard,
+        {
+          opacity: rise,
+          transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+        },
+      ]}
+    >
+      {tasks.map((t, i) => {
+        const done = isShot(t);
+        const on = t.id === taskId;
+        const state: TaskMarkState = on ? 'current' : done ? 'done' : 'todo';
+        return (
+          <Pressable
+            key={t.id}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`${t.taskTitle}${done ? ' (찍음)' : ''}`}
+            disabled={disabled}
+            onPress={() => onSelectTask(t.id)}
+            style={[
+              styles.taskRow,
+              i < tasks.length - 1 && styles.taskRowLine,
+              on && styles.taskRowOn,
+            ]}
+          >
+            <Text style={[styles.taskIndex, on && styles.taskIndexOn]}>{i + 1}</Text>
+            <View style={styles.taskTextBox}>
+              <Text numberOfLines={1} style={[styles.taskName, on && styles.taskNameOn]}>
+                {t.taskTitle}
+              </Text>
+              {/*
+                시안 둘째 줄은 "가이드 N초" 입니다. 8.1 `ShootTask` 에도 9.1 `TaskGuide` 에도
+                길이 필드가 없어 초를 지어내지 않습니다(CLAUDE.md §2). 줄 자리는 그대로 두고
+                있는 값인 **촬영 종류**를 씁니다 — 행 높이가 시안과 달라지지 않습니다.
+              */}
+              <Text numberOfLines={1} style={[styles.taskSub, on && styles.taskSubOn]}>
+                {t.taskType}
+                {done ? ' · 촬영 완료' : ''}
+              </Text>
+            </View>
+            <View style={styles.taskMarkBox}>
+              {done && !on ? (
+                <RotateCcw size={13} strokeWidth={2} color="rgba(255,255,255,0.8)" />
+              ) : (
+                <TaskMark state={state} />
+              )}
+            </View>
+          </Pressable>
+        );
+      })}
+    </Animated.View>
+  );
+}
 
 export default function CameraScreen({ navigation, route }: Props) {
   const { projectId, taskId: firstTaskId, formatId: pickedFormatId } = route.params;
@@ -120,6 +273,23 @@ export default function CameraScreen({ navigation, route }: Props) {
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  /** 시안 11차: 컷 목록은 접혀 있다가 "테스크 보기" 로 열립니다. */
+  const [tasksOpen, setTasksOpen] = useState(false);
+  /**
+   * 목록에서 컷을 고릅니다. 시안 `pickTask` 와 같게 **고르면 목록이 닫힙니다** —
+   * 촬영 화면을 가린 채로 두지 않습니다. 녹화 중이거나 검수 시트가 떠 있으면
+   * 컷을 바꾸지 않습니다(옛 칩 줄의 `disabled` 조건을 그대로 옮겼습니다).
+   */
+  const onSelectTask = (id: Id) => {
+    if (recording || take) return;
+    setTaskId(id);
+    setTasksOpen(false);
+  };
+  /** 녹화 중에는 목록을 열지 않습니다 (시안 `onClick={() => !recording && …}`). */
+  const onToggleTasks = () => {
+    if (recording) return;
+    setTasksOpen((o) => !o);
+  };
 
   /** 대사가 없는 B-roll 은 마이크 권한을 요구하지 않습니다. */
   const needsMic = task?.taskType === '영상촬영' || task?.taskType === '음성녹음';
@@ -288,41 +458,36 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      {/* 시안: 셔터 위 bottom-[190] 자리. 찍은 컷은 초록 체크. */}
-        <View style={styles.chipRow}>
-          {tasks.map((t) => {
-            const done = shot(t);
-            const active = t.id === taskId;
-            return (
-              <Pressable
-                key={t.id}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`${t.taskTitle}${done ? ' (찍음)' : ''}`}
-                disabled={recording || !!take}
-                onPress={() => setTaskId(t.id)}
-                style={[styles.chip, done && styles.chipDone, !done && active && styles.chipActive]}
-              >
-                {done && <Check size={13} strokeWidth={3} color={color.paper} />}
-                {/*
-                  컷 이름은 AI 가 만들어서 길이를 우리가 못 정합니다. 시안이 정한
-                  칸(maxWidth 150)에 안 들어가면 지금 **뭘 찍어야 하는지가 잘립니다.**
-                  촬영 중에는 눌러서 확인할 수도 없으므로 전광판으로 흘려 보여줍니다.
-                */}
-                <Marquee
-                  containerStyle={styles.chipTextBox}
-                  style={[
-                    styles.chipText,
-                    done && { color: color.paper },
-                    !done && active && { color: color.ink[900] },
-                  ]}
-                >
-                  {t.taskTitle}
-                </Marquee>
-              </Pressable>
-            );
-          })}
+      {/*
+        시안 11차 상단 안내줄 — top-[100px] · 가운데 · 12 semibold · white/90 ·
+        textShadow 0 1px 6px rgba(0,0,0,.45).
+
+        컷 목록이 접히면서 "지금 몇 번째로 뭘 찍는지" 를 늘 보여 주는 자리가
+        여기로 옮겨졌습니다. 옛 칩 줄이 하던 일입니다.
+        시안 원문은 뒤에 "· N초" 가 더 붙지만 8.1·9.1 에 길이 필드가 없어 뺐습니다.
+      */}
+      {!take && task && (
+        <View style={styles.takeGuideWrap} pointerEvents="none">
+          <Text style={styles.takeGuide}>
+            {tasks.findIndex((t) => t.id === taskId) + 1}/{tasks.length} · {task.taskTitle}
+          </Text>
         </View>
+      )}
+
+      {!take && tasks.length > 0 && (
+        <>
+          <TaskToggle open={tasksOpen} disabled={recording} onPress={onToggleTasks} />
+          {tasksOpen && (
+            <TaskCard
+              tasks={tasks}
+              taskId={taskId}
+              isShot={shot}
+              disabled={recording || !!take}
+              onSelectTask={onSelectTask}
+            />
+          )}
+        </>
+      )}
 
       <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
         {/*
@@ -413,7 +578,6 @@ const CHROME = color.overlay.cameraChrome;
 const styles = StyleSheet.create({
   black: { flex: 1, backgroundColor: color.mediaBlack },
 
-  // 시안: 셔터 위 컷 칩 줄 (rounded-full · 12 semibold · 완료 verified)
   // 시안: 셔터 영역 오른쪽 26 · 52 원 · ink 45%
   flipBtn: {
     position: 'absolute',
@@ -425,33 +589,102 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: CHROME,
   },
-  // 시안: absolute bottom-[190] · 가운데 정렬
-  chipRow: {
-    position: 'absolute',
-    bottom: 190,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: space[2],
-    paddingHorizontal: space[4],
-    paddingBottom: space[3],
+  // ── 시안 11차 컷 목록 ──────────────────────────────
+  //
+  // 줄높이는 전부 시안 값(글자크기 × 1.5)으로 덮었습니다 — 토큰 줄높이가
+  // 그보다 짧아 행마다 짧아지고 그게 쌓입니다 (CLAUDE.md §5-①).
+  //   13 → 19.5 (토큰 chip 18) · 12 → 18 (토큰 label 17) · 11 → 16.5 (토큰 micro 15)
+
+  // 상단 안내줄: top-[100px] · 가운데 · 12 semibold · white/90 · 그림자 0 1px 6px
+  takeGuideWrap: { position: 'absolute', top: 100, left: 0, right: 0, zIndex: 20 },
+  takeGuide: {
+    ...text.label,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.9)',
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
-  chip: {
+
+  // TaskToggle: bottom-[58px] left-[22px] · h-[34px] · px-3.5 · gap-1.5 · 테두리 1
+  taskToggle: {
+    position: 'absolute',
+    bottom: 58,
+    left: 22,
+    zIndex: 30,
+    height: 34,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    maxWidth: 150,
-    paddingHorizontal: space[3],
-    paddingVertical: 6,
+    gap: space[1.5],
+    paddingHorizontal: space[3.5],
     borderRadius: radius.pill,
-    backgroundColor: CHROME,
+    borderWidth: 1,
   },
-  chipActive: { backgroundColor: color.paper },
-  chipDone: { backgroundColor: color.done[500] },
-  chipTextBox: { flexShrink: 1 },
-  chipText: { ...text.label, color: 'rgba(255,255,255,0.8)' },
+  taskToggleClosed: { backgroundColor: TASK_GLASS, borderColor: color.paper },
+  taskToggleOpen: { backgroundColor: 'rgba(255,255,255,0.96)', borderColor: TASK_ACCENT },
+  taskToggleText: { ...text.chipLabel, lineHeight: 19.5, color: color.paper },
+  taskToggleTextOpen: { color: TASK_ACCENT },
+
+  // TaskCard: bottom-[104px] left-[16px] · w-[258px] · rounded-2xl · 테두리 white/15
+  taskCard: {
+    position: 'absolute',
+    bottom: 104,
+    left: space[4],
+    zIndex: 30,
+    width: 258,
+    overflow: 'hidden',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: TASK_GLASS,
+  },
+  // 행: px-3.5 py-2.5 · gap-2.5 (마지막 행은 구분선 없음)
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: space[3.5],
+    paddingVertical: 10,
+  },
+  taskRowLine: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  taskRowOn: { backgroundColor: 'rgba(255,255,255,0.96)' },
+  // 번호: w-[10px] · 12 bold tabular-nums (12-bold 토큰이 없어 title 의 굵기를 빌립니다)
+  taskIndex: {
+    ...text.label,
+    fontFamily: text.title.fontFamily,
+    fontWeight: text.title.fontWeight,
+    lineHeight: 18,
+    width: 10,
+    color: 'rgba(255,255,255,0.55)',
+    fontVariant: ['tabular-nums'],
+  },
+  taskIndexOn: { color: TASK_ACCENT },
+  taskTextBox: { flex: 1, minWidth: 0 },
+  taskName: { ...text.chipLabel, lineHeight: 19.5, color: color.paper },
+  taskNameOn: { color: TASK_ACCENT },
+  /*
+    시안 둘째 줄은 굵기 지정이 없어 400(regular) 입니다. 토큰에 11-regular 이
+    없고 `family()` 를 거치지 않으면 폰트 미로딩 때 깨지므로 micro(11 medium)를
+    씁니다 — 크기·줄높이는 시안과 같고 굵기 한 단계만 다릅니다.
+  */
+  taskSub: {
+    ...text.micro,
+    lineHeight: 16.5,
+    marginTop: space[0.5],
+    color: 'rgba(255,255,255,0.55)',
+  },
+  taskSubOn: { color: 'rgba(50,0,249,0.65)' },
+  taskMarkBox: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  // 시안 `leading-none` — 줄높이를 글자크기와 같게 둡니다
+  taskMarkCurrent: {
+    ...text.label,
+    fontFamily: text.title.fontFamily,
+    fontWeight: text.title.fontWeight,
+    lineHeight: 12,
+    color: TASK_ACCENT,
+  },
+  taskMarkTodo: { ...text.label, lineHeight: 12, color: 'rgba(255,255,255,0.45)' },
 
   // 시안 ReviewSheet
   sheetScrim: {
