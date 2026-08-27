@@ -137,7 +137,12 @@ export default function App() {
     보내지만, 우리는 이미 로그인한 분을 로그인 화면으로 보내면 안 되기 때문입니다.
     덮개라 그 뒤에서 네비게이터가 정상적으로 첫 화면을 정합니다.
   */
-  const [introDone, setIntroDone] = useState(false);
+  /*
+    ⚠️ 캡처 모드에서는 인트로를 건너뜁니다. 이 덮개가 떠 있는 동안은 RootNavigator 가
+       아직 없어서 `__realsNav` 도 없습니다 — 캡처 스크립트가 바로 라우트를 부르면
+       2.2초 동안 실패합니다 (CLAUDE.md §3 의 QA 전역).
+  */
+  const [introDone, setIntroDone] = useState(QA_CAPTURE);
   const endIntro = useCallback(() => setIntroDone(true), []);
 
   useEffect(() => {
