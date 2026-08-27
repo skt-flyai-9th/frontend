@@ -573,17 +573,6 @@ export async function mockRequest<T>(
     });
   }
 
-  // ── R06 질문형 ───────────────────────────────────────
-  if (match(p, /^\/shorts-projects\/(\d+)\/quiz-questions$/)) {
-    return send({ questions: fx.quizQuestions });
-  }
-  if (match(p, /^\/shorts-projects\/(\d+)\/quiz-answers$/)) {
-    return send(fx.quizResult);
-  }
-  if (match(p, /^\/shorts-projects\/(\d+)\/quiz-alternatives$/)) {
-    return send({ alternatives: fx.quizAlternatives });
-  }
-
   // ── R07 기획·콘티 ────────────────────────────────────
   if (match(p, /^\/shorts-projects\/(\d+)\/plan$/)) {
     /**

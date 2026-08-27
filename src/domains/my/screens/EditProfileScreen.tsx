@@ -132,7 +132,7 @@ export default function EditProfileScreen() {
    *
    * 시안 8차에서 화면 안쪽 배너 → **정중앙 얼럿**으로 바뀌었습니다. 배너는 목록
    * 위에 조용히 얹혀서, 브라우저에서 돌아온 사장님이 못 보고 지나칩니다.
-   * 오늘 인스타 연동이 실제로 실패하는 자리라(BE §2-8) 놓치면 안 됩니다.
+   * 오늘 인스타 연동이 실제로 실패하는 자리라(BE §0-2 — 2026-08-27 에 서버가 고쳤습니다) 놓치면 안 됩니다.
    */
   const [failed, setFailed] = useState<Platform | null>(null);
 

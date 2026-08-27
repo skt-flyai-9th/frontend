@@ -80,7 +80,6 @@ export type Domain =
   | 'store'
   | 'project'
   | 'format'
-  | 'quiz'
   | 'plan'
   | 'shoot'
   | 'edit'
@@ -88,7 +87,7 @@ export type Domain =
   | 'analytics';
 
 const ALL_DOMAINS: Domain[] = [
-  'auth', 'store', 'project', 'format', 'quiz',
+  'auth', 'store', 'project', 'format',
   'plan', 'shoot', 'edit', 'publish', 'analytics',
 ];
 
@@ -100,7 +99,6 @@ const mockDomains = new Set<Domain>(
 export function domainOf(path: string): Domain {
   if (path.startsWith('/auth') || path.startsWith('/users') || path.startsWith('/onboarding')) return 'auth';
   if (path.startsWith('/stores')) return 'store';
-  if (path.includes('/quiz-')) return 'quiz';
   if (path.includes('/plan') || path.includes('/scenes')) return 'plan';
   if (path.startsWith('/video-formats')) return 'format';
   if (path.startsWith('/tasks') || path.includes('/tasks') || path.includes('/draft')) return 'shoot';
@@ -117,10 +115,13 @@ export function domainOf(path: string): Domain {
  * 실서버에 **아직 구현되지 않은** 엔드포인트.
  *
  * 2026-08-26 https://sarils.p-e.kr/openapi.json 실측 결과, 명세에는 있지만
- * 서버에는 없는 경로가 다섯 개입니다. 그대로 부르면 404 라서 화면이 죽습니다.
+ * 서버에는 없는 경로가 **두 개** 남았습니다. 그대로 부르면 404 라서 화면이 죽습니다.
  *
- *   R06 질문형 : /quiz-questions · /quiz-answers · /quiz-alternatives
  *   R13 AI평가 : /tasks/{id}/evaluate · /tasks/{id}/evaluation
+ *
+ * R06 질문형 세 개(/quiz-questions·/quiz-answers·/quiz-alternatives)는 여기 있었는데
+ * **폐기가 확정돼(2026-08-26 BE 회신) 흉내 장치째 걷어냈습니다.** 서버에 없는 게
+ * 아니라 **다시 생기지 않을** 경로라서, 가려 주는 것보다 지우는 쪽이 맞습니다.
  *
  * 도메인 스위치(mockDomains)로는 이걸 정확히 못 가릅니다 — 평가는 'shoot' 도메인인데
  * 같은 도메인의 태스크·촬영본 업로드는 서버에 **있기 때문**입니다. 도메인째 mock 으로
@@ -129,9 +130,6 @@ export function domainOf(path: string): Domain {
  * ⚠️ 서버에 생기면 여기서 그 줄만 지우면 됩니다. 다른 곳은 손댈 필요가 없습니다.
  */
 const SERVER_MISSING_SUFFIXES = [
-  '/quiz-questions',
-  '/quiz-answers',
-  '/quiz-alternatives',
   '/evaluate',
   '/evaluation',
 ];

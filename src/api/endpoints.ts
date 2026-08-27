@@ -17,6 +17,14 @@ export const API = {
   withdraw: () => `/users/me`,                                       // 1.4 DELETE
   /** 1.5 회원정보 조회/수정 (2026-08-23 신설). 수정 가능 필드는 name·phone·marketing_agreed 뿐입니다. */
   me: () => `/users/me`,                                             // 1.5 GET/PATCH
+  /**
+   * 편집 완료 푸시용 토큰 저장 (2026-08-27 BE 확정).
+   *
+   * Body 는 `{ push_token, platform }` 입니다 — `token` 이 아닙니다(422 납니다).
+   * **upsert 라 같은 값을 다시 보내도 200** 이고, 삭제 경로는 없습니다.
+   * 근거와 실측은 `src/lib/push.ts` 머리말에 있습니다.
+   */
+  pushTokens: () => `/users/me/push-tokens`,
 
   // ── R02 가게 탐색·외부데이터 ────────────────────────────
   storeSearch: (keyword: string) =>
@@ -91,13 +99,12 @@ export const API = {
   favorites: () => `/video-formats/favorites`,
   favorite: (formatId: number) => `/video-formats/${formatId}/favorite`,
 
-  // ── R06 돋보기 질문형 생성 ──────────────────────────────
-  quizQuestions: (projectId: number) =>
-    `/shorts-projects/${projectId}/quiz-questions`,                  // 6.1
-  quizAnswers: (projectId: number) =>
-    `/shorts-projects/${projectId}/quiz-answers`,                    // 6.2
-  quizAlternatives: (projectId: number) =>
-    `/shorts-projects/${projectId}/quiz-alternatives`,               // 6.3
+  /*
+    R06 6.1·6.2·6.3(quiz-questions·quiz-answers·quiz-alternatives)은 **없앴습니다**
+    (2026-08-26). R06 이 대화형 에이전트(`/shortform-sessions/…`)로 다시 설계되면서
+    서버에서 사라졌고, BE 가 폐기를 확인해 명세에서도 지우기로 했습니다.
+    추천은 아래 R06 대화형 경로로 받습니다.
+  */
 
   // ── R07 포맷 분석·가게 맞춤화 ───────────────────────────
   plan: (projectId: number) => `/shorts-projects/${projectId}/plan`, // 7.1

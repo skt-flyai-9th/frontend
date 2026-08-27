@@ -35,6 +35,27 @@ function reason(e: unknown): string {
   return msg.length > 120 ? `${msg.slice(0, 120)}…` : msg;
 }
 
+/**
+ * 완성 영상을 앱 캐시로 내려받습니다. **저장과 공유가 같은 파일을 씁니다.**
+ *
+ * 따로 두면 한쪽만 고쳐지는 사고가 납니다 — 이 파일 머리말의 그 이유 그대로입니다.
+ * 공유(`useShareVideo`)도 이 함수를 씁니다.
+ *
+ * ⚠️ `uri`(file:// 붙은 것)와 `plain`(뗀 것)을 **둘 다** 돌려줍니다. 기기마다
+ *    받아 주는 형태가 달라서, 부르는 쪽이 실패하면 다른 쪽으로 다시 시도합니다.
+ */
+export async function downloadToCache(
+  videoUrl: string,
+  fileKey: string | number = 'video'
+): Promise<{ uri: string; plain: string }> {
+  const dest = new File(Paths.cache, `reals_${fileKey}.mp4`);
+  if (dest.exists) dest.delete();
+  // 내려받은 결과 파일을 그대로 씁니다 — 서버가 파일명을 바꾸는 경우까지 안전합니다.
+  const downloaded = await File.downloadFileAsync(videoUrl, dest);
+  const uri = downloaded.uri;
+  return { uri, plain: uri.replace(/^file:\/\//, '') };
+}
+
 export function useSaveToGallery(): State & {
   save: (videoUrl?: string | null, fileKey?: string | number) => Promise<void>;
 } {
@@ -65,10 +86,7 @@ export function useSaveToGallery(): State & {
         return;
       }
 
-      const dest = new File(Paths.cache, `reals_${fileKey}.mp4`);
-      if (dest.exists) dest.delete();
-      // 내려받은 결과 파일을 그대로 씁니다 — 서버가 파일명을 바꾸는 경우까지 안전합니다.
-      const downloaded = await File.downloadFileAsync(videoUrl, dest);
+      const { uri, plain } = await downloadToCache(videoUrl, fileKey);
 
       /*
        * ⚠️ `Asset.create` 의 인자 이름은 **filePath** 입니다 (uri 가 아닙니다).
@@ -77,8 +95,6 @@ export function useSaveToGallery(): State & {
        *    한쪽이 실패했다고 저장을 포기하면, 영상은 멀쩡히 받아 놓고
        *    "저장하지 못했습니다" 만 뜹니다 — 실제로 그 상태였습니다.
        */
-      const uri = downloaded.uri;
-      const plain = uri.replace(/^file:\/\//, '');
       try {
         await MediaLibrary.Asset.create(uri);
       } catch (first) {

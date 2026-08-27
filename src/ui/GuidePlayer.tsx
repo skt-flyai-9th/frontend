@@ -112,7 +112,8 @@ interface Props {
    *    대신 프레임 안의 `__setLoop` 만 부릅니다 (guidePlayerBridge.ts).
    *
    * 서버가 `start_ms`·`end_ms` 를 주면 그것을 초로 바꿔 넣으면 됩니다.
-   * 지금은 그 값이 API 에 없습니다 (BE_전달사항 §2-10).
+   * 9.1 `GET /tasks/{id}/guide` 의 `reference_video` 에 **키는 생겼고 값이 아직
+   * `null`** 입니다 (2026-08-27 재확인 · BE_전달사항 §2-1).
    */
   loopStart?: number | null;
   loopEnd?: number | null;

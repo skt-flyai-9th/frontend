@@ -8,10 +8,6 @@ import type {
   PlanResponse,
   ProjectListItem,
   PromotionPurpose,
-  QuizAlternative,
-  QuizAnswer,
-  QuizQuestion,
-  RecommendedFormat,
   ShortsProject,
   ShootingSummary,
   StoryboardScene,
@@ -177,58 +173,11 @@ export function useToggleFavorite() {
   });
 }
 
-// ── R06 질문형 ─────────────────────────────────────────
-export function useQuizQuestions(projectId?: number) {
-  return useQuery({
-    queryKey: qk.quizQuestions(projectId ?? 0),
-    queryFn: () => request<{ questions: QuizQuestion[] }>(API.quizQuestions(projectId!)),
-    enabled: !!projectId,
-    select: (d) => d.questions,
-  });
-}
-
-/**
- * 질문 답변 제출.
- *
- * ⚠️ mutation 의 data 는 그 훅 인스턴스에만 남습니다.
- *    다른 화면에서 결과를 읽으려면 캐시에 넣어야 합니다.
- *    (QuizScreen 에서 제출 → QuizResultScreen 에서 표시)
- */
-export function useSubmitQuiz(projectId: number) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { answers: QuizAnswer[]; freeText?: string }) =>
-      request<{ recommendedFormat: RecommendedFormat }>(API.quizAnswers(projectId), {
-        method: 'POST',
-        body,
-      }),
-    onSuccess: (data) => {
-      // 결과 화면이 읽을 수 있도록 캐시에 저장합니다.
-      qc.setQueryData(qk.quizResult(projectId), data);
-    },
-  });
-}
-
-/** 제출된 추천 결과. 화면이 바뀌어도 남습니다. */
-export function useQuizResult(projectId?: number) {
-  return useQuery<{ recommendedFormat: RecommendedFormat }>({
-    queryKey: qk.quizResult(projectId ?? 0),
-    // 이 쿼리는 절대 스스로 요청하지 않습니다. useSubmitQuiz 가 넣어준 값만 읽습니다.
-    queryFn: () => Promise.reject(new Error('제출 전')),
-    enabled: false,
-    retry: false,
-  });
-}
-
-export function useQuizAlternatives(projectId: number) {
-  return useMutation({
-    mutationFn: (condition: string) =>
-      request<{ alternatives: QuizAlternative[] }>(API.quizAlternatives(projectId), {
-        method: 'POST',
-        body: { condition },
-      }),
-  });
-}
+/*
+  R06 질문형 훅 넷(useQuizQuestions·useSubmitQuiz·useQuizResult·useQuizAlternatives)은
+  지웠습니다 (2026-08-26). 경로가 서버에서 폐기됐고 BE 가 확인해 줬습니다.
+  화면 어디에서도 쓰지 않고 있었습니다 — 추천은 대화형 세션이 담당합니다.
+*/
 
 // ── R07 기획·콘티 ──────────────────────────────────────
 export function useCreatePlan(projectId: number) {

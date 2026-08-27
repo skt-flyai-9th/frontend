@@ -65,6 +65,16 @@ export interface PlaceResult {
   source: PlaceSource;
   name: string;
   address: string;
+  /**
+   * 명세 2.1 추가 (2026-08-26 배포). **도로명(`address`) 과 별개인 지번 주소**입니다.
+   *
+   * 실측(2026-08-26 밤): 다섯 키워드 98건 전부 채워졌습니다 — NAVER 후보도 옵니다.
+   * `kakao_place_id` 와 달리 소스를 가리지 않습니다.
+   *
+   * 40~60대 사장님은 도로명보다 지번으로 자기 가게를 알아봅니다. 확인 시트에서
+   * "내 가게가 맞나" 를 가르는 값이라 시안(`매장조회지도.jpg`)도 두 줄로 보여줍니다.
+   */
+  jibunAddress?: string | null;
   phone?: string;
   latitude: number;
   longitude: number;
@@ -398,43 +408,10 @@ export interface VideoFormat {
   isFavorite?: boolean;
 }
 
-// ══════════════════════════════════════════════════
-// R06 돋보기 질문형 생성
-// ══════════════════════════════════════════════════
-
-export interface QuizQuestion {
-  id: string;
-  type: 'single_choice' | 'multi_choice' | 'free_text';
-  question: string;
-  options?: string[];
-}
-
-export interface QuizAnswer {
-  questionId: string;
-  answer: string;
-}
-
-export interface RecommendedFormat {
-  videoFormatId: Id;
-  formatType: FormatType;
-  reason: string;
-  expectedDurationSec: number;
-}
-
-export interface QuizAlternative {
-  videoFormatId: Id;
-  formatType: FormatType;
-  reason: string;
-  /**
-   * 명세 6.3 (2026-08-21 추가) — 5.1 과 동일 필드.
-   * 대안이 조건(예: "얼굴 없이")을 실제로 만족하는지 카드에서 바로
-   * 확인할 수 있게 합니다. 5.2 단건 조회로 들어가지 않아도 됩니다.
-   * BE 배포 전 응답에는 없을 수 있어 optional 로 둡니다.
-   */
-  expectedDurationSec?: number;
-  shootingDifficulty?: Difficulty;
-  requiresFace?: boolean;
-}
+/*
+  R06 돋보기 질문형 타입(QuizQuestion·QuizAnswer·RecommendedFormat·QuizAlternative)은
+  지웠습니다 (2026-08-26). 6.1·6.2·6.3 폐기 확정 — 대화형 세션으로 대체됐습니다.
+*/
 
 // ══════════════════════════════════════════════════
 // R07 포맷 분석·가게 맞춤화

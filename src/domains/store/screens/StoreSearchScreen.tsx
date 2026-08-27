@@ -17,7 +17,8 @@
  *
  * ⚠️ 시안 주소 검색은 도로명·지번을 가진 자체 목록입니다. 우리 2.1 은 가게를 찾아
  *    이름·주소·좌표를 주므로, 후보에는 주소를 크게 이름을 작게 보여 줍니다.
- *    지번은 API 에 없어 넣지 않습니다 — 없는 값을 지어내지 않습니다.
+ *    **후보 목록에는 도로명만** 씁니다 — 한 줄짜리 행이라 지번까지 넣으면 넘칩니다.
+ *    지번은 확인 시트에서 보여 줍니다(StorePreviewSheet 머리말).
  *
  * ⚠️ **시안에 없는 것을 하나 더했습니다 — 매장 이름 후보 목록** (2026-08-26, 사장님 지시).
  *    시안 ④ 의 이름 칸은 글자만 받지만, 우리는 치는 대로 2.1 로 찾아 후보를 아래에
@@ -51,7 +52,7 @@ import { Banner, Spinner } from '../../../ui/Feedback';
 import { MapPreview } from '../../../ui/MapPreview';
 import { DropIn } from '../../../ui/DropIn';
 import { pressTap } from '../../../ui/press';
-import { categoryHint, matchCategory, phoneText } from '../../../lib/format';
+import { categoryHint, jibunText, matchCategory, phoneText } from '../../../lib/format';
 import { useAppState } from '../../../lib/appState';
 import { useCreateStore, useStoreSearch } from '../../../api/queries/store';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
@@ -162,6 +163,19 @@ export default function StoreSearchScreen({ navigation }: Props) {
         // 2.2 (2026-08-23): 검색이 준 좌표를 버리지 않고 그대로 저장시킵니다.
         latitude: picked.latitude,
         longitude: picked.longitude,
+        /*
+          2.2 (2026-08-26): 카카오 후보의 place_id 를 **그대로 돌려보냅니다.**
+
+          ⚠️ 타입(`CreateStoreBody.kakaoPlaceId`)에는 2026-08-25 부터 있었는데
+             여기서 싣는 줄이 빠져 있었습니다 — 매장 등록을 2단계로 나눌 때
+             누락된 것으로 보입니다. 그동안 서버도 값을 안 내려줘서 아무도 몰랐고,
+             오늘 BE 가 배포하면서 드러났습니다 (BE_전달사항.md §0-1).
+
+          BE 는 이 값으로 대표메뉴 자동 수집을 겁니다. 저장되는 값이 아니라
+          트리거일 뿐이라 화면에는 보이지 않습니다. NAVER 후보에는 없으므로
+          그때는 `undefined` 로 나가고, 없어도 등록 자체는 됩니다.
+        */
+        kakaoPlaceId: picked.kakaoPlaceId ?? undefined,
       },
       {
         onSuccess: (store) => {
@@ -437,14 +451,16 @@ export default function StoreSearchScreen({ navigation }: Props) {
  *   전화 줄 phone 17 brand + 14 medium
  *   버튼 h52 · [다시 검색] flex 1 · [이 매장으로 선택] flex 1.6
  *
- * ⚠️ **지번 주소는 그리지 않습니다.** 시안에는 "지번 신대방동 395-69" 줄이 있지만
- *    그건 시안 목업(`STORE_DB`)의 값입니다. 실서버 2.1 응답 필드는
- *    `source·name·address·phone·latitude·longitude·category·distance_m·
- *    external_channel_url` 뿐이라 **지번이 없습니다.** 없는 값을 지어내지 않습니다
- *    (CLAUDE.md §2). BE 에 요청해 두고, 내려오면 이 자리에 한 줄 더 넣으면 됩니다.
+ * ✅ **지번 주소를 넣었습니다** (2026-08-26). BE 에 요청해 둔 `jibun_address` 가
+ *    배포됐습니다 — 실측 98건 전부 채워집니다(NAVER 후보 포함). 시안의
+ *    "지번 신대방동 395-69" 줄이 이제 진짜 값으로 그려집니다.
  *
- * ⚠️ **전화도 자주 `null` 입니다** (스타벅스 한국프레스센터점 실측). 값이 있을 때만
- *    그 줄을 그립니다 — 빈 줄을 남기면 번호가 있는데 안 나온 것처럼 보입니다.
+ *    도로명과 겹치는 앞부분은 `jibunText()` 가 덜어냅니다. 두 주소가 시·군·구까지
+ *    같아서 그대로 두면 "서울특별시 중구" 가 위아래로 두 번 읽힙니다.
+ *
+ * ⚠️ **전화는 NAVER 후보에서 `null` 입니다** (KAKAO 후보 15/15 는 옵니다 — 2026-08-26
+ *    실측). 값이 있을 때만 그 줄을 그립니다 — 빈 줄을 남기면 번호가 있는데 안 나온
+ *    것처럼 보입니다. 지번도 같은 규칙입니다(없으면 줄 자체가 없습니다).
  */
 function StorePreviewSheet({
   store,
@@ -471,6 +487,7 @@ function StorePreviewSheet({
   }, [rise]);
 
   const phone = phoneText(store.phone);
+  const jibun = jibunText(store.address, store.jibunAddress);
   /*
     시트 칩에도 **저장될 값**을 그대로 보여 줍니다. 여기서 원문 조각("디저트")을
     보여주고 실제로는 "카페" 로 저장하면, 사장님이 본 것과 저장된 것이 달라집니다.
@@ -518,7 +535,11 @@ function StorePreviewSheet({
           <View style={styles.sheetRows}>
             <View style={styles.sheetRow}>
               <MapPin size={17} strokeWidth={2} color={color.brand[600]} style={styles.rowIcon} />
-              <Text style={styles.sheetAddr}>{store.address}</Text>
+              {/* 시안: 도로명 아래에 지번이 들여쓰기 없이 붙습니다(아이콘 옆 한 칸). */}
+              <View style={styles.sheetAddrCol}>
+                <Text style={styles.sheetAddr}>{store.address}</Text>
+                {jibun ? <Text style={styles.sheetJibun}>지번 {jibun}</Text> : null}
+              </View>
             </View>
             {phone ? (
               <View style={styles.sheetRow}>
@@ -753,15 +774,20 @@ const styles = StyleSheet.create({
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   // 아이콘 윗변을 글자 첫 줄에 맞춥니다 (주소가 두 줄로 감길 수 있습니다).
   rowIcon: { marginTop: 2, alignSelf: 'flex-start' },
+  // 도로명 + 지번을 한 칸에 세로로 담습니다.
+  sheetAddrCol: { flex: 1, minWidth: 0, gap: 1 },
   // 시안: 14 semibold ink
   sheetAddr: {
     ...text.bodySmall,
-    flex: 1,
-    minWidth: 0,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
     color: color.ink[900],
   },
+  /*
+    시안: 지번 12 slate. 시트는 높이가 내용으로 정해지므로 줄높이는 ×1.5 = 18 입니다
+    (CLAUDE.md §5-①). caption 토큰(13/19)을 이 화면에서만 덮습니다.
+  */
+  sheetJibun: { ...text.caption, fontSize: 12, lineHeight: 18, color: color.ink[500] },
   // 시안: 14 medium ink-2
   sheetPhone: { ...text.bodySmall, color: color.ink[800] },
   // 시안: mt-6 gap-2.5 · h52
