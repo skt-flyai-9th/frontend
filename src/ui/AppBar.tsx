@@ -109,7 +109,7 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
 
         {/* 시안: 중앙 요소는 절대 배치 — 좌우 요소 폭에 밀리지 않습니다 */}
         {home ? (
-          <View pointerEvents="none" style={styles.center}>
+          <View pointerEvents="none" style={[styles.center, { alignItems: 'center' }]}>
             <RealsLogo size={22} />
           </View>
         ) : title ? (
@@ -218,9 +218,34 @@ const styles = StyleSheet.create({
    * 가운데 정렬도 유지됩니다 — 좌우 `side` 가 둘 다 `minWidth: 36` 이고 우리 헤더는
    * 한쪽에 아이콘이 최대 하나라, 두 칸 폭이 같아 시안의 절대 중앙과 결과가 같습니다.
    */
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  // 시안: 18·700 · tracking-tighter-title
-  title: { ...theme.text.heading, textAlign: 'center' },
+  /*
+    ⚠️ `alignItems: 'center'` 를 **일부러 안 씁니다.**
+
+    가운데 정렬을 alignItems 로 하면 자식(Text)의 폭이 **제 글자 폭에 딱 맞게** 줄어듭니다.
+    그러면 칸이 아무리 넓어도 소용이 없습니다 — 아래 title 주석을 보세요.
+    기본값(stretch)으로 두어 Text 가 이 칸을 꽉 채우게 하고, 글자는 textAlign 으로 가운데.
+  */
+  center: { flex: 1, justifyContent: 'center' },
+  /**
+   * 🔴 **잘림의 진짜 원인** (2026-08-27, 세 번째이자 마지막 수정)
+   *
+   * 두 번을 헛짚었습니다. `maxWidth` 퍼센트도, 절대배치도 범인이 아니었습니다.
+   * **글자상자가 제 글자 폭에 딱 맞게 잡히는 것**이 문제였습니다.
+   *
+   * 안드로이드는 `letterSpacing` 이 걸린 글자의 **폭을 실제보다 조금 작게 잽니다.**
+   * 우리 제목은 시안 `tracking-tighter-title`(-0.02em → 18px 에서 -0.36) 이 걸려 있습니다.
+   * 상자가 그 잰 값에 딱 맞춰지면, 그릴 때 2~3pt 가 모자라 `numberOfLines={1}` 이
+   * **마지막 글자를 잘라내고 "…" 를 붙입니다.**
+   *
+   *   "AI 숏폼 추천" 은 85.4pt 인데 상자가 83pt 로 잡혀 "AI 숏폼 추…" 가 됐습니다
+   *   "관심 목록"(62pt)은 글자가 적어 오차가 작아 살아남았습니다 — 그래서 이 화면만 티가 났습니다
+   *
+   * 부모 칸을 넓히는 것으로는 절대 안 고쳐집니다. 상자가 **제 글자 폭**을 따라가니까요.
+   * 그래서 상자를 칸 전체로 늘립니다(`alignSelf: 'stretch'`). 이제 상자는 393 폭에서
+   * 281pt 이고, 글자는 `textAlign: 'center'` 로 그 안에서 가운데에 놓입니다.
+   * 잴 때 2~3pt 를 틀려도 200pt 가 남으니 잘릴 수가 없습니다.
+   */
+  title: { ...theme.text.heading, alignSelf: 'stretch', textAlign: 'center' },
   stepBar: { flexDirection: 'row', gap: 3, paddingHorizontal: space[5], paddingBottom: space[3] },
   stepSeg: { flex: 1, height: 4, borderRadius: radius.pill },
 });
