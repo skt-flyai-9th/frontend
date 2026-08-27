@@ -30,7 +30,7 @@ import { SlateGlyph } from '../../ui/SlateGlyph';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { Skeleton } from '../../ui/Feedback';
-import { shootTime } from '../../lib/format';
+import { formatHashtags } from '../../lib/format';
 import theme, { color, space, radius, sizing } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
@@ -47,16 +47,8 @@ type Props = {
 export function FormatCard({ format, onToggleFavorite, onCreate, onOpen }: Props) {
   const fav = !!format.isFavorite;
 
-  const tags: (string | null)[] = [
-    // 찍는 데 걸리는 시간입니다 (완성 영상 길이가 아닙니다 — 위 머리말)
-    shootTime(format.expectedDurationSec) ? `#촬영${shootTime(format.expectedDurationSec)}` : null,
-    `#난이도${format.shootingDifficulty}`,
-    typeof format.requiresFace === 'boolean'
-      ? format.requiresFace
-        ? '#얼굴촬영O'
-        : '#얼굴촬영X'
-      : null,
-  ].filter((tag): tag is string => tag !== null);
+  // 세 태그의 규칙은 lib/format.ts 한 곳에 있습니다 (홈·관심목록·AI 추천 카드 공용)
+  const tags = formatHashtags(format);
 
   return (
     <View style={styles.card}>

@@ -589,6 +589,20 @@ export interface ShortformRecommendation {
   concept: string;
   editingTemplateId: string;
   editingTemplateVersion: number;
+  /**
+   * 이 추천이 어떤 포맷인지 (2026-08-27 신설 · 명세 6.2·6.3).
+   *
+   * 이 값으로 5.2 `GET /video-formats/{id}` 를 불러 **시안 추천 카드의 해시태그 3개와
+   * 숏츠 임베드**를 채웁니다. 그 전에는 채울 값이 없어 비워 두던 자리입니다.
+   *
+   * ⚠️ **`null` 이 정상값입니다.** 아직 한 번도 채택된 적 없는 편집 템플릿이면 짝이 되는
+   * 포맷이 없습니다 — BE 가 지어내지 않고 `null` 로 줍니다(FE 공지 2026-08-27 §4).
+   * 그때는 해시태그·임베드를 **그리지 않습니다**. 빈 회색 상자를 깔면 "영상이 있는데
+   * 안 뜨는 것" 처럼 보입니다.
+   *
+   * openapi 실측: `video_format_id` 는 required 이고 타입이 `integer|null` 입니다.
+   */
+  videoFormatId?: Id | null;
 }
 
 export interface ShortformSessionResponse {

@@ -126,8 +126,9 @@ export default function FavoritesScreen() {
         {items.length === 0 ? (
           <StateBlock
             icon={Heart}
-            title="아직 담은 숏폼이 없어요"
-            body="홈에서 마음에 드는 숏폼의 하트를 눌러보세요."
+            // 시안 9차 원문 그대로 — "콘텐츠" · "좋아요를 눌러보세요"
+            title="아직 담은 콘텐츠가 없어요."
+            body={'홈에서 마음에 드는 숏폼에\n좋아요를 눌러보세요.'}
           />
         ) : (
           <FlatList
@@ -191,10 +192,15 @@ const styles = StyleSheet.create({
   // 시안 header 는 absolute inset-x-0 top-0 z-30 입니다.
   headerLayer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30 },
   /**
-   * 시안 pt-[86px] — 안전영역(54) 안쪽 기준으로는 32 입니다.
-   * 헤더(44)보다 12 적어, 첫 줄 위 12 가 헤더 아래로 들어갑니다.
+   * 시안 9차: 스크롤 컨테이너 `pt-[104px]` + 그리드 자체 `pt-[3px]` → **첫 줄 top 107**.
+   * 헤더 바닥이 98(안전영역 54 + h-11 44)이므로 **9 가 비는 것이 맞습니다.**
+   *
+   * 🔴 2026-08-27 정정: 32(= 바깥 기준 86)이 들어가 있었습니다. 6차 시절의 `pt-[86px]`
+   *    을 그대로 둔 값인데, 그러면 첫 줄 위 12 가 헤더 **아래로 파고들어 타일 윗부분이
+   *    잘려 보입니다.** 사장님이 실기기에서 잡아 주셨습니다.
+   *    안전영역(54) 안쪽 기준 = 107 - 54 = **53**.
    */
-  grid: { paddingTop: 32, paddingHorizontal: GAP, paddingBottom: space[10] },
+  grid: { paddingTop: 53, paddingHorizontal: GAP, paddingBottom: space[10] },
   // 폭은 화면에서 계산해 넣습니다(위 cellWidth 주석 참고). 시안 aspect-[3/4].
   cell: { aspectRatio: 3 / 4 },
   thumb: { width: '100%', height: '100%', borderRadius: radius.tile },

@@ -227,8 +227,15 @@ async function rawRequest<T>(
       body: formData ?? (body ? JSON.stringify(toSnake(body)) : undefined),
       signal,
     });
-  } catch {
-    throw new ApiError(0, 'NETWORK_ERROR');
+  } catch (e) {
+    /*
+      원인을 **삼키지 않습니다** (2026-08-27). 여기서 통째로 버리는 바람에 프로필 사진
+      업로드가 왜 죽는지 화면에도 로그에도 "연결이 끊겼습니다" 뿐이었습니다.
+      사장님께 보이는 문구는 그대로(errorText) 두고, 원인은 serverMessage 로 남깁니다.
+    */
+    const why = e instanceof Error ? e.message : String(e);
+    console.warn(`[api] ${method} ${path} — ${why}`);
+    throw new ApiError(0, 'NETWORK_ERROR', why);
   }
 
   if (res.status === 204) return undefined as T;

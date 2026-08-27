@@ -65,6 +65,14 @@ interface Props {
   /** 좌상단 배지. 예: "추천" */
   badge?: string;
   aspectRatio?: number;
+  /**
+   * 가운데 재생 원의 지름. 기본 56 (시안 ReelCard).
+   *
+   * 추천 카드의 숏츠 임베드처럼 슬롯이 작을 때만 줄입니다 — 시안 `ShortsEmbed` 는
+   * 126×224 슬롯에 `h-11 w-11`(44) 입니다. 56 을 그대로 쓰면 슬롯 폭의 44% 를
+   * 원이 먹어 시안보다 무거워 보입니다.
+   */
+  playSize?: number;
   style?: ViewStyle;
 }
 
@@ -74,6 +82,7 @@ export function VideoThumbnail({
   duration,
   badge,
   aspectRatio = 16 / 9,
+  playSize = 56,
   style,
 }: Props) {
   // 명세 확정 (2026-08-24): 포맷은 YouTube 에서만 가져옵니다. 다른 값이 오면
@@ -109,9 +118,9 @@ export function VideoThumbnail({
 
       {/* 썸네일 위 오버레이는 약관 제약이 없습니다. 플레이어가 아니기 때문입니다. */}
       <View style={styles.playMark}>
-        <View style={styles.playCircle}>
-          {/* 시안: 흰 재생 삼각형 24 (아이콘이 아니라 도형) */}
-          <PlayTri size={24} fill={color.paper} />
+        <View style={[styles.playCircle, { width: playSize, height: playSize }]}>
+          {/* 시안: 흰 재생 삼각형 24 (아이콘이 아니라 도형). 원을 줄이면 같은 비율로 줄입니다 */}
+          <PlayTri size={Math.round((24 / 56) * playSize)} fill={color.paper} />
         </View>
       </View>
 

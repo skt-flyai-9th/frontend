@@ -46,7 +46,12 @@ import { AppBar } from '../../../ui/AppBar';
 import { Banner } from '../../../ui/Feedback';
 import { Screen } from '../../../ui/Screen';
 import { HScroll } from '../../../ui/HScroll';
+import { PlayTri } from '../../../ui/RealsLogo';
+import { VideoThumbnail } from '../../../ui/VideoThumbnail';
 import { pressTap } from '../../../ui/press';
+import { representativeVideoUrl } from '../../../api/formatVideo';
+import { useVideoFormat } from '../../../api/queries/project';
+import { formatHashtags } from '../../../lib/format';
 import { useAppState } from '../../../lib/appState';
 import {
   discardShortformSession,
@@ -78,6 +83,10 @@ const CONFIRM_OPTIONS: ShortformOption[] = [
  * (5차까지는 껍데기만 와서 176 으로 어림했었습니다 — 6차에서 실제값 확인)
  */
 const CARD_W = 248;
+
+/** 시안 `ShortsEmbed` 의 9:16 슬롯 — 원문 `h-[224px] w-[126px]`. */
+const EMBED_W = 126;
+const EMBED_H = 224;
 
 /**
  * "생각하는 중" 말풍선.
@@ -172,6 +181,13 @@ function Thinking({ label }: { label: string }) {
  *
  * 원문 구성: 제목 · AI 한줄요약 · 해시태그 3개 · 숏츠 임베딩 · 바로 촬영하기.
  * 카드 안 여백은 `gap-3` 로 통일, 버튼은 `mt-auto` 로 바닥에 붙습니다.
+ *
+ * **해시태그·임베드는 2026-08-27 에 채웠습니다.** 그전까지는 채울 값이 없어 비워 둔
+ * 자리였습니다(추천 응답에 포맷을 가리키는 값이 없었습니다). 6.2·6.3 에
+ * `video_format_id` 가 생겨 5.2 로 포맷을 한 장 더 읽어 채웁니다.
+ *
+ * ⚠️ 태그 가운데는 시안이 `#1인촬영`(인원)인데 **API 에 인원이 없어 난이도**입니다 —
+ * 홈 피드 카드가 이미 그렇게 하고 있어 문구를 맞췄습니다(`lib/format.ts`).
  */
 function RecCard({
   rec,
@@ -182,6 +198,17 @@ function RecCard({
   busy: boolean;
   onShoot: (rec: ShortformRecommendation) => void;
 }) {
+  /*
+    `video_format_id` 는 **required 이지만 값이 null 일 수 있습니다** — 아직 한 번도
+    채택된 적 없는 편집 템플릿에는 짝이 되는 포맷이 없습니다(openapi 실측:
+    `integer|null`). 그때는 쿼리가 아예 돌지 않고(`enabled`), 아래에서 태그줄과
+    임베드를 **그리지 않습니다.** 빈 회색 상자를 깔면 "영상이 있는데 안 뜨는 것" 처럼
+    보입니다 — 제1규칙.
+  */
+  const format = useVideoFormat(rec.videoFormatId ?? undefined).data;
+  const tags = formatHashtags(format);
+  const videoUrl = representativeVideoUrl(format);
+
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle} numberOfLines={2}>
@@ -189,14 +216,42 @@ function RecCard({
       </Text>
       {rec.concept ? <Text style={styles.cardConcept}>{rec.concept}</Text> : null}
 
+      {/* 시안: 12 semibold leading-relaxed · brand — 앞의 세 개만 씁니다 */}
+      {tags.length > 0 ? (
+        <Text style={styles.cardTags} numberOfLines={1}>
+          {tags.slice(0, 3).join(' ')}
+        </Text>
+      ) : null}
+
       {/*
-        시안은 여기에 해시태그 3개(#촬영시간5분 #1인촬영 #얼굴미노출)와 숏츠 임베드가
-        들어갑니다. **둘 다 서버가 안 줍니다** — 추천 응답은 recommendation_id ·
-        project_title · title · concept · editing_template_id/version 뿐입니다
-        (2026-08-26 실서버 확인). 값이 생기면 이 자리에 그대로 넣으면 됩니다.
-        지금 회색 상자만 깔면 영영 안 채워지는 빈칸이 되므로 두지 않습니다.
-        BE_전달사항 §2-1.
+        시안 `ShortsEmbed` — 9:16 슬롯. **플레이어가 아니라 썸네일입니다.**
+        한 줄에 카드가 여러 장이라 플레이어를 깔면 YouTube 약관(한 화면에 하나)을
+        어깁니다. 재생은 포맷 상세에서 합니다 (FormatCard 머리말 §6.1 과 같은 판단).
+        카드에 보이는 건 **대표 영상**입니다 — 가이드 영상이 아닙니다(api/formatVideo.ts).
       */}
+      {videoUrl ? (
+        <View style={styles.embedWrap}>
+          <View style={styles.embed}>
+            <VideoThumbnail
+              url={videoUrl}
+              platform={format?.sourcePlatform}
+              aspectRatio={EMBED_W / EMBED_H}
+              playSize={44}
+              // 부모가 8 로 자르므로 같은 값을 줍니다 (기본 12 면 모서리에 회색이 비칩니다)
+              style={{ width: EMBED_W, height: EMBED_H, borderRadius: radius.sm }}
+            />
+            {/* 시안: 좌하단 흰 배지 + 빨간 삼각형 9 + 9px bold */}
+            <View style={styles.embedBadge}>
+              <PlayTri size={9} />
+              <Text style={styles.embedBadgeText}>
+                {format?.sourcePlatform && format.sourcePlatform !== 'YOUTUBE'
+                  ? format.sourcePlatform
+                  : 'SHORTS'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
@@ -625,6 +680,52 @@ const styles = StyleSheet.create({
   cardTitle: { ...theme.text.body, fontWeight: '700', lineHeight: 20.6, color: color.ink[900] },
   // 시안: 13 leading-relaxed(1.625) · ink-3
   cardConcept: { ...theme.text.caption, lineHeight: 21, color: color.ink[700] },
+  // 시안: 12 semibold leading-relaxed(1.625 → 19.5) · brand
+  cardTags: {
+    ...theme.text.label,
+    fontWeight: '600',
+    lineHeight: 19.5,
+    color: color.brand[600],
+  },
+  // 시안 ShortsEmbed 바깥: `rounded-xl bg-surface py-3` + 가운데 정렬
+  embedWrap: {
+    alignItems: 'center',
+    paddingVertical: space[3],
+    borderRadius: radius.md,
+    backgroundColor: color.surface,
+  },
+  // 시안 안쪽 슬롯: 126×224 `rounded-lg`(8) — 바깥 `rounded-xl`(12) 보다 한 단계 작습니다
+  embed: {
+    width: EMBED_W,
+    height: EMBED_H,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    backgroundColor: color.ink[100],
+  },
+  // 시안: `absolute bottom-1.5 left-1.5` 흰 배지
+  embedBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[1],
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    // 시안 `rounded` = 4. 토큰에 4 가 없어(xs 6 · tile 2) 원문 값을 그대로 씁니다
+    borderRadius: 4,
+    backgroundColor: color.paper,
+  },
+  // 시안: 9px bold tracking-tight — 자간을 벌리지 않습니다
+  embedBadgeText: {
+    ...theme.text.nano,
+    fontSize: 9,
+    lineHeight: 12,
+    fontFamily: theme.text.heading.fontFamily,
+    fontWeight: theme.text.heading.fontWeight,
+    color: color.ink[900],
+    letterSpacing: -0.18,
+  },
   // 시안: h-11(44) rounded-xl(12) · 14 semibold · mt-auto
   cardBtn: {
     flexDirection: 'row',

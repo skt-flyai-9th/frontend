@@ -26,7 +26,7 @@ import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
-import { JobProgress } from '../../../ui/Feedback';
+import { JobProgress, StateBlock } from '../../../ui/Feedback';
 import {
   useTaskGuide,
   useTasks,
@@ -62,6 +62,20 @@ export default function CameraScreen({ navigation, route }: Props) {
   /** 고른 컷이 없으면 아직 안 찍은 첫 컷부터 (시안 V4: 카메라가 목록을 갖습니다) */
   const taskId = pickedTaskId ?? tasks.find((t) => !shot(t))?.id ?? tasks[0]?.id;
   const setTaskId = setPickedTaskId;
+
+  /**
+   * 🔴 **이미 전부 찍은 채로 들어온 경우** (2026-08-27).
+   *
+   * 위 한 줄의 마지막 `?? tasks[0]?.id` 가 함정이었습니다. 남은 컷이 없으면 **첫 컷으로
+   * 되돌아가** 이미 찍은 컷을 또 찍으라고 내밀었습니다. 편집이 실패한 뒤 "촬영부터 다시
+   * 하기" 로 들어오면 항상 이 꼴이 됩니다 — 사장님이 10컷을 다 찍고 편집이 깨진 뒤
+   * 겪으신 그 화면입니다(칩이 전부 초록인데 셔터가 떠 있었습니다).
+   *
+   * 자동으로 편집으로 보내지 않습니다 — 서버가 `TASKS_INCOMPLETE` 를 주는 상태면
+   * 편집 화면이 다시 여기로 보내 **무한 왕복**이 됩니다. 사장님이 고르게 합니다.
+   */
+  const allShot = tasks.length > 0 && tasks.every(shot);
+  const idleOnAllShot = allShot && pickedTaskId === undefined;
 
   const { data: guide } = useTaskGuide(taskId);
 
@@ -183,6 +197,29 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   // 안무 컷으로 넘어가는 사이에 이 화면이 한 프레임 스쳐 보이지 않게 검은 판만 둡니다.
   if (goingToDance) return <View style={styles.black} />;
+
+  /*
+    이미 다 찍었는데 카메라로 들어온 경우 — 셔터 대신 갈 곳을 묻습니다.
+    카메라 권한도 여기서는 묻지 않습니다(찍을 게 없으니 물을 이유가 없습니다).
+  */
+  if (idleOnAllShot) {
+    return (
+      <SafeAreaView style={styles.permWrap}>
+        <View style={styles.permBody}>
+          <StateBlock
+            icon={Check}
+            tone="brand"
+            title="이미 다 찍었어요"
+            body={`촬영본 ${tasks.length}개가 그대로 있습니다. 편집으로 넘어가거나, 다시 찍을 컷을 골라 주세요.`}
+            primaryLabel="편집으로 가기"
+            onPrimary={() => navigation.replace('Render', { projectId })}
+            secondaryLabel="다시 찍을 컷 고르기"
+            onSecondary={() => setPickedTaskId(tasks[0].id)}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // ── 권한 게이트 ──────────────────────────────────────
   // 웹 자리표시자에서는 권한을 물을 대상이 없어 건너뜁니다(디자인 대조용).

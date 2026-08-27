@@ -102,7 +102,8 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
               <ChevronLeft size={24} strokeWidth={2} color={color.ink[900]} />
             </Pressable>
           ) : logo ? (
-            <RealsLogo size={22} />
+            // 시안 TopHeader `variant === "logo"` 는 **18** 입니다 (홈 헤더만 22)
+            <RealsLogo size={18} />
           ) : null}
         </View>
 

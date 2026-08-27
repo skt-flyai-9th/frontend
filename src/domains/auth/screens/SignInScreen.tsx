@@ -3,7 +3,9 @@
  *
  * 시안 구조 (위에서부터, 이게 전부입니다)
  *   화면    앱바 없음 · bg-canvas · 세로 가운데 정렬 · px-6(24) · pb-16(64)
- *   ①      RealsLogo 32 + mt-2 문구 15·medium·slate "로그인하고 오늘의 숏폼을 시작하세요."
+ *   ①      RealsLogo **48 · slate 색** + mt-2 문구 15·medium·slate
+ *          (32·검정으로 들어가 있었습니다 — 시안 v3 의 글자 로고 시절 값입니다.
+ *           9차 원문은 `<RealsLogo size={48} tone="#64748B" />` 입니다)
  *   ②      mt-9(36) gap-3(12) · AuthField 2개 (mail / lock 아이콘, h52)
  *          틀리면 그 아래 13·medium·heart 한 줄 + circle-alert 15
  *   ③      mt-6(24) 로그인 버튼 h48 rounded-xl brand
@@ -101,7 +103,8 @@ export default function SignInScreen() {
       <View style={styles.center}>
         {/* ① 로고 + 한 줄 */}
         <View>
-          <RealsLogo size={32} />
+          {/* 시안 9차: size 48 · tone #64748B(= ink[500]) · 상자 없이 이미지만 */}
+          <RealsLogo size={48} tint={color.ink[500]} lineBox={false} />
           <Text style={styles.tagline}>로그인하고 오늘의 숏폼을 시작하세요.</Text>
         </View>
 

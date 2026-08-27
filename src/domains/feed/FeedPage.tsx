@@ -31,7 +31,7 @@ import { Marquee } from '../../ui/Marquee';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
-import { shootTime } from '../../lib/format';
+import { formatHashtags } from '../../lib/format';
 import theme, { color, radius, space, text } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
@@ -54,16 +54,8 @@ export function FeedPage({
 }) {
   const fav = !!format.isFavorite;
 
-  const tags = [
-    // 찍는 데 걸리는 시간입니다 — 완성 영상 길이가 아닙니다 (BE 확인 2026-08-26)
-    shootTime(format.expectedDurationSec) ? `#촬영${shootTime(format.expectedDurationSec)}` : null,
-    format.shootingDifficulty ? `#난이도${format.shootingDifficulty}` : null,
-    typeof format.requiresFace === 'boolean'
-      ? format.requiresFace
-        ? '#얼굴촬영O'
-        : '#얼굴촬영X'
-      : null,
-  ].filter((t): t is string => t !== null);
+  // 세 태그의 규칙은 lib/format.ts 한 곳에 있습니다 (홈·관심목록·AI 추천 카드 공용)
+  const tags = formatHashtags(format);
 
   /*
    * 영상 자리와 정보 띠를 나눕니다.
