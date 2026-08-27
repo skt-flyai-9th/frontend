@@ -37,9 +37,24 @@ export function useEditResult(projectId?: number, enabled = true) {
     queryKey: qk.editResult(projectId ?? 0),
     queryFn: () => request<EditResult>(API.editResult(projectId!)),
     enabled: !!projectId && enabled,
+    /**
+     * 진행 중일 때만 물어봅니다.
+     *
+     * 🔴 2026-08-27: 1초 고정이었습니다. 렌더가 **5~6분** 걸린다는 걸 실측하고 나니
+     *    (실서버 345초) 1초 폴링은 한 번 편집에 **300~900번**을 묻는 셈입니다.
+     *    가게에서 데이터로 쓰시는 분께 부담이고 서버에도 부담입니다.
+     *
+     * 그래서 **처음 15초만 1초**(막 걸었을 때 화면이 바로 반응해야 합니다),
+     * 그 뒤로는 **5초**로 늦춥니다. 5~6분이면 70여 번입니다.
+     *
+     * 화면 밖(백그라운드)에서는 react-query 가 알아서 멈춥니다. 돌아오면
+     * RenderScreen 이 즉시 다시 받아옵니다(AppState 'active').
+     */
     refetchInterval: (q) => {
       const s = q.state.data?.renderStatus;
-      return s === 'PENDING' || s === 'PROCESSING' ? 1000 : false;
+      if (s !== 'PENDING' && s !== 'PROCESSING') return false;
+      // 받아온 횟수로 셉니다 — 처음 15번(≈15초)은 1초, 그 뒤는 5초
+      return q.state.dataUpdateCount < 15 ? 1000 : 5000;
     },
   });
 }
