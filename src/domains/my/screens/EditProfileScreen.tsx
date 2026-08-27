@@ -31,6 +31,7 @@ import {
   Modal,
   Pressable,
   StyleSheet,
+  TextInput,
   Alert,
   AppState,
 } from 'react-native';
@@ -52,7 +53,7 @@ import { useAppState } from '../../../lib/appState';
 import { useStore, useUpdateStore, useUploadLogo } from '../../../api/queries/store';
 import { useDisconnectSns, useSnsAuthorize, useSnsConnections } from '../../../api/queries/edit';
 import type { SnsPlatform } from '../../../api/schema/types';
-import theme, { color, radius, space, text } from '../../../design/theme';
+import theme, { color, radius, sizing, space, text } from '../../../design/theme';
 import type { MyStackParamList, RootStackParamList } from '../../../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList & MyStackParamList>;
@@ -102,6 +103,42 @@ const PLATFORMS = [
 
 type Platform = (typeof PLATFORMS)[number];
 
+/**
+ * 시안 8차 `SYNC_CATEGORIES` 원문 — 매장 등록(`StoreSearchScreen`)과 **같은 목록**입니다.
+ *
+ * 등록 화면은 칩으로 고르게 해 놓고 수정 화면만 자유 입력이었습니다. 업종은 AI 기획·추천에
+ * 들어가는 값이라 "카페 / 까페 / 커피숍" 이 뒤섞이면 추천 품질이 흔들립니다.
+ */
+const CATEGORIES = [
+  '카페',
+  '식당',
+  '미용',
+  '운동',
+  '의류',
+  '꽃집',
+  '반려동물',
+  '공방',
+  '학원',
+  '직접입력',
+] as const;
+
+/**
+ * 전화번호 표기 — 시안 `formatPhone` 과 같은 모양입니다 (02-1234-5678 / 010-1234-5678).
+ * 서버에는 표기 그대로 보냅니다 (3.1 `phone` 은 문자열입니다).
+ */
+function formatPhone(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  if (d.startsWith('02')) {
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0, 2)}-${d.slice(2)}`;
+    if (d.length <= 9) return `${d.slice(0, 2)}-${d.slice(2, 5)}-${d.slice(5)}`;
+    return `${d.slice(0, 2)}-${d.slice(2, 6)}-${d.slice(6, 10)}`;
+  }
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`;
+}
+
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
@@ -116,7 +153,12 @@ export default function EditProfileScreen() {
   const disconnect = useDisconnectSns();
   const authorize = useSnsAuthorize();
 
-  const [form, setForm] = useState({ name: '', category: '' });
+  const [form, setForm] = useState({ name: '', category: '', phone: '' });
+  /**
+   * 업종이 시안 목록에 없으면 칩은 '직접입력' 을 고른 상태로 두고 원문을 여기에 담습니다.
+   * 서버가 준 값을 목록에 없다는 이유로 버리지 않습니다.
+   */
+  const [customCategory, setCustomCategory] = useState('');
   const [dirty, setDirty] = useState(false);
 
   /** 연동 시트. null 이면 닫힘. */
@@ -201,8 +243,20 @@ export default function EditProfileScreen() {
   // 서버 값이 오면 채웁니다. 사장님이 입력 중이면 덮지 않습니다.
   useEffect(() => {
     if (dirty) return;
-    setForm({ name: store?.name ?? '', category: store?.category ?? '' });
+    const saved = store?.category ?? '';
+    const known = (CATEGORIES as readonly string[]).includes(saved);
+    setForm({
+      name: store?.name ?? '',
+      // 목록에 없는 업종이면 칩은 '직접입력' 을 켜고 원문은 아래 칸에 남깁니다.
+      category: known ? saved : saved ? '직접입력' : '',
+      phone: formatPhone(store?.phone ?? ''),
+    });
+    setCustomCategory(known ? '' : saved);
   }, [store, dirty]);
+
+  /** 저장·표시에 쓰는 실제 업종. '직접입력' 이면 아래 칸의 글자가 값입니다. */
+  const resolvedCategory =
+    form.category === '직접입력' ? customCategory.trim() : form.category;
 
   const set = (k: keyof typeof form) => (v: string) => {
     setDirty(true);
@@ -274,7 +328,12 @@ export default function EditProfileScreen() {
   const save = () => {
     if (updateStore.isPending) return;
     updateStore.mutate(
-      { name: form.name.trim(), category: form.category.trim() },
+      {
+        name: form.name.trim(),
+        category: resolvedCategory,
+        // 비워 두면 지운 것으로 봅니다 — 없는 번호를 남겨 두지 않습니다.
+        phone: form.phone.trim(),
+      },
       {
         onSuccess: () => {
           setDirty(false);
@@ -349,14 +408,70 @@ export default function EditProfileScreen() {
             placeholder="매장 이름"
             style={styles.input}
           />
-          <Field
-            label="카테고리"
-            labelGap={6}
-            value={form.category}
-            onChangeText={set('category')}
-            placeholder="예: 카페"
-            style={styles.input}
-          />
+
+          {/*
+            업종 카테고리 — 시안 8차에서 자유 입력이 **칩 고르기**로 바뀌었습니다.
+            목록은 매장 등록(`StoreSearchScreen`)이 쓰는 것과 같은 `CATEGORIES` 입니다.
+            등록에서 골라 놓고 수정에서는 아무 글자나 받던 어긋남을 없앱니다.
+          */}
+          <View>
+            <Text style={styles.fieldLabel}>업종 카테고리</Text>
+            <View style={styles.chips}>
+              {CATEGORIES.map((c) => {
+                const on = form.category === c;
+                return (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => {
+                      setDirty(true);
+                      setForm((p) => ({ ...p, category: c }));
+                      if (c !== '직접입력') setCustomCategory('');
+                    }}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      on ? styles.chipOn : styles.chipOff,
+                      pressTap(pressed, 'button'),
+                    ]}
+                  >
+                    <Text style={[styles.chipText, on && { color: color.paper }]}>{c}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {/* 시안: mt-2.5 — 칩에서 '직접입력' 을 골랐을 때만 열립니다 */}
+            {form.category === '직접입력' && (
+              <TextInput
+                value={customCategory}
+                onChangeText={(v) => {
+                  setDirty(true);
+                  setCustomCategory(v);
+                }}
+                placeholder="업종을 직접 입력해 주세요"
+                placeholderTextColor={color.ink[500]}
+                accessibilityLabel="업종 직접 입력"
+                style={[styles.textInput, { marginTop: 10 }]}
+              />
+            )}
+          </View>
+
+          {/* 전화번호 — 시안 8차 신규. 3.1 `phone` 에 표기 그대로 들어갑니다 */}
+          <View>
+            <Text style={styles.fieldLabel}>전화번호</Text>
+            <TextInput
+              value={form.phone}
+              onChangeText={(v) => {
+                setDirty(true);
+                setForm((p) => ({ ...p, phone: formatPhone(v) }));
+              }}
+              keyboardType="phone-pad"
+              placeholder="0212345678"
+              placeholderTextColor={color.ink[500]}
+              accessibilityLabel="전화번호"
+              style={[styles.textInput, styles.phoneInput]}
+            />
+          </View>
         </View>
 
         {/*
@@ -713,7 +828,53 @@ const styles = StyleSheet.create({
   },
 
   // 시안: mt-6 gap-4
-  fields: { marginTop: space[6], gap: space[4] },
+  // 시안 8차: mt-6 · 블록 사이 gap-5(20). 예전 gap-4(16) 는 입력칸이 둘뿐일 때 값입니다.
+  fields: { marginTop: space[6], gap: space[5] },
+
+  // ── 업종 카테고리 · 전화번호 (시안 8차) ──────────────
+  // 시안: mb-1.5(6) pl-1(4) · 12 medium slate
+  fieldLabel: { ...text.label, marginBottom: 6, paddingLeft: 4, color: color.ink[500] },
+  // 시안: flex-wrap gap-2(8)
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  // 시안: rounded-full border px-4 py-2 · 14 semibold
+  chip: {
+    paddingHorizontal: space[4],
+    paddingVertical: space[2],
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+  },
+  chipOn: { borderColor: color.brand[600], backgroundColor: color.brand[600] },
+  chipOff: { borderColor: color.ink[200], backgroundColor: color.surface },
+  chipText: {
+    ...text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[800],
+  },
+  /*
+   * 시안: h-[52px] rounded-xl border-hairline bg-surface px-4 · 15 medium.
+   *
+   * ⚠️ `lineHeight`·세로 패딩·`includeFontPadding` 을 끕니다 — 안드로이드에서 글자
+   *    윗부분이 잘리던 것과 같은 조합입니다(`MenuManager` 의 `INPUT_FIT` 주석 참고).
+   *    52 는 여유가 있어 지금 당장 잘리진 않지만, 같은 실수를 반복하지 않습니다.
+   */
+  textInput: {
+    ...text.body,
+    lineHeight: undefined,
+    height: sizing.inputHeight,
+    paddingVertical: 0,
+    paddingHorizontal: space[4],
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    borderRadius: radius.md,
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.surface,
+    color: color.ink[900],
+  },
+  // 시안: 전화번호만 tabular-nums — 자릿수가 흔들리지 않게
+  phoneInput: { fontVariant: ['tabular-nums'] },
+
   // 매장 정보와 SNS 사이. 시안의 블록 간격(mt-6)과 같습니다.
   menuWrap: { marginTop: space[6] },
   // 시안 입력: h-12 · bg-panel(흰색)
