@@ -39,7 +39,8 @@
 - 마이페이지 `Views` 가 `—` (계정 단위 누적 조회수 API 없음)
 - 설정 플랜 줄이 "월 3편까지 만들 수 있어요" (이번 달 사용량 API 없음)
 - 플랜 "Pro로 업그레이드" 가 비활성 + 이유 표시 (결제·플랜 API 없음)
-- 알림 안내 문구가 단정형이 아님 (`expo-notifications` 가 없어 권한 상태를 못 읽음)
+- ~~알림 안내 문구가 단정형이 아님~~ → **2026-08-27 해소.** `expo-notifications` 를 넣어
+  권한 상태를 읽습니다 (`src/lib/push.ts`)
 - 내보내기 다운로드·공유 버튼이 15.1 파일 없으면 **비활성** (없는 파일은 저장·공유가 실패함)
 - 내보내기 음원 카드는 `publish_kit.track` 이 있을 때만 표시 (곡명·구간을 지어내지 않음)
 - 내보내기 AI 게시글 제목은 caption 첫 줄을 자른 것 (15.1 에 제목 필드가 없음)
@@ -75,8 +76,9 @@ mock 도 서버 상태를 실제로 갱신해야 합니다. mock 업로드가 �
 ## 3. 서버 · mock
 
 - 실서버 `https://sarils.p-e.kr` — `app.json` 의 `extra.mockDomains: []` 라 **전 도메인 실연동**
-- 서버에 아직 없는 5개 경로만 mock: `/quiz-questions` `/quiz-answers`
-  `/quiz-alternatives` `/evaluate` `/evaluation` (`SERVER_MISSING_SUFFIXES`)
+- 서버에 아직 없는 **2개** 경로만 mock: `/evaluate` `/evaluation` (`SERVER_MISSING_SUFFIXES`)
+  - R06 질문형 3개(`/quiz-*`)는 여기 있었는데 **폐기 확정으로 2026-08-27 에 걷어냈습니다.**
+    서버에 "아직 없는" 게 아니라 **다시 생기지 않는** 경로라 흉내 장치째 지웠습니다
 - 디자인 QA 캡처용 전체 mock 스위치: `EXPO_PUBLIC_FORCE_MOCK=1`
 - `EXPO_PUBLIC_QA_NAV=1` 이면 QA 전역이 열립니다 (정의 위치가 두 파일로 갈립니다)
   - `navigation/navRef.ts` → `__realsNav` · `__realsReset`
@@ -365,11 +367,15 @@ npx eas update --branch preview -m "무엇을 바꿨는지"
 | `src/**` 전부, 목업 `fixtures.ts` | 새 네이티브 패키지 (`npx expo install ...`) |
 | `assets/` 이미지·폰트 | Expo SDK 업그레이드 |
 
+> **2026-08-27 에 `expo-sharing`·`expo-notifications` 를 넣으면서 version 을 1.0.1 로
+> 올렸습니다.** 그래서 **1.0.0 APK 는 이제 업데이트를 받지 않습니다** — 폰에 1.0.1
+> APK 를 새로 까셔야 그 뒤 OTA 가 이어집니다.
+
 지금 하는 시안 대조 작업은 **사실상 전부 왼쪽 칸**입니다.
 
 ### 🔴 `runtimeVersion` 은 `appVersion` — 네이티브를 바꾸면 `version` 을 올리세요
 
-`app.json` 의 `version`(지금 `1.0.0`)이 그대로 runtimeVersion 입니다. **같은 값을 가진
+`app.json` 의 `version`(지금 `1.0.1`)이 그대로 runtimeVersion 입니다. **같은 값을 가진
 APK 는 전부 그 업데이트를 받습니다.** 그래서 위 표의 오른쪽 칸(네이티브)을 건드렸는데
 `version` 을 안 올리고 `npm run ota` 를 하면, **옛 APK 가 맞지 않는 JS 를 받아 죽습니다.**
 네이티브를 건드렸으면 순서가 이렇습니다.

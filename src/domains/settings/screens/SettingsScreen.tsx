@@ -6,7 +6,7 @@
  *   ② Free 플랜 카드 — brand-tint 배경 + brand-border, 흰 타일(44) 안에 왕관
  *   ③ 목록 카드 — 자주 묻는 질문 / 알림 / 서비스 이용약관 / 개인정보 처리방침
  *   ④ 로그아웃 — 흰 카드 · 하트색 글자 · 아이콘 동반
- *   ⑤ 회원탈퇴(밑줄) · "Reals. 버전 1.0.0"
+ *   ⑤ 회원탈퇴(밑줄) · "Reals. 버전 {app.json 의 version}"
  *   ⑥ 로그아웃 확인 다이얼로그 · 회원탈퇴 바텀시트(동의 체크박스)
  *
  * 시안 캡처 실측(22_settings.png · pt 기준)
@@ -35,6 +35,7 @@ import {
   Shield,
   TriangleAlert,
 } from 'lucide-react-native';
+import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -43,6 +44,9 @@ import { Screen } from '../../../ui/Screen';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, space, text } from '../../../design/theme';
 import { useLogout, useWithdraw } from '../../../api/queries/auth';
+
+/** app.json 의 version. OTA 로 나간 번들에도 그때의 값이 그대로 들어 있습니다. */
+const APP_VERSION = Constants.expoConfig?.version ?? '—';
 import { useAppState } from '../../../lib/appState';
 import type { RootStackParamList, MyStackParamList } from '../../../navigation/types';
 
@@ -190,7 +194,12 @@ export default function SettingsScreen() {
           <Pressable accessibilityRole="button" onPress={() => setWithdrawOpen(true)} hitSlop={8}>
             <Text style={styles.withdraw}>회원탈퇴</Text>
           </Pressable>
-          <Text style={styles.version}>Reals. 버전 1.0.0</Text>
+          {/*
+            버전은 **app.json 에서 읽습니다** — 예전에는 "1.0.0" 이 글자로 박혀 있었습니다
+            (2026-08-27 에 1.0.1 로 올리면서 드러났습니다). 화면이 실제와 다른 번호를
+            말하면 사장님이 "업데이트가 안 됐다" 를 판단할 근거가 사라집니다.
+          */}
+          <Text style={styles.version}>Reals. 버전 {APP_VERSION}</Text>
         </View>
       </ScrollView>
 

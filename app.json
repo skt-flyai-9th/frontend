@@ -3,7 +3,7 @@
     "name": "Reals",
     "slug": "reals",
     "scheme": "reals",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -36,7 +36,8 @@
     },
     "android": {
       "package": "com.yeoljeong2.reals",
-      "versionCode": 1,
+      "versionCode": 2,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
@@ -50,7 +51,8 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
@@ -88,6 +90,13 @@
             "usesCleartextTraffic": true
           }
         }
+      ],
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#2563EB"
+        }
       ]
     ],
     "extra": {
@@ -96,7 +105,7 @@
       "eas": {
         "projectId": "074a2259-8b4c-402e-bb89-eb04bf1bfaa6"
       },
-      "apiNote": "mockDomains 를 비우면 전부 실서버입니다. 특정 도메인만 되돌리려면 이름을 넣으세요 (auth/store/project/format/quiz/plan/shoot/edit/publish/analytics). 서버에 아직 없는 경로(R06 질문형·R13 평가)는 src/api/http.ts 의 SERVER_MISSING_SUFFIXES 가 처리합니다.",
+      "apiNote": "mockDomains 를 비우면 전부 실서버입니다. 특정 도메인만 되돌리려면 이름을 넣으세요 (auth/store/project/format/plan/shoot/edit/publish/analytics). 서버에 아직 없는 경로(R13 평가)는 src/api/http.ts 의 SERVER_MISSING_SUFFIXES 가 처리합니다. R06 질문형(6.1~6.3)은 폐기가 확정돼 2026-08-27 에 걷어냈습니다.",
       "updatesNote": "OTA(EAS Update) 설정입니다. 코드(JS·이미지) 수정은 `npm run ota` 로 무선 배포되고, 앱은 켤 때 받아서 **다음 실행**에 적용합니다(fallbackToCacheTimeout 0 이라 시작이 느려지지 않습니다). runtimeVersion 은 위 version 값(appVersion 정책)입니다 — 네이티브가 바뀌면(plugins·권한·SDK·새 네이티브 패키지) **version 을 반드시 올리고 APK 를 다시 빌드해야** 합니다. 안 올리면 옛 APK 가 맞지 않는 JS 를 받아 죽습니다. fingerprint 정책은 Windows 에서 계산한 값이 EAS 리눅스 빌더와 달라 빌드가 실패해서 쓰지 않습니다(2026-08-26 확인)."
     },
     "owner": "zqwerty23"

@@ -17,6 +17,14 @@ export const API = {
   withdraw: () => `/users/me`,                                       // 1.4 DELETE
   /** 1.5 회원정보 조회/수정 (2026-08-23 신설). 수정 가능 필드는 name·phone·marketing_agreed 뿐입니다. */
   me: () => `/users/me`,                                             // 1.5 GET/PATCH
+  /**
+   * 편집 완료 푸시용 토큰 저장 (2026-08-27 BE 확정).
+   *
+   * Body 는 `{ push_token, platform }` 입니다 — `token` 이 아닙니다(422 납니다).
+   * **upsert 라 같은 값을 다시 보내도 200** 이고, 삭제 경로는 없습니다.
+   * 근거와 실측은 `src/lib/push.ts` 머리말에 있습니다.
+   */
+  pushTokens: () => `/users/me/push-tokens`,
 
   // ── R02 가게 탐색·외부데이터 ────────────────────────────
   storeSearch: (keyword: string) =>

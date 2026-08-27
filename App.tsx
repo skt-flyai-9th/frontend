@@ -13,6 +13,7 @@ import { Image, View } from 'react-native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { useAppFonts } from './src/design/fonts';
 import { useHydrated } from './src/lib/appState';
+import { usePushNotifications } from './src/lib/push';
 import { ApiError } from './src/api/http';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -118,6 +119,14 @@ export default function App() {
    * 폰트 로딩과 같은 splash 뒤에서 함께 기다리므로 체감 시간은 늘지 않습니다.
    */
   const hydrated = useHydrated();
+
+  /*
+    편집 완료 알림 — 토큰 등록과 "알림을 눌렀을 때 이동" 을 답니다.
+    ⚠️ 조건부로 부르면 안 됩니다(훅 순서). 아래 splash 조기 반환보다 위에 둡니다.
+       알림이 안 붙어도 화면은 그대로 뜹니다 — push.ts 가 실패를 삼키고 로그만 남깁니다.
+  */
+  usePushNotifications();
+
   const ready = fontsReady && hydrated && updateSettled;
 
   useEffect(() => {

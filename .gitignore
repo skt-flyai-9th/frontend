@@ -12,3 +12,18 @@ google-play-service-account.json
 ios/
 android/
 .DS_Store
+
+# ── Firebase · 푸시 (2026-08-27) ──────────────────────────────
+# ⚠️ google-services.json 은 **일부러 여기 넣지 않았습니다.**
+#    EAS 빌드가 저장소에서 그 파일을 읽습니다. 무시하면 빌드가 실패합니다.
+#    안에 든 api_key 는 패키지 이름(com.yeoljeong2.reals)에 묶여 있고 APK 안에도
+#    들어가는 값이라 그 자체로 비밀이 아닙니다.
+#
+# 🔴 아래는 반대입니다 — **가진 사람이 우리 앱 사용자 전원에게 알림을 보낼 수 있는**
+#    서비스 계정 키입니다. 파일 이름이 프로젝트마다 달라서 넉넉히 잡습니다.
+*-firebase-adminsdk-*.json
+firebase-adminsdk*.json
+*service-account*.json
+*serviceaccount*.json
+*-fcm-key.json
+fcm-*.json

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "378166222307",
+    "project_id": "reals-91cc3",
+    "storage_bucket": "reals-91cc3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:378166222307:android:8cd321d404e48608b914d6",
+        "android_client_info": {
+          "package_name": "com.yeoljeong2.reals"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_AXhXbCTP-C6hNxSFbsxwyX6Y-n54TjA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
