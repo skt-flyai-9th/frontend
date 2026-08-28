@@ -295,6 +295,8 @@ export type PromotionPurpose = '메뉴소개' | '이벤트알리기' | '가게�
 export type MenuDetailTag = '대표메뉴' | '신메뉴' | '비교' | '제조과정' | '숨은메뉴';
 export interface MenuPromotionDetail {
   detailTag: MenuDetailTag;
+  /** 등록되지 않은 메뉴를 직접 입력했을 때도 기획에 전달할 이름. */
+  menuName?: string;
 }
 
 /** 이벤트알리기 */
@@ -311,6 +313,8 @@ export interface EventPromotionDetail {
 export type StoreElement = '공간' | '위치' | '서비스경험' | '사장님/직원' | '하루브이로그';
 export interface StorePromotionDetail {
   elements: StoreElement[];
+  /** 사용자가 고르거나 직접 적은 구체적인 매장 홍보 대상. */
+  description?: string;
 }
 
 /** 고객늘리기 */
@@ -632,6 +636,8 @@ export interface ShortformTurnResponse {
    * 시안(`image (1).png`)이 카드 세 장인 것도 이 배열을 전제로 한 그림입니다.
    */
   recommendations?: ShortformRecommendation[];
+  /** false이면 현재 조건에 맞는 미노출 템플릿이 더 없습니다. */
+  hasMoreRecommendations?: boolean;
 }
 
 export type ShortformTurnInput =

@@ -28,8 +28,18 @@ export function useProjects(storeId?: number, status?: string) {
 export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { storeId: number; promotionPurpose: PromotionPurpose }) =>
-      request<ShortsProject>(API.projects(), { method: 'POST', body }),
+    mutationFn: async ({ settings, ...body }: {
+      storeId: number;
+      promotionPurpose: PromotionPurpose;
+      settings?: Partial<ShortsProject>;
+    }) => {
+      const project = await request<ShortsProject>(API.projects(), { method: 'POST', body });
+      if (!settings) return project;
+      return request<ShortsProject>(API.project(Number(project.id)), {
+        method: 'PATCH',
+        body: settings,
+      });
+    },
     // 홈의 "만들던 영상" 목록을 갱신합니다.
     onSuccess: (_, vars) =>
       qc.invalidateQueries({ queryKey: ['projects', vars.storeId] }),
@@ -190,6 +200,7 @@ export function useCreatePlan(projectId: number) {
       qc.setQueryData(qk.plan(projectId), data);
       qc.invalidateQueries({ queryKey: qk.scenes(projectId) });
       qc.invalidateQueries({ queryKey: qk.tasks(projectId) });
+      qc.invalidateQueries({ queryKey: qk.project(projectId) });
     },
   });
 }

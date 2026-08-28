@@ -282,6 +282,7 @@ export default function AiChatScreen() {
   const [options, setOptions] = useState<ShortformOption[]>([]);
   /** 서버가 배열로 줍니다. 온 만큼 카드로 깝니다. */
   const [recommendations, setRecommendations] = useState<ShortformRecommendation[]>([]);
+  const [hasMoreRecommendations, setHasMoreRecommendations] = useState(true);
   const [input, setInput] = useState('');
   /** 자유 입력창을 사장님이 직접 열었는지. 기본은 닫힘입니다. */
   const [freeInput, setFreeInput] = useState(false);
@@ -305,6 +306,7 @@ export default function AiChatScreen() {
       if (response.assistantMessage) append({ role: 'ai', content: response.assistantMessage });
       const recs = response.recommendations ?? [];
       setRecommendations(recs);
+      setHasMoreRecommendations(response.hasMoreRecommendations ?? true);
       setOptions(response.action === 'CONFIRM' ? CONFIRM_OPTIONS : (response.options ?? []));
       setFreeInput(false);
       if (recs.length) {
@@ -336,6 +338,7 @@ export default function AiChatScreen() {
     const oldSessionId = sessionId;
     setSessionId(undefined);
     setRecommendations([]);
+    setHasMoreRecommendations(true);
     setOptions([]);
     setLog([]);
     setInput('');
@@ -420,7 +423,6 @@ export default function AiChatScreen() {
   };
 
   const tryNext = () => {
-    setRecommendations([]);
     nextRecommendation.mutate(undefined, { onSuccess: applyResponse });
   };
 
@@ -564,14 +566,18 @@ export default function AiChatScreen() {
                   />
                 ))}
               </HScroll>
-              <Pressable
-                accessibilityRole="button"
-                onPress={tryNext}
-                hitSlop={6}
-                style={({ pressed }) => [styles.freeLink, pressed && { opacity: 0.6 }]}
-              >
-                <Text style={styles.freeLinkText}>다른 추천 보기</Text>
-              </Pressable>
+              {hasMoreRecommendations ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={tryNext}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.freeLink, pressed && { opacity: 0.6 }]}
+                >
+                  <Text style={styles.freeLinkText}>다른 추천 보기</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.freeLinkText}>현재 조건의 추천을 모두 확인했어요</Text>
+              )}
             </>
           )}
         </ScrollView>
