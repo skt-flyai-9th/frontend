@@ -98,7 +98,20 @@ export default function MyPageScreen() {
   const weekTotal = week.length > 0 ? week.reduce((sum, d) => sum + d.value, 0) : null;
 
   const items = shorts.data?.items ?? [];
-  const resume = drafts?.[0];
+  /**
+   * 🔴 **이미 완성된 프로젝트를 "만들던 영상" 으로 내밀지 않습니다** (2026-08-28).
+   *
+   * 4.3 목록의 `shortsStatus` 는 렌더가 끝나도 `DRAFT` 로 남습니다(서버가
+   * `COMPLETED` 로 바꿔 주지 않고, 앱도 바꾸라고 하지 않습니다). 그래서 편집까지
+   * 끝난 프로젝트가 계속 이 카드에 떴고, 누르면 촬영 화면이 **"이미 다 찍었어요"**
+   * 로 막혀 새 영상을 못 찍는다는 보고가 있었습니다.
+   *
+   * 15.2 완성 목록(`useStoreShorts`)이 프로젝트 id 를 함께 주므로, **완성본이 있는
+   * 프로젝트는 빼고** 고릅니다 — 서버 상태를 고쳐 쓰는 게 아니라 있는 값으로
+   * 가려내는 것입니다.
+   */
+  const finished = new Set(items.map((v) => Number(v.shortsProjectId)));
+  const resume = drafts?.find((d) => !finished.has(Number(d.id)));
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 

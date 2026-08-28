@@ -35,7 +35,7 @@ import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, sizing, space, text } from '../../../design/theme';
-import { JobProgress, StateBlock } from '../../../ui/Feedback';
+import { JobProgress } from '../../../ui/Feedback';
 import {
   useTaskGuide,
   useTasks,
@@ -64,12 +64,12 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
  *           완료    bg #0F172A + 촬영본 첫 프레임
  *   재촬영  완료이면서 활성일 때 클립 위 -21 · #3200F9 · 10 semibold
  *
- * ⚠️ **완료 칸 그림은 방금 찍은 한 칸만 진짜입니다** (2026-08-28 결정).
+ * ⚠️ **완료 칸 그림은 이번에 찍은 컷만 진짜입니다.**
  *    서버가 촬영본 썸네일을 주지 않고(`/tasks/{id}/footage` 는 영상 URL 뿐),
  *    영상에서 첫 프레임을 뽑으려면 `expo-video-thumbnails` 네이티브 패키지가 필요해
- *    APK 를 새로 구워야 합니다. 그래서 기기에 파일이 남아 있는 **직전 촬영본만**
- *    정지 프레임으로 그리고, 나머지 완료 칸은 브랜드색 채움 + 체크로 둡니다.
- *    없는 그림을 지어내지 않습니다 (CLAUDE.md §2).
+ *    APK 를 새로 구워야 합니다. 그래서 **이 화면에서 찍어 기기에 파일이 남은 컷**은
+ *    전부 첫 프레임으로 그리고, 앞서 찍어 둔 컷(앱을 다시 켜거나 지난번 촬영)은
+ *    브랜드색 채움 + 체크로 둡니다 — 없는 그림을 지어내지 않습니다 (CLAUDE.md §2).
  *
  * ⚠️ `#3200F9` 는 이 스트립 전용입니다. `--brand` 는 시안에서도 `#2563EB` 그대로라
  *    `theme.ts` 에 올리지 않습니다.
@@ -168,14 +168,15 @@ function ClipStrip({
   taskId,
   isShot,
   disabled,
-  lastShot,
+  shotUris,
   onSelectTask,
 }: {
   tasks: ShootTask[];
   taskId?: Id;
   isShot: (t: ShootTask) => boolean;
   disabled: boolean;
-  lastShot: { taskId: Id; uri: string } | null;
+  /** 이번에 찍어서 기기에 파일이 남아 있는 컷 — `{ 태스크id: uri }` */
+  shotUris: Record<number, string>;
   onSelectTask: (id: Id) => void;
 }) {
   return (
@@ -192,7 +193,7 @@ function ClipStrip({
           index={i}
           done={isShot(t)}
           active={t.id === taskId}
-          stillUri={lastShot?.taskId === t.id ? lastShot.uri : undefined}
+          stillUri={shotUris[Number(t.id)]}
           disabled={disabled}
           onPress={() => onSelectTask(t.id)}
         />
@@ -235,8 +236,6 @@ export default function CameraScreen({ navigation, route }: Props) {
    * 자동으로 편집으로 보내지 않습니다 — 서버가 `TASKS_INCOMPLETE` 를 주는 상태면
    * 편집 화면이 다시 여기로 보내 **무한 왕복**이 됩니다. 사장님이 고르게 합니다.
    */
-  const allShot = tasks.length > 0 && tasks.every(shot);
-  const idleOnAllShot = allShot && pickedTaskId === undefined;
 
   const { data: guide } = useTaskGuide(taskId);
 
@@ -307,10 +306,16 @@ export default function CameraScreen({ navigation, route }: Props) {
   const [left, setLeft] = useState<number | null>(null);
 
   /**
-   * 방금 찍은 컷 하나만 스트립에 정지 프레임으로 보여 줍니다 (결정 B).
-   * 업로드가 끝난 뒤에도 기기의 파일은 남아 있어 그 uri 를 들고 있습니다.
+   * 이번에 찍은 촬영본의 기기 경로 — `{ 태스크id: uri }`.
+   *
+   * 업로드가 끝나도 기기의 파일은 남아 있어, **이 화면에서 찍은 컷은 전부**
+   * 스트립에 첫 프레임으로 보여 줍니다.
+   *
+   * ⚠️ 앱을 껐다 켜거나 이전에 찍어 둔 컷은 여기 없습니다. 서버가 촬영본 썸네일을
+   *    주지 않아서(`/tasks/{id}/footage` 는 영상 URL 뿐) 그림을 얻을 데가 없습니다.
+   *    그런 칸은 브랜드색 채움 + 체크로 둡니다 — 없는 그림을 지어내지 않습니다.
    */
-  const [lastShot, setLastShot] = useState<{ taskId: Id; uri: string } | null>(null);
+  const [shotUris, setShotUris] = useState<Record<number, string>>({});
 
   /** 대사가 없는 B-roll 은 마이크 권한을 요구하지 않습니다. */
   const needsMic = task?.taskType === '영상촬영' || task?.taskType === '음성녹음';
@@ -383,7 +388,7 @@ export default function CameraScreen({ navigation, route }: Props) {
       {
         onSuccess: () => {
           // 스트립의 이 칸을 정지 프레임으로 바꿉니다 (기기에 파일이 남아 있습니다)
-          if (taskId != null) setLastShot({ taskId, uri: take.uri });
+          if (taskId != null) setShotUris((m) => ({ ...m, [Number(taskId)]: take.uri }));
           setTake(null);
           const rest = tasks.filter((t) => t.id !== taskId && !shot(t));
           if (rest.length > 0) setTaskId(rest[0].id);
@@ -422,27 +427,20 @@ export default function CameraScreen({ navigation, route }: Props) {
   if (goingToDance) return <View style={styles.black} />;
 
   /*
-    이미 다 찍었는데 카메라로 들어온 경우 — 셔터 대신 갈 곳을 묻습니다.
-    카메라 권한도 여기서는 묻지 않습니다(찍을 게 없으니 물을 이유가 없습니다).
+    🔴 **이미 다 찍었을 때 화면을 막지 않습니다** (2026-08-28, 실기기 보고).
+
+    2026-08-27 에는 여기서 "이미 다 찍었어요 / 편집으로 가기" 전체 화면을 띄웠습니다.
+    그때는 컷 목록이 셔터 위 칩 줄이라, 다 찍은 채로 카메라가 열리면 "칩이 전부
+    초록인데 셔터가 떠 있는" 꼴이 돼서 막는 게 맞았습니다.
+
+    지금은 **클립 스트립이 그 일을 대신합니다** — 어느 칸이 찍혔는지 한 줄에 다
+    보이고, 아무 칸이나 눌러 다시 찍을 수 있습니다. 그런데 이 전체 화면이 스트립을
+    가려 버려서, 편집이 끝난 프로젝트로 들어오면 **촬영 자체가 막혔습니다.**
+
+    그래서 막지 않고, 다 찍은 상태면 스트립 위에 "편집으로 가기" 버튼을 띄웁니다
+    자동으로 편집으로 보내지도 않습니다 — 서버가
+    `TASKS_INCOMPLETE` 를 주는 상태면 편집 화면이 다시 여기로 보내 무한 왕복이 됩니다.
   */
-  if (idleOnAllShot) {
-    return (
-      <SafeAreaView style={styles.permWrap}>
-        <View style={styles.permBody}>
-          <StateBlock
-            icon={Check}
-            tone="brand"
-            title="이미 다 찍었어요"
-            body={`촬영본 ${tasks.length}개가 그대로 있습니다. 편집으로 넘어가거나, 다시 찍을 컷을 골라 주세요.`}
-            primaryLabel="편집으로 가기"
-            onPrimary={() => navigation.replace('Render', { projectId })}
-            secondaryLabel="다시 찍을 컷 고르기"
-            onSecondary={() => setPickedTaskId(tasks[0].id)}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   /*
     ── 권한 ────────────────────────────────────────────
@@ -538,7 +536,7 @@ export default function CameraScreen({ navigation, route }: Props) {
           taskId={taskId}
           isShot={shot}
           disabled={recording}
-          lastShot={lastShot}
+          shotUris={shotUris}
           onSelectTask={onSelectTask}
         />
       )}
