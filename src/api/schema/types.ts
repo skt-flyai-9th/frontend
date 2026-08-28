@@ -612,6 +612,11 @@ export interface ShortformRecommendation {
    * openapi 실측: `video_format_id` 는 required 이고 타입이 `integer|null` 입니다.
    */
   videoFormatId?: Id | null;
+  /** 추천 카드에서 재생할 원본 숏폼 영상. */
+  referenceUrl?: string;
+  /** 촬영 준비·촬영 중에 사용할 가이드 영상. */
+  guideVideoUrl?: string;
+  sourcePlatform?: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK';
 }
 
 export interface ShortformSessionResponse {
