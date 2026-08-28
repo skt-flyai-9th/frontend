@@ -109,7 +109,7 @@ const EMBED_H = 224;
  *    웹에는 그 모듈이 없어 **한 바퀴만 돌고 멈춥니다** (CLAUDE.md §5-④).
  *    시계는 **하나**입니다 — 점마다 따로 돌리면 서로 어긋납니다.
  */
-function Thinking({ label }: { label: string }) {
+function Thinking() {
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const anim = Animated.loop(
@@ -147,8 +147,20 @@ function Thinking({ label }: { label: string }) {
       <View style={styles.avatar}>
         <Sparkles size={16} strokeWidth={2} color={color.paper} />
       </View>
-      <View style={[styles.bubble, styles.ai, styles.thinking]}>
-        <Text style={styles.bubbleText}>{label}</Text>
+      {/*
+        🔴 **글자 없이 점만 띄웁니다** (2026-08-28 사장님 지시).
+           "AI가 답변 준비하는 중" 을 같이 적었더니 말풍선이 두 배로 커지고,
+           점이 이미 같은 말을 하고 있어 군더더기였습니다.
+
+        ⚠️ 대신 `accessibilityLabel` 로 남깁니다. 점 세 개는 눈으로 보면 뜻이
+           통하지만 화면 낭독기에는 아무 소리도 안 납니다 — 눈이 불편한 분에게는
+           화면이 그냥 멈춘 것으로 들립니다.
+      */}
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="AI가 답변을 준비하고 있습니다"
+        style={[styles.bubble, styles.ai, styles.thinking]}
+      >
         <View style={styles.dots}>
           {fade.map((f, i) => (
             <Animated.View
@@ -499,7 +511,7 @@ export default function AiChatScreen() {
             </View>
           ))}
 
-          {pending && <Thinking label="AI가 답변 준비하는 중" />}
+          {pending && <Thinking />}
 
           {hasError && (
             <Banner
