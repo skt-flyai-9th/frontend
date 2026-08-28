@@ -46,8 +46,7 @@ import { AppBar } from '../../../ui/AppBar';
 import { Banner } from '../../../ui/Feedback';
 import { Screen } from '../../../ui/Screen';
 import { HScroll } from '../../../ui/HScroll';
-import { PlayTri } from '../../../ui/RealsLogo';
-import { VideoThumbnail } from '../../../ui/VideoThumbnail';
+import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { pressTap } from '../../../ui/press';
 import { representativeVideoUrl } from '../../../api/formatVideo';
 import { useVideoFormat } from '../../../api/queries/project';
@@ -182,9 +181,8 @@ function Thinking({ label }: { label: string }) {
  * 원문 구성: 제목 · AI 한줄요약 · 해시태그 3개 · 숏츠 임베딩 · 바로 촬영하기.
  * 카드 안 여백은 `gap-3` 로 통일, 버튼은 `mt-auto` 로 바닥에 붙습니다.
  *
- * **해시태그·임베드는 2026-08-27 에 채웠습니다.** 그전까지는 채울 값이 없어 비워 둔
- * 자리였습니다(추천 응답에 포맷을 가리키는 값이 없었습니다). 6.2·6.3 에
- * `video_format_id` 가 생겨 5.2 로 포맷을 한 장 더 읽어 채웁니다.
+ * 추천 응답의 원본 영상 URL을 즉시 임베드하고, 포맷 상세는 해시태그를 보강하는 데
+ * 사용합니다. 영상 URL이 없으면 촬영 진입을 막아 빈 가이드 화면으로 넘어가지 않습니다.
  *
  * ⚠️ 태그 가운데는 시안이 `#1인촬영`(인원)인데 **API 에 인원이 없어 난이도**입니다 —
  * 홈 피드 카드가 이미 그렇게 하고 있어 문구를 맞췄습니다(`lib/format.ts`).
@@ -198,16 +196,10 @@ function RecCard({
   busy: boolean;
   onShoot: (rec: ShortformRecommendation) => void;
 }) {
-  /*
-    `video_format_id` 는 **required 이지만 값이 null 일 수 있습니다** — 아직 한 번도
-    채택된 적 없는 편집 템플릿에는 짝이 되는 포맷이 없습니다(openapi 실측:
-    `integer|null`). 그때는 쿼리가 아예 돌지 않고(`enabled`), 아래에서 태그줄과
-    임베드를 **그리지 않습니다.** 빈 회색 상자를 깔면 "영상이 있는데 안 뜨는 것" 처럼
-    보입니다 — 제1규칙.
-  */
   const format = useVideoFormat(rec.videoFormatId ?? undefined).data;
   const tags = formatHashtags(format);
-  const videoUrl = representativeVideoUrl(format);
+  const videoUrl = rec.referenceUrl ?? representativeVideoUrl(format);
+  const mediaReady = !!videoUrl;
 
   return (
     <View style={styles.card}>
@@ -223,49 +215,36 @@ function RecCard({
         </Text>
       ) : null}
 
-      {/*
-        시안 `ShortsEmbed` — 9:16 슬롯. **플레이어가 아니라 썸네일입니다.**
-        한 줄에 카드가 여러 장이라 플레이어를 깔면 YouTube 약관(한 화면에 하나)을
-        어깁니다. 재생은 포맷 상세에서 합니다 (FormatCard 머리말 §6.1 과 같은 판단).
-        카드에 보이는 건 **대표 영상**입니다 — 가이드 영상이 아닙니다(api/formatVideo.ts).
-      */}
+      {/* 세 플레이어 모두 수동 재생이므로 한 화면에 함께 둘 수 있습니다. */}
       {videoUrl ? (
         <View style={styles.embedWrap}>
           <View style={styles.embed}>
-            <VideoThumbnail
+            <GuidePlayer
               url={videoUrl}
-              platform={format?.sourcePlatform}
-              aspectRatio={EMBED_W / EMBED_H}
-              playSize={44}
-              // 부모가 8 로 자르므로 같은 값을 줍니다 (기본 12 면 모서리에 회색이 비칩니다)
-              style={{ width: EMBED_W, height: EMBED_H, borderRadius: radius.sm }}
+              width={EMBED_W}
+              portrait
             />
-            {/* 시안: 좌하단 흰 배지 + 빨간 삼각형 9 + 9px bold */}
-            <View style={styles.embedBadge}>
-              <PlayTri size={9} />
-              <Text style={styles.embedBadgeText}>
-                {format?.sourcePlatform && format.sourcePlatform !== 'YOUTUBE'
-                  ? format.sourcePlatform
-                  : 'SHORTS'}
-              </Text>
-            </View>
           </View>
         </View>
-      ) : null}
+      ) : (
+        <Text style={styles.mediaUnavailable}>추천 영상을 불러오지 못했습니다.</Text>
+      )}
 
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${rec.title} 으로 바로 촬영하기`}
-        disabled={busy}
-        onPress={() => onShoot(rec)}
+        disabled={busy || !mediaReady}
+        onPress={() => mediaReady && onShoot(rec)}
         style={({ pressed }) => [
           styles.cardBtn,
-          busy && { opacity: 0.5 },
+          (busy || !mediaReady) && { opacity: 0.5 },
           pressTap(pressed, 'button'),
         ]}
       >
         <CameraIcon size={16} strokeWidth={2} color={color.paper} />
-        <Text style={styles.cardBtnText}>{busy ? '준비 중…' : '바로 촬영하기'}</Text>
+        <Text style={styles.cardBtnText}>
+          {busy ? '준비 중…' : mediaReady ? '바로 촬영하기' : '영상 확인 필요'}
+        </Text>
       </Pressable>
     </View>
   );
@@ -718,30 +697,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: color.ink[100],
   },
-  // 시안: `absolute bottom-1.5 left-1.5` 흰 배지
-  embedBadge: {
-    position: 'absolute',
-    left: 6,
-    bottom: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[1],
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    // 시안 `rounded` = 4. 토큰에 4 가 없어(xs 6 · tile 2) 원문 값을 그대로 씁니다
-    borderRadius: 4,
-    backgroundColor: color.paper,
-  },
-  // 시안: 9px bold tracking-tight — 자간을 벌리지 않습니다
-  embedBadgeText: {
-    ...theme.text.nano,
-    fontSize: 9,
-    lineHeight: 12,
-    fontFamily: theme.text.heading.fontFamily,
-    fontWeight: theme.text.heading.fontWeight,
-    color: color.ink[900],
-    letterSpacing: -0.18,
-  },
+  mediaUnavailable: { ...theme.text.caption, color: color.danger[500], textAlign: 'center' },
   // 시안: h-11(44) rounded-xl(12) · 14 semibold · mt-auto
   cardBtn: {
     flexDirection: 'row',

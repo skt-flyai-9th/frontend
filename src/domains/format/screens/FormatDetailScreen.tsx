@@ -27,7 +27,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
 import { Screen } from '../../../ui/Screen';
-import { Marquee } from '../../../ui/Marquee';
 import { AppBar } from '../../../ui/AppBar';
 import { Banner, Loading } from '../../../ui/Feedback';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
@@ -134,7 +133,7 @@ function DanceGuideBody({
                   <Text style={styles.numText}>{i + 1}</Text>
                 </View>
                 <View style={styles.danceStepText}>
-                  <Marquee style={styles.danceStepTitle}>{title.trim()}</Marquee>
+                  <Text style={styles.danceStepTitle}>{title.trim()}</Text>
                   {desc ? <Text style={styles.danceStepDesc}>{desc}</Text> : null}
                 </View>
               </View>
@@ -345,20 +344,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
                 <View style={styles.num}>
                   <Text style={styles.numText}>{i + 1}</Text>
                 </View>
-                {/*
-                  🔴 **컷 이름은 자르지 않습니다** (2026-08-28, 사장님 지시).
-
-                  컷 이름은 AI 가 만들어서 길이를 우리가 못 정합니다. `slice(0, 9)` 로
-                  자르면 표시 없이 끊기고, `numberOfLines` 로 두면 `…` 가 붙어
-                  **지금 뭘 찍어야 하는지가 사라집니다.**
-
-                  그래서 전광판(`Marquee`)으로 흘립니다 — 칸에 들어가면 가만히 있고,
-                  넘칠 때만 오른쪽에서 왼쪽으로 흘러 전체를 다 보여 줍니다.
-                  촬영 화면 컷 칩에서 같은 이유로 쓰던 컴포넌트입니다.
-                */}
-                <Marquee containerStyle={styles.cutLabelBox} style={styles.cutLabel}>
-                  {t.taskTitle}
-                </Marquee>
+                <Text style={styles.cutLabel}>{t.taskTitle}</Text>
               </View>
             ))}
           </View>
@@ -500,15 +486,10 @@ const styles = StyleSheet.create({
     fontWeight: theme.text.heading.fontWeight,
     color: color.brand[600],
   },
-  /*
-    전광판이 앉는 창 — **남는 폭을 전부** 차지해야 흐를 여지가 최대가 됩니다.
-    `flexShrink: 1` 만 있던 때는 글자가 남는 폭을 안 가져가서, 한 줄에 들어갈
-    제목까지 좁은 칸에 갇혀 잘렸습니다. 앱의 다른 행들과 같은 `flex: 1, minWidth: 0`
-    입니다(`MenuManager.fields` · `FormatCard` · `SignUpVerifyScreen.targetText`).
-  */
-  cutLabelBox: { flex: 1, minWidth: 0 },
   cutLabel: {
     ...text.bodySmall,
+    flex: 1,
+    flexShrink: 1,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
   },
