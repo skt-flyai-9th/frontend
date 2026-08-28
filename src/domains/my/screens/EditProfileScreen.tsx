@@ -496,9 +496,21 @@ export default function EditProfileScreen() {
                   {linked.map((c) => (
                     <View key={c.id} style={styles.account}>
                       <View style={styles.accountLeft}>
-                        <Text style={styles.handle} numberOfLines={1}>
-                          @{c.snsAccountName}
-                        </Text>
+                        {/*
+                          서버가 계정 이름을 비운 채 저장하는 경우가 있습니다(2026-08-28,
+                          유튜브 연동 직후 500 이 뜬 건). 그대로 찍으면 "@" 한 글자만
+                          남아 고장으로 보입니다. 이름이 없으면 이름 자리를 비웁니다 —
+                          옆의 "연동됨" 배지가 이미 상태를 말하고 있습니다.
+                        */}
+                        {c.snsAccountName?.trim() ? (
+                          <Text style={styles.handle} numberOfLines={1}>
+                            @{c.snsAccountName.trim()}
+                          </Text>
+                        ) : (
+                          <Text style={[styles.handle, { color: color.ink[500] }]} numberOfLines={1}>
+                            계정 이름 없음
+                          </Text>
+                        )}
                         <View style={styles.linkedBadge}>
                           <Check size={10} strokeWidth={3} color={color.done[500]} />
                           <Text style={styles.linkedText}>연동됨</Text>
@@ -506,7 +518,7 @@ export default function EditProfileScreen() {
                       </View>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`${c.snsAccountName} 연동 해제`}
+                        accessibilityLabel={`${c.snsAccountName?.trim() || p.label} 연동 해제`}
                         hitSlop={8}
                         onPress={() =>
                           Alert.alert('연결을 끊을까요?', '이 계정의 조회수와 반응을 더 이상 받아오지 못합니다.', [

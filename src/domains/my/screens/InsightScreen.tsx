@@ -33,7 +33,6 @@ import {
   ChevronDown,
   ChevronLeft,
   MapPin,
-  RefreshCw,
   TrendingUp,
   Users,
 } from 'lucide-react-native';
@@ -335,23 +334,27 @@ export default function InsightScreen() {
               </Text>
             </RiseIn>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => nav.navigate('Create', { screen: 'PurposeSelect' })}
-              style={({ pressed }) => [styles.recPrimary, pressTap(pressed, 'card')]}
-            >
-              <Camera size={18} strokeWidth={2} color={color.paper} />
-              <Text style={styles.recPrimaryText}>바로 촬영하기</Text>
-            </Pressable>
+            {/*
+              🔴 **추천이 없으면 버튼도 없습니다** (2026-08-28 사장님 지시).
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => insights.refetch()}
-              style={({ pressed }) => [styles.recSecondary, pressTap(pressed, 'card')]}
-            >
-              <RefreshCw size={16} strokeWidth={2} color={color.brand[600]} />
-              <Text style={styles.recSecondaryText}>다른 추천 보기</Text>
-            </Pressable>
+              3.5 가 아직 값을 안 줄 때 이 자리에는 "추천을 준비하고 있습니다" 만
+              떠 있습니다. 그 상태에서 "바로 촬영하기" 를 눌러 봐야 **추천과 아무
+              상관 없는 빈 촬영**이 시작됩니다 — 사장님은 추천대로 찍는 줄 아시고요.
+              할 수 있는 게 없으면 버튼을 내는 것이 맞습니다.
+
+              ⚠️ "다른 추천 보기" 는 **시안에 없어 걷어냈습니다**(같은 지시).
+                 3.5 를 다시 불러도 서버가 같은 값을 주므로 눌러도 그대로였습니다.
+            */}
+            {next ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => nav.navigate('Create', { screen: 'PurposeSelect' })}
+                style={({ pressed }) => [styles.recPrimary, pressTap(pressed, 'card')]}
+              >
+                <Camera size={18} strokeWidth={2} color={color.paper} />
+                <Text style={styles.recPrimaryText}>바로 촬영하기</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </ScrollView>
@@ -498,17 +501,4 @@ const styles = StyleSheet.create({
     backgroundColor: color.brand[600],
   },
   recPrimaryText: { ...theme.text.bodySmall, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.paper },
-  recSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    height: 44,
-    marginTop: space[2],
-    borderRadius: radius.md,
-    borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    backgroundColor: color.paper,
-  },
-  recSecondaryText: { ...theme.text.bodySmall, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.brand[600] },
 });

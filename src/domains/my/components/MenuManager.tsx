@@ -59,6 +59,7 @@ import { pressTap } from '../../../ui/press';
 import {
   useAddMenu,
   useDeleteMenu,
+  useImportStatus,
   useMenus,
   useUpdateMenu,
   useUploadMenuPhoto,
@@ -270,6 +271,25 @@ export function MenuManager({ storeId }: { storeId?: number }) {
   const [confirming, setConfirming] = useState<Menu | null>(null);
   const list = menus.data ?? [];
 
+  /**
+   * 🔴 **메뉴는 매장 등록 뒤에 서버가 따로 긁어 옵니다** (2026-08-28 BE 회신).
+   *
+   * 2.2 등록 응답이 돌아온 뒤 **백그라운드로** 도는 작업이라, 등록 직후에 이 화면에
+   * 들어오면 아직 0건입니다. 그때 "아직 등록된 메뉴가 없어요" 라고 적으면 사장님은
+   * **수집이 끝난 줄 알고** 손으로 다 넣기 시작하십니다.
+   *
+   * 2.3 이 항목별 상태를 주므로(`기본정보`·`메뉴`·`사진`·`상권분석`) 그중 메뉴만 봅니다.
+   * 훅이 1.2초 간격으로 묻고 **2분에서 멈추며**, 끝나면 메뉴 목록을 스스로 다시
+   * 불러옵니다(`useImportStatus`). 서버를 동기로 붙잡아 등록을 느리게 만들 이유가
+   * 없다는 판단입니다 — BE 회신 3번에 대한 답이기도 합니다.
+   *
+   * 이미 메뉴가 있으면 물어볼 이유가 없어 **목록이 빌 때만** 켭니다.
+   */
+  const importing = useImportStatus(list.length === 0 ? storeId : undefined);
+  const menuImport = importing.data?.items.find((i) => i.field === '메뉴')?.status;
+  const menuComing =
+    !importing.timedOut && (menuImport === 'PENDING' || menuImport === 'IN_PROGRESS');
+
   const addMenu = () => {
     if (!storeId || add.isPending) return;
     /*
@@ -300,12 +320,14 @@ export function MenuManager({ storeId }: { storeId?: number }) {
       ) : null}
 
       {/*
-        비어 있을 때. 서버 자동 수집이 아직 안 끝났을 수 있다는 것을 밝힙니다 —
-        "메뉴가 없다" 로만 적으면 사장님이 가게에 메뉴가 없다는 말로 읽습니다.
+        비어 있을 때. **아직 긁어 오는 중인지**를 먼저 말합니다 — "메뉴가 없다" 로만
+        적으면 사장님이 수집이 끝난 줄 알고 손으로 다 넣기 시작하십니다.
       */}
       {!menus.isLoading && !menus.isError && list.length === 0 ? (
         <Text style={styles.hint}>
-          아직 등록된 메뉴가 없어요. 아래에서 직접 추가하시면 AI 추천에 바로 쓰입니다.
+          {menuComing
+            ? '매장 메뉴를 가져오고 있어요. 다 되면 여기 저절로 나타납니다.'
+            : '아직 등록된 메뉴가 없어요. 아래에서 직접 추가하시면 AI 추천에 바로 쓰입니다.'}
         </Text>
       ) : null}
 
