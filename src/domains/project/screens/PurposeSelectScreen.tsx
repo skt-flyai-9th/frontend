@@ -62,10 +62,15 @@ interface Topic {
   /** 메뉴소개일 때 4.2 로 이어질 세부 태그 */
   detailTag?: MenuDetailTag;
   /**
-   * 등록된 메뉴를 골라 넣을 수 있는 주제인지 (신메뉴·기존메뉴).
-   * `isNewMenu` 로 걸러 보여 줄 것인지도 함께 정합니다.
+   * 등록된 메뉴를 골라 넣을 수 있는 주제인지.
+   *
+   * 🔴 **기존메뉴에만 켭니다** (2026-08-28). 예전에는 신메뉴에도 켜 두고
+   *    `isNewMenu` 인 것만 추리되 **하나도 없으면 전체를 보여주는** 폴백이 있었습니다.
+   *    서버가 그 표시를 안 채우는 바람에 신메뉴 탭에 등록된 메뉴가 통째로 깔렸고,
+   *    바로 옆에 기존메뉴 탭이 따로 있는데 같은 목록이 두 번 나오는 꼴이었습니다.
+   *    **신메뉴는 아직 등록되지 않은 메뉴라 고를 대상이 없습니다** — 직접 적습니다.
    */
-  menuPick?: 'new' | 'all';
+  menuPick?: boolean;
 }
 
 /** 시안 TOPICS 원문 + 서버 값 매핑 */
@@ -78,7 +83,6 @@ const TOPICS: Topic[] = [
     placeholder: '예: 흑임자 크림 라떼',
     purpose: '메뉴소개',
     detailTag: '신메뉴',
-    menuPick: 'new',
   },
   {
     id: 'existing',
@@ -88,7 +92,7 @@ const TOPICS: Topic[] = [
     placeholder: '예: 시그니처 아메리카노',
     purpose: '메뉴소개',
     detailTag: '대표메뉴',
-    menuPick: 'all',
+    menuPick: true,
   },
   {
     id: 'event',
@@ -128,24 +132,20 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
   /*
    * 등록된 메뉴 고르기 (2026-08-26, 사장님 지시).
    *
-   * 신메뉴·기존메뉴를 고르면 **3.2 에 등록된 메뉴가 목록으로** 뜨고 눌러서 넣습니다.
+   * **기존메뉴에서만** 3.2 에 등록된 메뉴가 목록으로 뜨고 눌러서 넣습니다.
    * 직접 적는 것도 그대로 됩니다 — 적으면 목록이 그 글자로 좁혀지고, 목록에 없는
    * 이름이면 적은 대로 나갑니다.
    *
    * ⚠️ **직접 적은 이름을 메뉴 목록에 추가하지 않습니다.** 메뉴 등록은 매장 관리에서
    *    사장님이 직접 하는 일입니다. 여기서 몰래 만들면 사진·가격 없는 메뉴가 쌓입니다.
    *
-   * 신메뉴는 `isNewMenu` 인 것만 추립니다. 그렇게 추린 게 하나도 없으면 거르지 않고
-   * 전부 보여 줍니다 — 서버가 그 표시를 안 채웠을 뿐인데 목록이 텅 비면
-   * "등록한 메뉴가 없다" 로 오해합니다.
+   * ⚠️ 신메뉴에는 목록을 띄우지 않습니다 (`Topic.menuPick` 주석 참고).
    */
   const { data: menus } = useMenus(topic?.menuPick ? storeId : undefined);
   const menuOptions = useMemo(() => {
     if (!topic?.menuPick || !menus) return [];
-    const onlyNew = menus.filter((m) => m.isNewMenu);
-    const base = topic.menuPick === 'new' && onlyNew.length > 0 ? onlyNew : menus;
     const typed = value.trim();
-    const narrowed = typed ? base.filter((m) => m.name.includes(typed)) : base;
+    const narrowed = typed ? menus.filter((m) => m.name.includes(typed)) : menus;
     // 이미 그 메뉴를 정확히 골랐으면 목록을 접습니다.
     if (narrowed.length === 1 && narrowed[0].name === typed) return [];
     return narrowed;
@@ -325,7 +325,7 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
                       pressed && { backgroundColor: color.brand[50] },
                     ]}
                   >
-                    <Coffee size={16} strokeWidth={2} color={color.brand[600]} />
+                    {/* 찻잔 아이콘은 뺐습니다 (2026-08-28 요청) — 메뉴가 음료가 아닐 수도 있습니다 */}
                     <Text style={styles.menuName} numberOfLines={1}>
                       {m.name}
                     </Text>
