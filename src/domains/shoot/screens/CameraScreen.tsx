@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   AppState,
+  Image,
   Linking,
   Pressable,
   ScrollView,
@@ -26,7 +27,7 @@ import {
   CameraPreview,
   type CameraPreviewHandle,
 } from '../../../ui/CameraPreview';
-import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
+import { Check, ChevronLeft, RotateCcw, SwitchCamera } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
@@ -34,7 +35,8 @@ import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
 import { pressTap } from '../../../ui/press';
-import theme, { color, radius, sizing, space, text } from '../../../design/theme';
+import { ApiError } from '../../../api/http';
+import theme, { color, elevation, radius, sizing, space, text } from '../../../design/theme';
 import { JobProgress } from '../../../ui/Feedback';
 import {
   useTaskGuide,
@@ -64,12 +66,11 @@ type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
  *           완료    bg #0F172A + 촬영본 첫 프레임
  *   재촬영  완료이면서 활성일 때 클립 위 -21 · #3200F9 · 10 semibold
  *
- * ⚠️ **완료 칸 그림은 이번에 찍은 컷만 진짜입니다.**
- *    서버가 촬영본 썸네일을 주지 않고(`/tasks/{id}/footage` 는 영상 URL 뿐),
- *    영상에서 첫 프레임을 뽑으려면 `expo-video-thumbnails` 네이티브 패키지가 필요해
- *    APK 를 새로 구워야 합니다. 그래서 **이 화면에서 찍어 기기에 파일이 남은 컷**은
- *    전부 첫 프레임으로 그리고, 앞서 찍어 둔 컷(앱을 다시 켜거나 지난번 촬영)은
- *    브랜드색 채움 + 체크로 둡니다 — 없는 그림을 지어내지 않습니다 (CLAUDE.md §2).
+ * 완료 칸 그림은 **서버가 준 `thumbnail_url`** 입니다 (2026-08-28, BE 전달사항 §1-9).
+ *    8.1 촬영 목록이 컷마다 썸네일을 함께 주므로 **지난번에 찍은 컷까지 전부** 그림이
+ *    뜹니다. 그 값이 오기 전에는 기기에 남은 촬영본을 `expo-video` 로 띄워 첫 프레임을
+ *    세웠는데, 안드로이드에서 상자 밖으로 삐져나와 걷어냈습니다(`ClipCell` 주석).
+ *    아직 썸네일이 안 온 칸만 브랜드색 채움 + 체크로 둡니다 — 지어내지 않습니다.
  *
  * ⚠️ `#3200F9` 는 이 스트립 전용입니다. `--brand` 는 시안에서도 `#2563EB` 그대로라
  *    `theme.ts` 에 올리지 않습니다.
@@ -107,7 +108,7 @@ function ClipCell({
   index,
   done,
   active,
-  stillUri,
+  thumbUrl,
   disabled,
   onPress,
 }: {
@@ -115,19 +116,11 @@ function ClipCell({
   index: number;
   done: boolean;
   active: boolean;
-  /** 있으면 이 영상의 첫 프레임을 깝니다 (방금 찍은 칸) */
-  stillUri?: string;
+  /** 서버가 준 촬영본 첫 프레임 (8.1 `thumbnail_url`) */
+  thumbUrl?: string | null;
   disabled: boolean;
   onPress: () => void;
 }) {
-  /*
-    재생하지 않고 첫 프레임만 세워 둡니다 — `MyShortCell` 과 같은 방식입니다.
-    uri 가 없으면 플레이어를 아예 만들지 않습니다(빈 칸에 디코더를 붙이지 않습니다).
-  */
-  const player = useVideoPlayer(stillUri ?? null, (p) => {
-    p.muted = true;
-  });
-
   return (
     <View style={styles.clipWrap}>
       {done && active && (
@@ -143,15 +136,22 @@ function ClipCell({
         onPress={onPress}
         style={[styles.clip, done ? styles.clipDone : styles.clipTodo, active && styles.clipActive]}
       >
-        {stillUri ? (
-          <VideoView
-            player={player}
-            style={styles.clipFill}
-            contentFit="cover"
-            nativeControls={false}
-          />
+        {thumbUrl ? (
+          /*
+            🔴 **이미지여야 합니다. 영상을 깔면 테두리 밖으로 삐져나옵니다** (2026-08-28).
+
+            처음에는 기기에 남은 촬영본을 `expo-video` 로 띄워 첫 프레임을 세웠는데,
+            실기기에서 그 칸만 상자를 뚫고 나왔습니다 — 안드로이드의 네이티브 영상
+            표면은 **부모의 `overflow: hidden` 과 둥근 모서리를 무시합니다.**
+            서버가 `thumbnail_url` 을 주기 시작해(§1-9) 이미지로 바꿨고,
+            `<Image>` 는 잘림과 모서리를 그대로 따릅니다.
+
+            그래도 모서리를 **이미지 자신에게도** 겁니다. 부모 클리핑에만 기대면
+            기기·버전에 따라 또 새어 나올 수 있습니다.
+          */
+          <Image source={{ uri: thumbUrl }} style={styles.clipFill} resizeMode="cover" />
         ) : done ? (
-          /* 썸네일을 못 얻는 칸 — 찍었다는 사실만 색과 체크로 말합니다 */
+          /* 썸네일이 아직 안 온 칸 — 찍었다는 사실만 색과 체크로 말합니다 */
           <View style={[styles.clipFill, styles.clipCheck]}>
             <Check size={20} strokeWidth={3} color={color.paper} />
           </View>
@@ -163,20 +163,45 @@ function ClipCell({
   );
 }
 
+/**
+ * 검수 시트의 촬영본 미리보기 — 방금 찍은 **기기 파일**을 첫 프레임으로 세웁니다.
+ * 아직 업로드 전이라 서버 썸네일이 없습니다.
+ *
+ * ⚠️ **`surfaceType="textureView"` 가 필수입니다.**
+ *    안드로이드 기본값 `surfaceView` 는 부모의 둥근 모서리·클리핑을 무시해서
+ *    상자 밖으로 삐져나옵니다(스트립에서 실제로 겪었습니다 — `ClipCell` 주석).
+ *    `textureView` 는 일반 뷰처럼 그려져 모서리와 잘림을 따릅니다.
+ *    대신 조금 무거우므로 **이 한 장에만** 씁니다.
+ */
+function TakePreview({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+  });
+
+  return (
+    <View style={styles.preview}>
+      <VideoView
+        player={player}
+        style={styles.previewFill}
+        contentFit="cover"
+        nativeControls={false}
+        surfaceType="textureView"
+      />
+    </View>
+  );
+}
+
 function ClipStrip({
   tasks,
   taskId,
   isShot,
   disabled,
-  shotUris,
   onSelectTask,
 }: {
   tasks: ShootTask[];
   taskId?: Id;
   isShot: (t: ShootTask) => boolean;
   disabled: boolean;
-  /** 이번에 찍어서 기기에 파일이 남아 있는 컷 — `{ 태스크id: uri }` */
-  shotUris: Record<number, string>;
   onSelectTask: (id: Id) => void;
 }) {
   return (
@@ -193,7 +218,7 @@ function ClipStrip({
           index={i}
           done={isShot(t)}
           active={t.id === taskId}
-          stillUri={shotUris[Number(t.id)]}
+          thumbUrl={t.thumbnailUrl}
           disabled={disabled}
           onPress={() => onSelectTask(t.id)}
         />
@@ -261,14 +286,16 @@ export default function CameraScreen({ navigation, route }: Props) {
   const pipUrl = guide?.referenceVideo?.referenceUrl ?? guideVideoUrl(format);
 
   /*
-   * 안무 컷(9.1 DANCE)은 참고 영상을 보면서 찍어야 해서 전용 화면이 따로 있습니다.
-   * 촬영 목록 화면을 없애면서 그리로 가는 길이 끊겨 있었습니다 — 여기서 잇습니다.
+   * 🔴 **안무 컷도 이 카메라에서 찍습니다** (2026-08-28).
+   *
+   * 예전에는 9.1 `guide_type === 'DANCE'` 면 `DanceCamera` 전용 화면으로 넘겼습니다.
+   * 시안 `최종-안무분기.html` 은 **안무든 아니든 같은 카메라**를 씁니다 — 안무는
+   * 촬영 준비 화면이 "안무 가이드" 로 바뀌어 동작을 먼저 익히게 하고, 찍는 자리는
+   * 하나입니다. 참고 영상은 좌상단 PIP 로 계속 보이므로 따라 추는 데 문제가 없습니다.
+   *
+   * ⚠️ `DanceCameraScreen` 과 라우트는 **지우지 않고 남겨 뒀습니다**(사장님 지시).
+   *    길만 끊은 것이라 되살릴 일이 생기면 이 줄을 복원하면 됩니다.
    */
-  const goingToDance = guide?.guideType === 'DANCE';
-  useEffect(() => {
-    if (!taskId || !goingToDance) return;
-    navigation.replace('DanceCamera', { projectId, taskId, formatId: pickedFormatId });
-  }, [taskId, goingToDance, navigation, projectId, pickedFormatId]);
 
   const guideVisible = useAppState((s) => s.guideVisible);
   const guideOpacity = useAppState((s) => s.guideOpacity);
@@ -302,20 +329,40 @@ export default function CameraScreen({ navigation, route }: Props) {
    */
   const { data: scenes } = useScenes(projectId);
   const targetSec = scenes?.find((s) => s.id === task?.sceneId)?.targetDurationSec ?? null;
-  /** 남은 초. null 이면 길이를 모르는 것이라 카운트다운을 하지 않습니다. */
-  const [left, setLeft] = useState<number | null>(null);
 
   /**
-   * 이번에 찍은 촬영본의 기기 경로 — `{ 태스크id: uri }`.
+   * 🔴 **촬영 시간은 성격이 둘입니다 — 하나는 상한, 하나는 하한.**
    *
-   * 업로드가 끝나도 기기의 파일은 남아 있어, **이 화면에서 찍은 컷은 전부**
-   * 스트립에 첫 프레임으로 보여 줍니다.
+   * | | 안무·챌린지 | 가게 홍보·정보형 |
+   * |---|---|---|
+   * | 7.2 `target_duration_sec`     | 1·3·1·3·1·2·1 | **장면 자체가 없음** |
+   * | 9.1 `minimum_recording_sec`   | `null`        | 15·20·15·12 |
    *
-   * ⚠️ 앱을 껐다 켜거나 이전에 찍어 둔 컷은 여기 없습니다. 서버가 촬영본 썸네일을
-   *    주지 않아서(`/tasks/{id}/footage` 는 영상 URL 뿐) 그림을 얻을 데가 없습니다.
-   *    그런 칸은 브랜드색 채움 + 체크로 둡니다 — 없는 그림을 지어내지 않습니다.
+   * 2026-08-28 QA 계정 실측(챌린지=프로젝트 181, 정보형=196)입니다. 두 값은 지금
+   * **서로 배타적으로** 옵니다.
+   *
+   * 안무는 "이 초에 맞춰 끊어라"(상한)라 남은 초를 세다 0 에서 스스로 멈춥니다.
+   * 홍보는 "이보다 짧으면 안 받는다"(하한)라 **자동 종료가 없고** 사장님이 멈춥니다.
+   *
+   * ⚠️ 예전에는 둘을 `max()` 로 뭉쳐 하한을 카운트다운에 밀어 넣었습니다. 그래서
+   *    정보형에서 "간판 클로즈업 **15초 남음**" 처럼 하한이 상한으로 표시되고 딱
+   *    15초에 끊겼습니다. 15초는 "여기까지" 가 아니라 "여기부터" 입니다.
    */
-  const [shotUris, setShotUris] = useState<Record<number, string>>({});
+  const minSec = guide?.overlay?.minimumRecordingSec ?? null;
+
+  /** 하한이 있으면 최소형입니다 — 시간을 세어 올리고 자동 종료를 하지 않습니다. */
+  const isMinMode = minSec != null && minSec > 0;
+
+  /**
+   * 자동 종료 시점(상한). 최소형이면 없습니다.
+   *
+   * ⚠️ **0 이하는 "없음" 으로 봅니다.** 0 을 그대로 상한에 두면 녹화가 시작과 동시에
+   *    끝나 0초짜리가 만들어지고, 그게 거부돼 무한히 다시 찍게 됩니다.
+   */
+  const stopAt = !isMinMode && targetSec != null && targetSec >= 1 ? targetSec : null;
+
+  /** 남은 초. null 이면 상한이 없는 것이라 카운트다운을 하지 않습니다. */
+  const [left, setLeft] = useState<number | null>(null);
 
   /** 대사가 없는 B-roll 은 마이크 권한을 요구하지 않습니다. */
   const needsMic = task?.taskType === '영상촬영' || task?.taskType === '음성녹음';
@@ -340,8 +387,8 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   /** 컷을 바꾸거나 장면 길이를 알게 되면 남은 시간을 그 값으로 되돌립니다. */
   useEffect(() => {
-    setLeft(targetSec);
-  }, [targetSec, taskId]);
+    setLeft(stopAt);
+  }, [stopAt, taskId]);
 
   /**
    * 카운트다운. 0 이 되면 **녹화를 스스로 끝냅니다** — 시안이 그렇게 동작합니다.
@@ -360,11 +407,18 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   const beginRecording = useCallback(async () => {
     if (!cameraRef.current) return;
-    setLeft(targetSec);
+    setLeft(stopAt);
     setRecording(true);
     try {
-      // 장면 길이를 알면 그만큼만, 모르면 예전처럼 30초를 상한으로 둡니다.
-      const video = await cameraRef.current.recordAsync({ maxDuration: targetSec ?? 30 });
+      /*
+        상한이 있으면 그만큼만.
+
+        최소형은 사장님이 멈출 때까지 두는 게 맞지만, 카메라를 무한정 열어 두면 파일이
+        커져 업로드가 오래 걸립니다. 그래서 **하한 + 30초** 를 넉넉한 안전장치로 둡니다
+        (하한 15초면 45초). 둘 다 모르면 예전처럼 30초입니다.
+      */
+      const cap = stopAt ?? (minSec != null ? minSec + 30 : 30);
+      const video = await cameraRef.current.recordAsync({ maxDuration: cap });
       setRecording(false);
       // 지어낸 5초 대신 실제로 흐른 시간을 씁니다(1초 미만도 그대로).
       if (video?.uri) setTake({ uri: video.uri, durationSec: Math.max(1, elapsed) });
@@ -372,10 +426,40 @@ export default function CameraScreen({ navigation, route }: Props) {
       setRecording(false);
       console.warn('[camera] 녹화 실패', e);
     }
-  }, [elapsed, targetSec]);
+  }, [elapsed, stopAt, minSec]);
 
   const upload = useUploadFootage(projectId);
   const markTask = useUpdateTask(projectId);
+
+  /**
+   * 9.2 가 최소 길이 미달로 거부한 경우 (0828 명세 · 400 `FOOTAGE_TOO_SHORT`).
+   * 같은 파일을 다시 올려도 또 거부되므로 화면이 **다시 찍으라고** 말해야 합니다.
+   * 문구는 서버가 준 것을 그대로 씁니다 — 필요한 초가 그 안에 들어 있습니다.
+   */
+  const uploadError = upload.error instanceof ApiError ? upload.error : null;
+
+  /**
+   * 🔴 **하한 미달은 올리기 전에 우리가 먼저 압니다.**
+   *
+   * 하한(9.1)도, 방금 찍은 길이도 둘 다 손에 있습니다. 그런데도 굳이 올려서 400 을
+   * 받아야 할 이유가 없습니다 — 사장님은 영상이 다 올라갈 때까지 기다렸다가 퇴짜를
+   * 맞고, 그동안 데이터도 씁니다. 그래서 시트가 열리는 즉시 막습니다.
+   * 서버 400 은 그대로 **두 번째 방어선**으로 남습니다.
+   *
+   * ⚠️ `elapsed` 는 1초마다 오르므로 15.7초를 찍어도 15 입니다 — 즉 **실제보다 짧게**
+   *    셉니다. 그래서 이 검사는 아슬아슬한 촬영본을 서버보다 먼저 막는 쪽으로만
+   *    틀립니다. "조금 더 찍으세요" 로 틀리는 건 안전한 방향입니다.
+   */
+  const takeTooShort = isMinMode && take != null && take.durationSec < (minSec as number);
+  const tooShort = takeTooShort || uploadError?.code === 'FOOTAGE_TOO_SHORT';
+
+  /**
+   * 문구는 서버가 준 것을 우선합니다(필요한 초가 그 안에 들어 있습니다).
+   * 아직 안 올려 본 경우에는 하한 값으로 직접 만듭니다 — `minSec` 은 서버가 준
+   * 실제 값이라 지어낸 숫자가 아닙니다.
+   */
+  const tooShortMessage =
+    uploadError?.serverMessage ?? (minSec != null ? `최소 ${minSec}초 이상 촬영해 주세요.` : null);
 
   /** 찍은 컷을 올리고, 남은 컷이 있으면 그리로, 없으면 편집으로 갑니다. */
   const useTake = () => {
@@ -387,8 +471,11 @@ export default function CameraScreen({ navigation, route }: Props) {
       { taskId, uri: take.uri, durationSec: take.durationSec, onProgress: setUploadPct },
       {
         onSuccess: () => {
-          // 스트립의 이 칸을 정지 프레임으로 바꿉니다 (기기에 파일이 남아 있습니다)
-          if (taskId != null) setShotUris((m) => ({ ...m, [Number(taskId)]: take.uri }));
+          /*
+            스트립의 이 칸이 썸네일로 바뀝니다 — 업로드 응답과 함께 서버가
+            `thumbnail_url` 을 채워 주고, 아래 `useUploadFootage` 가 촬영 목록을
+            무효화해 다시 받아옵니다(§1-9). 기기 파일을 들고 있을 필요가 없습니다.
+          */
           setTake(null);
           const rest = tasks.filter((t) => t.id !== taskId && !shot(t));
           if (rest.length > 0) setTaskId(rest[0].id);
@@ -422,9 +509,6 @@ export default function CameraScreen({ navigation, route }: Props) {
    * 여기서 막으면 촬영 자체를 못 합니다.
    */
   const canRecordAudio = needsMic && (CAMERA_IS_PLACEHOLDER || !!micPermission?.granted);
-
-  // 안무 컷으로 넘어가는 사이에 이 화면이 한 프레임 스쳐 보이지 않게 검은 판만 둡니다.
-  if (goingToDance) return <View style={styles.black} />;
 
   /*
     🔴 **이미 다 찍었을 때 화면을 막지 않습니다** (2026-08-28, 실기기 보고).
@@ -507,10 +591,16 @@ export default function CameraScreen({ navigation, route }: Props) {
       </SafeAreaView>
 
       {/*
-        상단 카운트다운 — 시안 top-[62px] · 빨간 점 9(깜빡임) + 숫자 18 bold tabular.
+        상단 카운터 — 시안 top-[62px] · 빨간 점 9(깜빡임) + 숫자 18 bold tabular.
 
-        장면 길이를 알면 **남은 초가 줄어들고**, 모르면 지금까지 찍은 초가 늘어납니다
-        (위 `targetSec` 주석). 어느 쪽이든 실제 시간이라 지어낸 값이 아닙니다.
+        **숫자 하나가 방향으로 성격을 말합니다** (2026-08-28 사장님 지시).
+          상한이 있으면(안무)  남은 초가 **줄어듭니다** → 0 에서 스스로 멈춤
+          하한이 있으면(홍보)  찍은 초가 **늘어납니다** → 멈추는 건 사장님
+          둘 다 모르면        찍은 초가 늘어납니다 (없는 제한을 만들지 않습니다)
+
+        그래서 "15초 남음" 같은 문구를 따로 붙이지 않습니다 — 하한을 남은 시간처럼
+        적으면 여기부터를 여기까지로 읽게 됩니다(위 `stopAt` 주석). 어느 쪽이든
+        화면에 뜨는 건 실제로 흐른 시간입니다.
 
         점은 녹화 중에만 뜨고 1초 주기로 깜빡입니다 (`RecDot` 주석 참고).
       */}
@@ -521,7 +611,14 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      {/* 그 아래 지금 찍을 컷 이름 — 시안 top-[92px] · 유리질 pill · 12.5 semibold */}
+      {/*
+        그 아래 지금 찍을 컷 이름 — 시안 top-[92px] · 유리질 pill · 12.5 semibold
+
+        ⚠️ **컷 이름만 둡니다 — "· 최소 N초" 를 붙이지 않습니다** (2026-08-28 지시).
+           "간판 클로즈업 15초 남음" 처럼 읽혀서 하한이 상한으로 보였습니다.
+           남은/찍은 시간은 바로 위 카운터가 방향으로 말하고, 하한 미달은 검수 시트가
+           올리기 전에 막습니다(`takeTooShort`).
+      */}
       {!take && task && (
         <View style={styles.takeLabelWrap} pointerEvents="none">
           <Text style={styles.takeLabel} numberOfLines={1}>
@@ -536,7 +633,6 @@ export default function CameraScreen({ navigation, route }: Props) {
           taskId={taskId}
           isShot={shot}
           disabled={recording}
-          shotUris={shotUris}
           onSelectTask={onSelectTask}
         />
       )}
@@ -586,12 +682,20 @@ export default function CameraScreen({ navigation, route }: Props) {
       {take && (
         <View style={styles.sheetScrim}>
           <SafeAreaView edges={['bottom']} style={styles.sheet}>
-            <View style={styles.sheetGrip} />
+            {/*
+              시안 `ReviewSheet` — 방금 찍은 컷을 **눈으로 확인**하고 결정합니다.
+              미리보기 없이 문구만 있으면 무엇을 찍었는지 모르고 "사용하기" 를 누릅니다.
+
+              시안 실측값: mx-auto mb-4 · w-150 · rounded-2xl · 테두리 hairline · 그림자
+                          안쪽 aspect 9/16
+            */}
+            <TakePreview uri={take.uri} />
+
             <Text style={styles.sheetTitle}>{task?.taskTitle} 촬영 완료</Text>
             <Text style={styles.sheetSub}>
               {take.durationSec < 3
                 ? '3초보다 짧습니다. 다시 찍는 편이 좋습니다.'
-                : '찍은 컷을 확인하고 결정하세요'}
+                : '촬영한 컷을 확인하고 결정하세요'}
             </Text>
 
             {upload.isPending ? (
@@ -600,22 +704,60 @@ export default function CameraScreen({ navigation, route }: Props) {
                 <Button label="취소" variant="quiet" size="small" onPress={() => upload.cancel()} />
               </View>
             ) : (
+              /* 시안: mt-4 gap-2.5 · 각 h48 rounded-xl · 아이콘 18 + 글자 15 semibold */
               <View style={styles.sheetBtns}>
-                <Button
-                  label="다시 찍기"
-                  variant="secondary"
+                <Pressable
+                  accessibilityRole="button"
                   onPress={() => {
                     setTake(null);
                     setUploadPct(0);
                   }}
-                />
-                <Button label={upload.isError ? '다시 올리기' : '사용하기'} onPress={useTake} />
+                  style={({ pressed }) => [
+                    styles.sheetBtn,
+                    styles.sheetBtnGhost,
+                    pressTap(pressed, 'button'),
+                  ]}
+                >
+                  <RotateCcw size={18} strokeWidth={2} color={color.ink[800]} />
+                  <Text style={[styles.sheetBtnText, { color: color.ink[800] }]}>다시 촬영</Text>
+                </Pressable>
+
+                {/*
+                  너무 짧아 거부된 촬영본은 **쓸 수 있는 길이 없습니다.** 같은 파일을
+                  다시 올려도 또 400 이라, "사용하기" 를 남겨 두면 눌러도 안 되는
+                  버튼이 됩니다. 그때는 다시 촬영 하나만 남깁니다(위 버튼이 전체 폭을 씁니다).
+                */}
+                {!tooShort && (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={useTake}
+                    style={({ pressed }) => [
+                      styles.sheetBtn,
+                      styles.sheetBtnPrimary,
+                      pressTap(pressed, 'button'),
+                    ]}
+                  >
+                    <Check size={18} strokeWidth={2.5} color={color.paper} />
+                    <Text style={[styles.sheetBtnText, { color: color.paper }]}>
+                      {upload.isError ? '다시 올리기' : '사용하기'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
-            {upload.isError && (
+            {/*
+              🔴 **너무 짧아서 거부된 경우는 다시 올려도 소용없습니다** (0828 명세 9.2).
+
+              같은 파일을 또 보내면 또 400 입니다. 그래서 그때는 서버가 준 문구를 그대로
+              보여 주고 **다시 찍도록** 안내합니다 — 서버 문구에 필요한 초가 들어 있어
+              우리가 다시 쓰지 않습니다("최소 15초 이상 촬영해주세요").
+            */}
+            {(upload.isError || takeTooShort) && (
               <Text style={styles.sheetError}>
-                올리지 못했습니다. 촬영본은 그대로 있으니 다시 시도해 주세요.
+                {tooShort
+                  ? (tooShortMessage ?? '촬영 시간이 너무 짧습니다. 다시 찍어 주세요.')
+                  : '올리지 못했습니다. 촬영본은 그대로 있으니 다시 시도해 주세요.'}
               </Text>
             )}
           </SafeAreaView>
@@ -734,7 +876,11 @@ const styles = StyleSheet.create({
     borderColor: CLIP_ACTIVE,
     transform: [{ scale: 1.05 }],
   },
-  clipFill: { width: '100%', height: '100%' },
+  /*
+    모서리를 **채우는 쪽에도** 겁니다. 상자의 `overflow: hidden` 만 믿지 않습니다 —
+    안드로이드에서 새어 나온 전례가 있어(ClipCell 주석) 이중으로 막아 둡니다.
+  */
+  clipFill: { width: '100%', height: '100%', borderRadius: radius.md },
   clipCheck: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.brand[600] },
   clipIndex: { ...text.chipLabel, fontSize: 15, lineHeight: 15, color: color.paper },
   // 재촬영 배지: 시안 -top-[21px] · 가운데 · px-2 py-[3px] · 10 semibold
@@ -776,10 +922,46 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.sheet,
     backgroundColor: color.canvas,
   },
-  sheetGrip: { alignSelf: 'center', width: 40, height: 4, borderRadius: radius.pill, backgroundColor: color.ink[200] },
-  sheetTitle: { ...text.heading },
-  sheetSub: { ...text.bodySmall, color: color.ink[500] },
-  sheetBtns: { flexDirection: 'row', gap: space[3] },
+  /*
+    촬영본 미리보기 — 시안: mx-auto · w-150 · rounded-2xl · 테두리 hairline · 그림자
+    손잡이(grip)는 뺐습니다. 시안은 그 자리에 미리보기가 옵니다.
+  */
+  preview: {
+    alignSelf: 'center',
+    width: 150,
+    aspectRatio: 9 / 16,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.ink[100],
+    ...elevation('card'),
+  },
+  // 모서리를 영상 자신에게도 겁니다 (부모 클리핑만 믿지 않습니다)
+  previewFill: { width: '100%', height: '100%', borderRadius: radius.lg },
+
+  // 시안: 제목 15 semibold 가운데 · 부제 mt-1 13 slate 가운데
+  sheetTitle: { ...text.bodyStrong, lineHeight: 22.5, textAlign: 'center' },
+  sheetSub: { ...text.caption, lineHeight: 19.5, textAlign: 'center', color: color.ink[500] },
+
+  // 시안: mt-4 gap-2.5(10) · 각 flex1 h48 rounded-xl · 아이콘 18 + 글자 15 semibold gap-1.5
+  sheetBtns: { flexDirection: 'row', gap: 10 },
+  sheetBtn: {
+    flex: 1,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: radius.md,
+  },
+  sheetBtnGhost: {
+    borderWidth: theme.border.hairline,
+    borderColor: color.ink[200],
+    backgroundColor: color.canvas,
+  },
+  sheetBtnPrimary: { backgroundColor: color.brand[600] },
+  sheetBtnText: { ...text.button, lineHeight: 22.5 },
   sheetError: { ...text.caption, color: color.danger[500] },
   permWrap: { flex: 1, backgroundColor: color.paper, padding: space[5], justifyContent: 'space-between' },
   permBody: { flex: 1, justifyContent: 'center', gap: space[3] },

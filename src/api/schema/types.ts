@@ -487,6 +487,16 @@ export interface ShootTask {
   taskTitle: string;
   taskStatus: TaskStatus;
   displayOrder: number;
+  /** 올린 촬영본 주소. 아직 안 찍었으면 없습니다. */
+  footageUrl?: string | null;
+  /**
+   * 촬영본 첫 프레임 (2026-08-28 서버 추가 — BE 전달사항 §1-9).
+   *
+   * 요청은 업로드 응답에만 했는데 **목록에도 넣어 주셨습니다.** 덕분에 촬영 화면
+   * 하단 클립 줄이 지난번에 찍은 컷까지 전부 그림으로 뜹니다. 이 값이 오기 전에는
+   * 이번 세션에서 찍은 것만 기기 파일로 그릴 수 있었습니다.
+   */
+  thumbnailUrl?: string | null;
 }
 
 export interface TaskBoard {
@@ -532,7 +542,20 @@ export interface GuideReferenceVideo {
 
 export interface TaskGuide {
   guideType: GuideType;
-  overlay?: { instructions: string[] } | null;
+  overlay?: {
+    instructions: string[];
+    /**
+     * 최소 촬영 시간 (2026-08-28 명세 추가).
+     *
+     * **정보형 촬영 요소에만 있습니다.** AI 가 "이 요소는 최소 N초 이상" 이라고 줄 때만
+     * 채워지고, 밈·챌린지처럼 요구가 없으면 `null` 입니다.
+     *
+     * ⚠️ 이 값보다 짧게 찍으면 **9.2 업로드가 400 `FOOTAGE_TOO_SHORT` 로 거부합니다.**
+     *    그래서 촬영 전에 보여 주고, 자동 종료 시점도 이 값 아래로는 내려가지 않게 합니다
+     *    (`CameraScreen` 참고).
+     */
+    minimumRecordingSec?: number | null;
+  } | null;
   referenceVideo?: GuideReferenceVideo | null;
   brollShot?: {
     shotType: string;
