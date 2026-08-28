@@ -285,6 +285,21 @@ export default function CameraScreen({ navigation, route }: Props) {
    */
   const pipUrl = guide?.referenceVideo?.referenceUrl ?? guideVideoUrl(format);
 
+  /**
+   * 🔴 **컷마다 참고 영상의 다른 구간을 되풀이합니다** (2026-08-28).
+   *
+   * 9.1 `reference_video.start_ms`·`end_ms` 입니다. 서버가 한 영상을 컷 수만큼
+   * 쪼개서 주므로, 컷을 넘길 때마다 작은 창이 그 컷에 해당하는 토막만 반복합니다.
+   * 영상 주소는 그대로라 **iframe 이 다시 뜨지 않습니다** — 재생 위치만 옮깁니다
+   * (`GuidePlayer` 의 loopStart 주석).
+   *
+   * 초로 바꿔 넘깁니다. 안무가 아닌 컷은 둘 다 `null` 이라 반복이 꺼지고 영상
+   * 전체가 그냥 재생됩니다.
+   */
+  const refVideo = guide?.referenceVideo;
+  const loopStart = refVideo?.startMs != null ? refVideo.startMs / 1000 : null;
+  const loopEnd = refVideo?.endMs != null ? refVideo.endMs / 1000 : null;
+
   /*
    * 🔴 **안무 컷도 이 카메라에서 찍습니다** (2026-08-28).
    *
@@ -573,7 +588,7 @@ export default function CameraScreen({ navigation, route }: Props) {
         구도 오버레이(9.1 overlay 지시문)는 시안에 없어 걷어냈습니다 —
         지시문은 촬영 준비 화면의 컷 목록이 대신 말해 줍니다.
       */}
-      <PipGuide url={pipUrl} />
+      <PipGuide url={pipUrl} loopStart={loopStart} loopEnd={loopEnd} />
 
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         <View style={styles.topBar}>

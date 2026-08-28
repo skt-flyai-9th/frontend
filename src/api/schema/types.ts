@@ -526,9 +526,8 @@ export type GuideType = 'OVERLAY' | 'DANCE' | 'BROLL';
  * 2026-08-26: 그 "프론트 처리" 를 **유튜브 자체 컨트롤에 위임**하는 것으로 바꿨습니다.
  *             배속은 유튜브 설정 메뉴가, 탐색은 진행바가 담당합니다.
  *
- * ⚠️ start_sec / end_sec 는 없습니다.
- *    구간반복 기능도 없습니다 — 유튜브 임베드가 제공하지 않는 기능이라
- *    우리가 흉내 내던 것을 걷어냈습니다(2026-08-26). 되감기는 진행바로 합니다.
+ * 2026-08-28: **구간 반복이 살아났습니다.** 서버가 컷마다 `start_ms`·`end_ms` 를
+ *             채워 주기 시작했습니다(그 전에는 키만 있고 값이 `null` — BE §2-1).
  */
 export interface GuideReferenceVideo {
   /**
@@ -538,6 +537,21 @@ export interface GuideReferenceVideo {
    */
   referenceUrl: string;
   sourcePlatform: 'YOUTUBE' | 'INSTAGRAM' | 'TIKTOK';
+  /**
+   * 이 컷에 해당하는 **참고 영상의 구간** (밀리초).
+   *
+   * 촬영 중 작은 창이 이 구간만 되풀이합니다. 컷을 넘기면 같은 영상의 다른 구간으로
+   * 갈아탑니다 — 영상을 다시 받지 않고 재생 위치만 옮깁니다(`GuidePlayer` 주석).
+   *
+   * 2026-08-28 실측(챌린지 프로젝트 181, 컷 7개): 한 영상을 빈틈없이 쪼개서 주고
+   * 구간 길이가 7.2 `target_duration_sec` 과 정확히 같습니다.
+   *   0~1000 · 1000~4000 · 4000~5000 · 5000~8000 · 8000~9000 · 9000~11000 · 11000~12000
+   *
+   * ⚠️ **안무 계열에만 옵니다.** 정보형은 둘 다 `null` 이고, 그때는 반복 없이
+   *    영상 전체가 그냥 재생됩니다.
+   */
+  startMs?: number | null;
+  endMs?: number | null;
 }
 
 export interface TaskGuide {

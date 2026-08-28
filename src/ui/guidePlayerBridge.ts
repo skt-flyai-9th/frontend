@@ -117,6 +117,15 @@ const FRAME_SCRIPT = `
    * 스치므로, 주소를 갈아끼우지 않고 이 변수만 바꾸고 그 자리로 보냅니다.
    */
   var loop = null;
+  /**
+   * 되감을 시각을 **미리 예약해 둔 타이머**. 유튜브가 위치를 알려주기를 기다리지
+   * 않습니다 — 아래 armFrom 머리말 참고.
+   */
+  var loopTimer = null;
+  /** 지금 재생 중인가 (playerState 1). 멈춰 있으면 되감지 않습니다. */
+  var playing = false;
+  /** 배속. 사장님이 확대 화면에서 유튜브 설정으로 바꿀 수 있어 남은 시간 계산에 씁니다. */
+  var rate = 1;
 
   /** IFrame API 명령 채널. 문서 안 <video> 를 잡지 않습니다 — 그 방식이 예전에 먹통이었습니다. */
   function cmd(func, args) {
@@ -127,13 +136,50 @@ const FRAME_SCRIPT = `
     } catch (e) {}
   }
 
+  function clearLoopTimer() {
+    if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }
+  }
+
+  /** 구간 처음으로 되감고 다음 바퀴를 다시 예약합니다. */
+  function rewind() {
+    clearLoopTimer();
+    if (!loop) return;
+    cmd('seekTo', [loop.start, true]);
+    // 되감은 직후에는 유튜브가 잠시 옛 위치를 보고하므로 구간 전체 길이로 다시 겁니다.
+    armFrom(loop.start);
+  }
+
+  /**
+   * 🔴 **되감기를 위치로 판단하지 않고 시간으로 예약합니다** (2026-08-28).
+   *
+   * 유튜브는 재생 위치를 ~0.25초 간격으로만 알려줍니다. 그 보고를 보고 되감으면
+   * 끝점을 0.1~0.2초 지나치게 됩니다. 3초짜리 구간이면 티가 안 나지만 서버가 주는
+   * 안무 구간은 **1초짜리가 절반이 넘어서**(실측: 1·3·1·3·1·2·1초) 20% 를 넘겨
+   * 눈에 띄게 덜컥거립니다.
+   *
+   * 그래서 끝점까지 **남은 시간만큼 타이머를 걸어 둡니다.** 위치 보고가 올 때마다
+   * 다시 걸리므로 배속을 바꾸거나 버퍼링이 껴서 어긋나도 곧바로 맞춰집니다.
+   * 위치 감시는 타이머가 못 돌았을 때를 위한 **보조**로만 남깁니다(아래 infoDelivery).
+   */
+  function armFrom(t) {
+    clearLoopTimer();
+    if (!loop || !playing) return;
+    var left = (loop.end - t) / (rate > 0 ? rate : 1);
+    if (left <= 0) { rewind(); return; }
+    loopTimer = setTimeout(rewind, Math.max(16, left * 1000));
+  }
+
   window.__setLoop = function (s, e) {
+    clearLoopTimer();
     if (typeof s !== 'number' || typeof e !== 'number' || !(e > s)) { loop = null; return; }
     loop = { start: s, end: e };
     cmd('seekTo', [s, true]);
     cmd('playVideo');
+    // playVideo 를 방금 보냈으니 재생 중으로 봅니다. 곧 오는 playerState 가 바로잡습니다.
+    playing = true;
+    armFrom(s);
   };
-  window.__clearLoop = function () { loop = null; };
+  window.__clearLoop = function () { clearLoopTimer(); loop = null; };
 
   /** 유튜브에 "이 프레임의 이벤트를 보내달라" 고 신청합니다. */
   function listen() {
@@ -164,17 +210,32 @@ const FRAME_SCRIPT = `
     }
     if (m.event === 'onReady' || m.event === 'initialDelivery') { markReady(); return; }
     if (m.event === 'infoDelivery' && m.info) {
-      if (typeof m.info.playerState === 'number') markReady();
+      if (typeof m.info.playbackRate === 'number' && m.info.playbackRate > 0) {
+        rate = m.info.playbackRate;
+      }
+      if (typeof m.info.playerState === 'number') {
+        markReady();
+        // 1 = 재생 중. 멈춰 있는 동안 타이머가 살아 있으면 정지 상태에서 되감깁니다.
+        playing = m.info.playerState === 1;
+        if (!playing) clearLoopTimer();
+      }
       if (typeof m.info.currentTime === 'number') {
         var t = m.info.currentTime;
         /*
          * 구간 반복은 **여기 프레임 안에서** 판단합니다. 밖으로 올리는 time 은 초 단위로
          * 깎여 있어(아래) 3초짜리 컷에서는 쓸 수가 없습니다. 여기 t 는 원본 그대로입니다.
          *
-         * 유튜브는 위치를 ~0.25초 간격으로 알려줍니다. 그래서 끝점을 그만큼 지나쳤다가
-         * 되감깁니다 — 더 줄일 방법이 없고, 실측으로 0.1~0.2초였습니다.
+         * 되감는 일 자체는 armFrom 이 예약해 둔 타이머가 합니다. 여기서는
+         *   · 위치가 올 때마다 타이머를 **다시 걸어** 어긋남을 지웁니다
+         *   · 타이머가 못 돈 경우(끝점을 한참 지남)와 사장님이 진행바를 구간 밖으로
+         *     끌어간 경우를 **주워 담습니다**
+         * 끝점을 살짝 지난 정도는 방금 되감기를 보냈는데 옛 위치가 도착한 것이라
+         * 다시 보내지 않습니다(0.25 여유).
          */
-        if (loop && (t >= loop.end || t < loop.start - 0.5)) cmd('seekTo', [loop.start, true]);
+        if (loop) {
+          if (t >= loop.end + 0.25 || t < loop.start - 0.5) rewind();
+          else armFrom(t);
+        }
         // 재생 위치. 초가 바뀔 때만 올려 메시지가 쏟아지지 않게 합니다.
         var sec = Math.floor(t);
         if (sec !== lastSec) { lastSec = sec; post({ t: 'time', s: sec }); }
