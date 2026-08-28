@@ -1,72 +1,96 @@
 /**
- * insightMetrics.ts — 매장 인사이트 지표(KPI · 주간 추이 · 지역 상권).
+ * insightMetrics.ts — 매장 인사이트 지표 (플랫폼별 주간 조회수·좋아요·추이).
  *
- * ⚠️ **계정 단위 집계 API 가 없습니다.**
- *    17.1 metrics 는 게시물(postId) 단위라 주간 합산을 만들 수 없고,
- *    3.5 insights 는 문장형이라 수치 필드가 없습니다.
+ * 🔴 **2026-08-28: 실서버로 옮겼습니다.**
  *
- *    그래서 이 값들은 mock 에서만 옵니다. 실서버 모드에서는 전부 비고
- *    화면이 "집계 준비 중" 으로 말합니다 — 사장님에게 지어낸 숫자를
- *    보여주지 않기 위한 구분입니다(알림 notifications.ts 와 같은 방식).
+ * 여기 있던 예전 주석은 "계정 단위 집계 API 가 없어서 mock 에서만 온다" 였습니다.
+ * 그 사이 **명세 17.3 `GET /sns-posts/weekly-summary`** 가 생겼고, 매장 단위로
+ * 플랫폼별 주간 합계와 7일치 일별 조회수를 그대로 줍니다. 시안 `매장인사이트.html`
+ * 의 상단(플랫폼 토글 · 조회수 · 좋아요 · 주간 추이)이 이 응답 하나로 채워집니다.
  *
- * BE 가 집계 API 를 만들면 queryFn 만 request(...) 로 바꾸면 됩니다.
- * 화면(InsightScreen)은 손댈 필요가 없습니다.
+ * 실측(2026-08-28, store 67):
+ * ```
+ * { week_start: "2026-08-23T15:00:00Z",
+ *   platforms: [
+ *     { platform: "INSTAGRAM", weekly_views: 0, weekly_likes: 0,
+ *       views_change_rate: null,
+ *       daily_views: [ { date: "2026-08-24", views: 0 }, … 7일 ] },
+ *     { platform: "YOUTUBE", … } ] }
+ * ```
+ *
+ * ⚠️ **좋아요 증감률은 없습니다.** 시안에는 `+9%` 가 붙어 있지만 서버가 주는 증감률은
+ *    `views_change_rate` 하나뿐입니다. 조회수에만 붙이고 좋아요는 숫자만 둡니다 —
+ *    없는 값을 지어내지 않습니다 (CLAUDE.md §2).
  */
 import { useQuery } from '@tanstack/react-query';
-import { isMocked } from '../http';
-import * as fx from '../mock/fixtures';
+import { request } from '../http';
+import { API } from '../endpoints';
+import { qk } from './keys';
+import type { SnsPlatform, WeeklySummaryResponse } from '../schema/types';
 
-export interface InsightKpi {
-  label: string;
-  /** 없으면 화면이 "—" 로 표시합니다. */
-  value?: string;
-  delta?: string;
-  icon: string;
+/** 화면이 쓰기 좋게 다듬은 한 플랫폼의 주간 지표. */
+export interface PlatformWeek {
+  platform: SnsPlatform;
+  /** 화면에 그대로 찍는 이름 — 시안 탭 라벨. */
+  name: string;
+  /** `2,480` 처럼 천 단위 쉼표까지 넣은 값. */
+  views: string;
+  likes: string;
+  /** `+14%`. 비교할 지난주가 없으면 `undefined` — 그때는 화면에서 뺍니다. */
+  viewsDelta?: string;
+  /** 꺾은선용. `day` 는 요일 한 글자입니다. */
+  week: { day: string; value: number }[];
 }
 
-export interface WeekView {
-  day: string;
-  value: number;
-}
-
-export interface LocalShare {
-  label: string;
-  /** 0~100 */
-  value: number;
-  color: string;
-}
-
-export interface InsightMetrics {
-  kpis: InsightKpi[];
-  weekViews: WeekView[];
-  weekViewsDelta?: string;
-  local: LocalShare[];
-}
-
-/** 지표가 없을 때의 모양. 라벨(자리)은 남기고 값만 비웁니다. */
-const EMPTY: InsightMetrics = {
-  kpis: [
-    { label: '이번 주 총 조회수', icon: 'trending-up' },
-    { label: '플레이스 유입 전환', icon: 'map-pin' },
-    { label: '저장 및 공유', icon: 'bookmark' },
-    { label: '주 타깃', icon: 'users' },
-  ],
-  weekViews: [],
-  local: [],
+const LABEL: Record<SnsPlatform, string> = {
+  YOUTUBE: '유튜브',
+  INSTAGRAM: '인스타',
 };
 
-export function useInsightMetrics() {
-  return useQuery<InsightMetrics>({
-    queryKey: ['insightMetrics'],
-    queryFn: async () => {
-      // 대응하는 경로가 없으므로 도메인 스위치가 아니라 mock 여부로 직접 가릅니다.
-      if (!isMocked('/insight-metrics')) return EMPTY;
-      return {
-        kpis: fx.insightKpis as InsightKpi[],
-        weekViews: fx.weekViews as WeekView[],
-        weekViewsDelta: fx.weekViewsDelta,
-        local: fx.localAnalysis as LocalShare[],
-      };
+/** 시안 탭 순서 — 유튜브가 먼저입니다. */
+const ORDER: SnsPlatform[] = ['YOUTUBE', 'INSTAGRAM'];
+
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** `2026-08-24` → `월`. 시간대 때문에 하루 밀리지 않도록 정오로 읽습니다. */
+function dayLabel(date: string): string {
+  const d = new Date(`${date}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? '' : WEEKDAY[d.getDay()];
+}
+
+/**
+ * 증감률을 `+14%` / `-8%` 로. 0 은 `0%` 입니다.
+ * 서버가 0.14 처럼 비율로 줄지 14 처럼 퍼센트로 줄지 몰라 **둘 다 견딥니다** —
+ * 절대값이 1 이하면 비율로 보고 100 을 곱합니다.
+ */
+function deltaText(rate?: number | null): string | undefined {
+  if (typeof rate !== 'number' || !Number.isFinite(rate)) return undefined;
+  const pct = Math.abs(rate) <= 1 ? rate * 100 : rate;
+  const rounded = Math.round(pct);
+  return `${rounded > 0 ? '+' : ''}${rounded}%`;
+}
+
+export function useInsightMetrics(storeId?: number) {
+  return useQuery({
+    queryKey: qk.weeklySummary(storeId ?? 0),
+    queryFn: () => request<WeeklySummaryResponse>(API.weeklySummary(storeId!)),
+    enabled: !!storeId,
+    select: (d): PlatformWeek[] => {
+      const rows = d.platforms ?? [];
+      return ORDER.filter((p) => rows.some((r) => r.platform === p)).map((p) => {
+        const r = rows.find((x) => x.platform === p)!;
+        return {
+          platform: p,
+          name: LABEL[p],
+          views: `${(r.weeklyViews ?? 0).toLocaleString()}회`,
+          likes: `${(r.weeklyLikes ?? 0).toLocaleString()}개`,
+          viewsDelta: deltaText(r.viewsChangeRate),
+          week: (r.dailyViews ?? []).map((pt) => ({
+            day: dayLabel(pt.date),
+            value: pt.views ?? 0,
+          })),
+        };
+      });
     },
     staleTime: 1000 * 60,
   });

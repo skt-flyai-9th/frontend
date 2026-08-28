@@ -215,6 +215,32 @@ export const insights = [
       '난곡로 일대 주거 밀집 지역으로, 평일 11:30-13:00 유동인구가 가장 많습니다. 반경 300m 안에 국수집이 2곳 있습니다.',
     insight_source: '외부데이터',
     generated_at: '2026-08-11T00:00:00Z',
+    /**
+     * ⚠️ **형태를 저희가 정한 것입니다 — 서버 계약이 아닙니다.**
+     *
+     * 시안 `매장인사이트.html` 의 소비층 도넛(연령대·성별)을 화면에서 확인하려면
+     * 값이 있어야 하는데, 3.5 가 실서버에서 빈 배열이라(`{"insights": []}`) 실제
+     * `insight_data` 모양을 한 번도 못 봤습니다(BE 에 질의 중).
+     *
+     * 그래서 **목업에만** 넣습니다 — 디자인 QA 용입니다(CLAUDE.md §3).
+     * 실서버에는 이 값이 없어 화면이 "집계 준비 중" 으로 남습니다. 사장님께
+     * 지어낸 비율이 가는 일은 없습니다.
+     *
+     * BE 가 형태를 알려주면 `InsightScreen` 의 `readMix` 만 고치면 됩니다.
+     */
+    insight_data: {
+      age_mix: [
+        { label: '10대', value: 8 },
+        { label: '20대', value: 42 },
+        { label: '30대', value: 27 },
+        { label: '40대', value: 15 },
+        { label: '50 +', value: 8 },
+      ],
+      gender_mix: [
+        { label: '여성', value: 63 },
+        { label: '남성', value: 37 },
+      ],
+    },
   },
   {
     id: 502,
@@ -658,29 +684,47 @@ export const notices = [
  *    빈 상태가 됩니다 — 사장님에게 가짜 숫자가 가지 않게 하려는 구분입니다.
  *    알림(notices)과 같은 방식입니다.
  */
-export const insightKpis = [
-  { label: '이번 주 총 조회수', value: '3,820회', delta: '+12%', icon: 'trending-up' },
-  { label: '플레이스 유입 전환', value: '142회', delta: '+8%', icon: 'map-pin' },
-  { label: '저장 및 공유', value: '89회', icon: 'bookmark' },
-  { label: '주 타깃', value: '여성 20~30대', icon: 'users' },
-];
+/**
+ * 명세 17.3 주간 요약 — **실서버와 같은 snake_case 모양** 그대로 둡니다.
+ * mock 응답도 `toCamel` 을 거치므로 여기서 미리 camel 로 바꾸면 안 됩니다.
+ *
+ * 값은 시안 `매장인사이트.html` 의 PLATFORMS 표본과 같은 크기로 맞췄습니다 —
+ * 디자인 QA 캡처에서 시안과 나란히 놓고 볼 수 있어야 합니다.
+ */
+export const weeklySummary = {
+  week_start: '2026-08-23T15:00:00Z',
+  platforms: [
+    {
+      platform: 'YOUTUBE',
+      weekly_views: 2480,
+      weekly_likes: 312,
+      views_change_rate: 14,
+      daily_views: [
+        { date: '2026-08-24', views: 190 },
+        { date: '2026-08-25', views: 300 },
+        { date: '2026-08-26', views: 260 },
+        { date: '2026-08-27', views: 420 },
+        { date: '2026-08-28', views: 380 },
+        { date: '2026-08-29', views: 520 },
+        { date: '2026-08-30', views: 410 },
+      ],
+    },
+    {
+      platform: 'INSTAGRAM',
+      weekly_views: 1340,
+      weekly_likes: 204,
+      views_change_rate: 8,
+      daily_views: [
+        { date: '2026-08-24', views: 130 },
+        { date: '2026-08-25', views: 180 },
+        { date: '2026-08-26', views: 150 },
+        { date: '2026-08-27', views: 200 },
+        { date: '2026-08-28', views: 240 },
+        { date: '2026-08-29', views: 260 },
+        { date: '2026-08-30', views: 220 },
+      ],
+    },
+  ],
+};
 
-export const weekViews = [
-  { day: '월', value: 320 },
-  { day: '화', value: 480 },
-  { day: '수', value: 410 },
-  { day: '목', value: 620 },
-  { day: '금', value: 580 },
-  { day: '토', value: 780 },
-  { day: '일', value: 630 },
-];
 
-/** 시안 색: 진한 브랜드 → 옅은 브랜드 → 회색 순으로 비중을 표현합니다. */
-export const localAnalysis = [
-  { label: '매장 반경 1km 이내 주민', value: 58, color: '#2563eb' },
-  { label: '인근 직장인 유입', value: 27, color: '#60a5fa' },
-  { label: '타지역 방문객', value: 15, color: '#cbd5e1' },
-];
-
-/** 주간 추이 카드 우측에 붙는 증감. KPI 조회수와 같은 값입니다. */
-export const weekViewsDelta = '+12%';

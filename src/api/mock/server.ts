@@ -890,6 +890,9 @@ export async function mockRequest<T>(
       })),
     });
   }
+  // 명세 17.3 — 매장 인사이트 상단(플랫폼 토글·조회수·주간 추이)이 씁니다.
+  if (p === '/sns-posts/weekly-summary') return send(fx.weeklySummary);
+
   if (p === '/sns-posts/compare') {
     /**
      * 명세 17.2 (2026-08-24): 플랫폼별로 나눠 호출하는 걸 전제로 합니다.

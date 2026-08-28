@@ -34,7 +34,12 @@ export type RootStackParamList = {
    * 시안에 하단 탭바가 없고 저장하기 버튼이 화면 맨 아래에 옵니다.
    * 탭 안에 두면 탭바가 그 자리를 먹어 저장하기가 화면 밖으로 밀립니다.
    */
-  EditProfile: undefined;
+  /**
+   * `connect` 를 주면 그 플랫폼의 **연동 시트를 바로 엽니다** (2026-08-28 사장님 지시).
+   * 마이페이지 SNS 줄에서 아직 연동 안 된 쪽을 누르면, 화면만 띄우고 끝내지 않고
+   * 사장님이 다음에 할 일(동의 시트)까지 한 번에 열어 줍니다.
+   */
+  EditProfile: { connect?: 'INSTAGRAM' | 'YOUTUBE' } | undefined;
   /** 플랜 안내 — 정적 화면(플랜 API 없음). 시안에 탭바가 없어 탭 밖입니다. */
   Plans: undefined;
   /**
