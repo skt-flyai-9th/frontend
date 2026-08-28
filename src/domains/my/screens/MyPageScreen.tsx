@@ -42,6 +42,7 @@ import { useStore, useStoreShorts } from '../../../api/queries/store';
 import { useProjects } from '../../../api/queries/project';
 import { useTasks } from '../../../api/queries/shoot';
 import { useSnsConnections } from '../../../api/queries/edit';
+import type { SnsConnection } from '../../../api/schema/types';
 import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import { projectLabel } from '../../../lib/format';
 import theme, { color, space, radius, text, sizing } from '../../../design/theme';
@@ -112,13 +113,26 @@ const SNS_HOME = {
 
 function snsLink(
   platform: 'INSTAGRAM' | 'YOUTUBE',
-  raw?: string
+  conn?: SnsConnection
 ): { label: string; url: string | null } {
-  const v = raw?.trim();
-  // 연동 자체를 안 했으면 누를 곳은 연동 화면입니다.
-  if (!v) return { label: '연동하기', url: null };
+  /*
+    🔴 **연동 여부는 목록에 있느냐로만 판단합니다** (2026-08-28).
+
+    처음에는 계정 이름이 있느냐로 갈랐습니다. 그런데 서버가 유튜브를 **이름 없이**
+    저장하는 경우가 있어(연동 직후 브라우저에 500 이 뜬 그 건), 연동이 됐는데도
+    이 줄만 "연동하기" 로 보였습니다. 매장정보 수정 화면은 목록에 있는지로 보니
+    같은 계정을 두고 **두 화면이 서로 다른 말**을 했습니다.
+
+    이름은 **찍을 때만** 씁니다. 있고 없고가 연동 여부를 바꾸지 않습니다.
+  */
+  if (!conn) return { label: '연동하기', url: null };
 
   const home = SNS_HOME[platform];
+  const v = conn.snsAccountName?.trim();
+
+  // 연동은 됐는데 이름이 비어 있습니다 — 그래도 연동은 연동입니다.
+  if (!v) return { label: '연동됨', url: home };
+
   // 숫자만 오면 내부 id 입니다 — 사장님에게 아무 뜻이 없습니다.
   if (/^\d+$/.test(v)) return { label: '연동됨', url: home };
 
@@ -207,8 +221,8 @@ export default function MyPageScreen() {
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 
-  const instagramLink = snsLink('INSTAGRAM', instagram?.snsAccountName);
-  const youtubeLink = snsLink('YOUTUBE', youtube?.snsAccountName);
+  const instagramLink = snsLink('INSTAGRAM', instagram);
+  const youtubeLink = snsLink('YOUTUBE', youtube);
 
   /*
    * ⚠️ `Screen` 기본 scrollContent 는 paddingTop 16 · gap 16 입니다.
