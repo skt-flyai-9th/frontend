@@ -1,9 +1,8 @@
 /**
  * MyPageScreen — 마이 탭. **기준 시안 11차** (2026-08-28 갱신).
  *
- * 이식은 시안 2차 기준이었고 버튼 문구만 9차로 고쳐져 있었습니다. 8차에서
- * place+ 줄이 빠진 것을 2026-08-28 에 반영했습니다.
- * 아직 안 온 것: 11차의 "이어서 편집하기" 카드 (아래 '만들던 영상' 참고).
+ * 이식은 시안 2차 기준이었고 버튼 문구만 9차로 고쳐져 있었습니다. 2026-08-28 에
+ * 8차(place+ 줄 삭제)와 11차(이어서 하기 카드)를 반영했습니다.
  *
  * 시안 레이아웃 순서를 그대로 따릅니다.
  *   ① 헤더: 가게 이름(중앙 18·bold) + 메뉴 아이콘
@@ -26,7 +25,7 @@
  */
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-import { ChevronRight, Menu } from 'lucide-react-native';
+import { ChevronRight, Menu, PencilLine } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -41,6 +40,7 @@ import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import { useStore, useStoreShorts } from '../../../api/queries/store';
 import { useProjects } from '../../../api/queries/project';
+import { useTasks } from '../../../api/queries/shoot';
 import { useSnsConnections } from '../../../api/queries/edit';
 import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import { projectLabel } from '../../../lib/format';
@@ -112,6 +112,24 @@ export default function MyPageScreen() {
    */
   const finished = new Set(items.map((v) => Number(v.shortsProjectId)));
   const resume = drafts?.find((d) => !finished.has(Number(d.id)));
+
+  /**
+   * 어디로 이어갈지 — **촬영 목록을 보고 정합니다.**
+   *
+   * "직전 촬영 지점에서 이어간다" 는 카메라 화면이 이미 하고 있습니다.
+   * `taskId` 를 안 넘기면 **아직 안 찍은 첫 컷**부터 엽니다(`CameraScreen` 참고).
+   * 그래서 서버에 따로 물을 값이 없습니다 — 9.3 `current_step` 은 앱이 한 번도
+   * 저장한 적이 없어 믿을 수 없고, 여기서는 필요하지도 않습니다.
+   *
+   * 다만 **다 찍은 프로젝트**는 카메라로 보내면 찍을 게 없습니다. 그때는 편집으로
+   * 보냅니다. 컷이 아예 없는(기획 전) 프로젝트는 보낼 곳이 없어 카드를 띄우지 않습니다.
+   */
+  const resumeBoard = useTasks(resume?.id);
+  const resumeTasks = resumeBoard.data?.tasks ?? [];
+  const resumeAllShot =
+    resumeTasks.length > 0 &&
+    resumeTasks.every((t) => t.taskStatus === 'DONE' || t.taskStatus === 'RETAKE_NEEDED');
+  const resumeLabel = resumeAllShot ? '이어서 편집하기' : '이어서 촬영하기';
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 
@@ -233,23 +251,35 @@ export default function MyPageScreen() {
           <ChevronRight size={22} strokeWidth={2} color={color.brand[600]} />
         </Pressable>
 
-        {/* 만들던 영상 — 시안엔 없지만 기능이라 유지 */}
-        {resume && (
+        {/*
+          이어서 하기 — 시안 11차 `editDraft` 카드 (2026-08-28 반영).
+
+          아이콘은 시안의 sparkles 대신 **연필**(`PencilLine`)입니다. 타일·크기·간격은
+          바로 위 인사이트 카드와 같은 규격으로 맞췄습니다 — 40 / radius 12 / 아이콘 20 /
+          gap 12 / chevron 22. 카드 배경만 흰색으로 두어 인사이트 CTA 가 계속 주역입니다
+          (시안도 `bg-panel` 입니다).
+
+          🔴 **문구는 실제로 가는 곳을 말합니다.** 시안은 늘 "이어서 편집하기" 지만,
+             아직 안 찍은 컷이 남아 있으면 카메라로 가는데 "편집" 이라고 하면 거짓입니다
+             (CLAUDE.md §2). 남은 컷이 있으면 "이어서 촬영하기" 로, 다 찍었으면
+             "이어서 편집하기" 로 적고 그대로 보냅니다.
+        */}
+        {resume && resumeTasks.length > 0 && (
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={`${projectLabel(resume)} ${resumeLabel}`}
             onPress={() =>
-              nav.navigate('Create', { screen: 'Camera', params: { projectId: resume.id } })
+              resumeAllShot
+                ? nav.navigate('Create', { screen: 'Render', params: { projectId: resume.id } })
+                : nav.navigate('Create', { screen: 'Camera', params: { projectId: resume.id } })
             }
             style={({ pressed }) => [styles.resume, pressTap(pressed, 'card')]}
           >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[text.micro, { color: color.brand[600] }]}>만들던 영상</Text>
-              <Text style={text.bodyStrong}>{projectLabel(resume)}</Text>
-              <Text style={[text.caption, { color: color.ink[500] }]}>
-                멈춘 자리부터 이어서 만들 수 있어요.
-              </Text>
+            <View style={styles.resumeTile}>
+              <PencilLine size={20} strokeWidth={2} color={color.brand[600]} />
             </View>
-            <ChevronRight size={20} strokeWidth={2} color={color.ink[300]} />
+            <Text style={styles.resumeText}>{resumeLabel}</Text>
+            <ChevronRight size={22} strokeWidth={2} color={color.ink[400]} />
           </Pressable>
         )}
       </View>
@@ -381,16 +411,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  /*
+   * 시안 11차 `editDraft` 카드 — mt-2.5(10) · px-4 py-3.5 · rounded-2xl · bg-panel.
+   * info 의 gap 이 8 이라 2 만 더해 10 을 만듭니다(위 editBtn·insightCta 와 같은 방식).
+   */
   resume: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[3],
-    padding: space[4],
+    marginTop: 2,
+    paddingHorizontal: space[4],
+    paddingVertical: space['3.5'],
     borderRadius: radius.lg,
     borderWidth: theme.border.hairline,
-    borderColor: color.cardBorder,
+    borderColor: color.ink[200],
     backgroundColor: color.paper,
   },
+  // 바로 위 인사이트 카드의 타일과 **같은 규격** — 40 · radius 12 · 아이콘 20
+  resumeTile: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.brand[50],
+  },
+  // 시안: 15 semibold ink · leading 없어 ×1.5
+  resumeText: { ...theme.text.bodyStrong, lineHeight: 22.5, flex: 1 },
 
   /**
    * 시안: 좌우 여백 없이 화면을 꽉 채우고 간격은 2px.

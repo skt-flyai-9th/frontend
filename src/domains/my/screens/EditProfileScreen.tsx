@@ -10,7 +10,8 @@
  *        아래 "+ {플랫폼} 계정 연동" — h48 **점선** 테두리 · brand 14·semibold
  *   ④ "저장하기" h48 브랜드 버튼 (화면 안쪽, 하단 고정 아님)
  *   ⑤ **연동 바텀시트** — 계정 연동을 누르면 뜹니다 (V4 에서 추가된 부분)
- *        동의: 브랜드 마크 30 · 제목 18 · 안내 13 · 요청 권한 카드 · 플랫폼색 버튼 52 · 취소
+ *        동의: 제목 18 · 안내 13 · 요청 권한 카드 · **브랜드색** 버튼 52 · 취소
+ *              (시안 8차에서 제목 위 마크 30 과 버튼 안 마크 12 가 빠졌습니다 — 2026-08-28 반영)
  *        연결 중: 회전 아이콘 34 · "연결 중..." 15 · "잠시만 기다려 주세요" 13
  *
  * ⚠️ "내 정보(이름·전화번호)" 는 **뺐습니다** (2026-08-26 확인).
@@ -86,8 +87,6 @@ const PLATFORMS = [
     key: 'INSTAGRAM' as const,
     label: 'Instagram',
     mark: 'instagram' as const,
-    // 시안: PLATFORM_META.Instagram.color
-    brandColor: '#E1306C',
     scope: '프로필 정보 · 게시물 성과(조회수·저장수) 읽기',
     requires: '비즈니스 또는 크리에이터 계정이어야 하고, 페이스북 페이지가 연결돼 있어야 해요.',
   },
@@ -95,7 +94,6 @@ const PLATFORMS = [
     key: 'YOUTUBE' as const,
     label: 'YouTube',
     mark: 'youtube' as const,
-    brandColor: '#FF0000',
     scope: '채널 정보 · 영상 성과(조회수·시청 시간) 읽기',
     requires: null,
   },
@@ -601,8 +599,13 @@ export default function EditProfileScreen() {
 
               {phase === 'consent' ? (
                 <View style={styles.consent}>
-                  <BrandMark kind={connecting.mark} size={30} boxed />
-                  {/* 시안: mt-4 18 bold */}
+                  {/*
+                    시안 8차에서 **제목 위 브랜드 마크(30)가 빠졌습니다.**
+                    버튼 안 마크(12)도 함께 빠지고 버튼색이 플랫폼색에서 브랜드색으로
+                    바뀌었습니다 — 어느 플랫폼이든 같은 모양이 됩니다.
+                    2026-08-28 에 반영했습니다. 시트가 약 46pt 짧아집니다(마크 30 + 여백 16).
+                  */}
+                  {/* 시안: 시트 맨 위 · 18 bold (마크가 없어져 위 여백도 없습니다) */}
                   <Text style={styles.connectTitle}>{connecting.label} 계정으로 연동</Text>
                   {/* 시안: mt-1.5 13 slate */}
                   <Text style={styles.connectSub}>
@@ -636,17 +639,12 @@ export default function EditProfileScreen() {
                     </View>
                   )}
 
-                  {/* 시안: mt-5 h-52 rounded-xl · 배경은 플랫폼색 · 마크 12 + 15 semibold 흰 글자 */}
+                  {/* 시안 8차: mt-5 h-52 rounded-xl · **bg-brand** · 15 semibold 흰 글자 (마크 없음) */}
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => startConnect(connecting)}
-                    style={({ pressed }) => [
-                      styles.connectBtn,
-                      { backgroundColor: connecting.brandColor },
-                      pressTap(pressed, 'button'),
-                    ]}
+                    style={({ pressed }) => [styles.connectBtn, pressTap(pressed, 'button')]}
                   >
-                    <BrandMark kind={connecting.mark} size={12} boxed />
                     <Text style={styles.connectBtnText}>
                       {connecting.label} 계정으로 계속하기
                     </Text>
@@ -982,16 +980,24 @@ const styles = StyleSheet.create({
   },
 
   consent: { alignItems: 'center' },
-  // 시안: mt-4 · 18 bold
-  connectTitle: { ...theme.text.heading, marginTop: space[4], textAlign: 'center' },
+  /*
+   * 시트 안 줄높이는 시안 클래스 그대로 잡았습니다 (CLAUDE.md §5-①).
+   * 토큰 줄높이가 더 짧아 그냥 두면 블록마다 짧아지고 그게 쌓입니다.
+   *   제목    18, leading 없음        → ×1.5   = 27      (토큰 24)
+   *   부제    13, leading-relaxed     → ×1.625 = 21.125  (토큰 19)
+   *   요청권한 13, leading 없음        → ×1.5   = 19.5    (토큰 18)
+   *   권한내용 12, leading-snug        → ×1.375 = 16.5    (토큰 17)
+   */
+  // 시안: 시트 맨 위 · 18 bold (마크가 빠져 위 여백 없음)
+  connectTitle: { ...theme.text.heading, lineHeight: 27, textAlign: 'center' },
   // 시안: mt-1.5(6) · 13 slate · leading-relaxed
-  connectSub: { ...theme.text.caption, marginTop: 6, textAlign: 'center' },
+  connectSub: { ...theme.text.caption, marginTop: 6, lineHeight: 21.125, textAlign: 'center' },
 
-  // 시안: mt-5 · rounded-2xl(16) · bg-surface · p-4 · gap-2.5 · items-start
+  // 시안: mt-5 · rounded-2xl(16) · bg-surface · p-4 · gap-2.5(10) · items-start
   scopeCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: space[3],
+    gap: 10,
     width: '100%',
     marginTop: space[5],
     padding: space[4],
@@ -1000,40 +1006,46 @@ const styles = StyleSheet.create({
   },
   scopeText: { flex: 1, gap: 2 },
   // 시안: 13 semibold ink
-  scopeTitle: { ...theme.text.chipLabel, color: color.ink[900] },
-  // 시안: 12 slate · leading-snug
+  scopeTitle: { ...theme.text.chipLabel, lineHeight: 19.5, color: color.ink[900] },
+  /*
+   * 시안: 12 slate · leading-snug. 굵기 지정이 없어 400 이지만 토큰에 12-regular 이
+   * 없고 `family()` 를 우회하면 폰트 미로딩 때 깨지므로 medium 으로 둡니다 —
+   * 크기·줄높이는 시안과 같고 굵기 한 단계만 다릅니다.
+   */
   scopeBody: {
     ...theme.text.label,
     fontFamily: theme.text.caption.fontFamily,
     fontWeight: theme.text.caption.fontWeight,
+    lineHeight: 16.5,
     color: color.ink[500],
   },
   /*
    * 계정 조건. 시안에 없는 줄이라 권한 문구보다 한 단계 눌러 둡니다 —
    * 읽어야 하는 값이지만 "요청 권한" 자리를 뺏으면 안 됩니다.
+   * (개인 계정으로 로그인까지 되고 마지막에 거절돼서, 안내가 없으면 고장으로 읽힙니다)
    */
   scopeNote: {
     ...theme.text.label,
     fontFamily: theme.text.caption.fontFamily,
     fontWeight: theme.text.caption.fontWeight,
+    lineHeight: 16.5,
     marginTop: 4,
     color: color.ink[400],
   },
 
   errorWrap: { width: '100%', marginTop: space[4] },
 
-  // 시안: mt-5 · height 52 · rounded-xl · gap-2 · 배경은 플랫폼색
+  // 시안 8차: mt-5 · height 52 · rounded-xl · **bg-brand** (마크가 빠져 gap 도 없습니다)
   connectBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space[2],
     width: '100%',
     height: 52,
     marginTop: space[5],
     borderRadius: radius.md,
+    backgroundColor: color.brand[600],
   },
-  connectBtnText: { ...theme.text.button, color: color.paper },
+  connectBtnText: { ...theme.text.button, lineHeight: 22.5, color: color.paper },
   // 시안: mt-3 · 14 medium slate
   cancelText: { ...theme.text.bodySmall, marginTop: space[3], color: color.ink[500] },
 
