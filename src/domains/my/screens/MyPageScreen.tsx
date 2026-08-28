@@ -106,9 +106,18 @@ function Stat({ label, value, loading }: { label: string; value?: string; loadin
  * BE 가 §2-6 대로 이름을 채워 주면 **이 함수를 고치지 않아도** 이름이 뜨고
  * 정확한 계정 주소로 넘어갑니다.
  */
+/**
+ * 계정 주소를 정확히 만들 수 없을 때 열어 줄 곳.
+ *
+ * ⚠️ **앱이 열 줄 아는 주소여야 합니다.** 처음에는 유튜브 "나" 탭인
+ *    `youtube.com/feed/you` 를 넣었는데, **유튜브 앱이 이 경로를 못 열어 자기
+ *    400 오류 화면을 띄웠습니다**(2026-08-28 실기기 확인). 앱은 자기가 아는 주소만
+ *    받아 주므로 **홈**으로 둡니다 — 로그인돼 있으니 거기가 사장님 계정이고,
+ *    프로필은 한 번 더 누르면 됩니다.
+ */
 const SNS_HOME = {
   INSTAGRAM: 'https://www.instagram.com/',
-  YOUTUBE: 'https://www.youtube.com/feed/you',
+  YOUTUBE: 'https://www.youtube.com/',
 } as const;
 
 function snsLink(
