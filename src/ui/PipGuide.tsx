@@ -41,10 +41,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GripVertical, Maximize2, Minimize2 } from 'lucide-react-native';
+import { Maximize2, Minimize2 } from 'lucide-react-native';
 import { GuidePlayer } from './GuidePlayer';
 import { pressTap } from './press';
-import theme, { color, radius, space, text } from '../design/theme';
+import theme, { color, elevation, radius, space, text } from '../design/theme';
 
 /**
  * 창 폭. **시안(98·110)보다 크게 잡았습니다** — 사장님 지시입니다 (2026-08-26).
@@ -59,8 +59,20 @@ import theme, { color, radius, space, text } from '../design/theme';
  *    되감기·배속은 지금처럼 **확대해서** 유튜브 컨트롤로 하는 것이 맞습니다.
  */
 const DEFAULT_WIDTH = 170;
-/** 우리 버튼이 앉는 띠. 영상 위를 가리지 않기 위한 자리입니다. */
-const BAR = 32;
+/**
+ * 우리 버튼이 앉는 띠. 영상 위를 가리지 않기 위한 자리입니다.
+ *
+ * 2026-08-28 — 시안 `촬영부분수정` 이 이 띠를 **영상 아래**로 내리고 "확대" 버튼으로
+ * 바꿨습니다(h26 · 영상과 간격 6). 위에 있던 것을 아래로 옮긴 것뿐이라
+ * **끌어서 옮기는 동작은 그대로**입니다 — 영상 위에는 여전히 아무것도 없습니다.
+ *
+ * ⚠️ 시안은 창 폭을 90 으로 줄이지만 **170 을 유지합니다**(사장님 지시).
+ *    90 이면 유튜브가 자기 컨트롤을 안 그려(`ytp-tiny-mode`) 되감기·배속을
+ *    확대해서만 쓸 수 있게 됩니다.
+ */
+const BAR = 26;
+/** 영상과 확대 버튼 사이 — 시안 `mt-1.5` */
+const BAR_GAP = 6;
 /** 시안 자리: absolute left-4 top-[110] */
 const HOME_LEFT = space[4];
 const HOME_TOP = 110;
@@ -105,7 +117,7 @@ export function PipGuide({
   const offset = useRef({ x: 0, y: 0 });
   const dragging = useRef(false);
 
-  const pipHeight = BAR + Math.round((pipWidth * 16) / 9);
+  const pipHeight = Math.round((pipWidth * 16) / 9) + BAR_GAP + BAR;
 
   /** 화면 밖으로 나가지 않게 잡아 둡니다. 기준은 시안 자리(HOME)에서의 이동량입니다. */
   const clamp = (x: number, y: number) => {
@@ -178,48 +190,47 @@ export function PipGuide({
             { width: pipWidth, transform: pan.getTranslateTransform() },
           ]}
         >
+          {/* 영상 상자 — 시안: radius 14 · 테두리 1 white/20 · 그림자 */}
+          <View style={styles.frame}>
+            <GuidePlayer
+              // 시작 지점이 바뀌면 플레이어를 새로 띄웁니다(확대했다 돌아온 경우).
+              key={`small-${smallStart}`}
+              url={url}
+              startSec={smallStart}
+              width={pipWidth}
+              portrait
+              compact
+              loopStart={loopStart}
+              loopEnd={loopEnd}
+              onTime={(s) => {
+                lastSec.current = s;
+              }}
+            />
+          </View>
+
           {/*
-            띠 **전체**가 손잡이 겸 버튼입니다.
+            띠 **전체**가 손잡이 겸 버튼입니다. 시안이 이걸 영상 아래로 내렸습니다.
               탭  → 크게 보기
               끌기 → 창 이동
-            눈에 보이는 건 왼쪽 손잡이 표시와 오른쪽 동그라미지만, 손가락은
-            띠 어디를 눌러도 됩니다. 영상 화면은 안 가립니다.
+            손가락은 띠 어디를 눌러도 됩니다. 영상 화면은 여전히 안 가립니다
+            (유튜브 약관 — 머리말 참고).
           */}
           <View style={styles.bar} {...responder.panHandlers}>
-            {/*
-              끌 수 있다는 표시. 토큰에 없는 값이라 직접 씁니다 — 바로 위 pip 테두리가
-              쓰는 흰색 40% 와 같은 계열로, 있는 듯 없는 듯 보이게 45% 입니다.
-            */}
-            <GripVertical size={12} strokeWidth={2} color="rgba(255,255,255,0.45)" />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="참고 영상 크게 보기 (끌면 창이 움직입니다)"
-              hitSlop={{ top: 6, left: 6, right: 6, bottom: 2 }}
+              hitSlop={{ top: 4, left: 6, right: 6, bottom: 6 }}
               onPress={openBig}
               style={styles.barPress}
             >
               {({ pressed }) => (
-                <View style={[styles.barBtn, pressTap(pressed, 'icon')]}>
-                  <Maximize2 size={15} strokeWidth={2.5} color={color.paper} />
+                <View style={[styles.barInner, pressTap(pressed, 'icon')]}>
+                  <Maximize2 size={12} strokeWidth={2.5} color={color.paper} />
+                  <Text style={styles.barLabel}>확대</Text>
                 </View>
               )}
             </Pressable>
           </View>
-
-          <GuidePlayer
-            // 시작 지점이 바뀌면 플레이어를 새로 띄웁니다(확대했다 돌아온 경우).
-            key={`small-${smallStart}`}
-            url={url}
-            startSec={smallStart}
-            width={pipWidth}
-            portrait
-            compact
-            loopStart={loopStart}
-            loopEnd={loopEnd}
-            onTime={(s) => {
-              lastSec.current = s;
-            }}
-          />
         </Animated.View>
       )}
 
@@ -254,36 +265,39 @@ export function PipGuide({
 
 const styles = StyleSheet.create({
   // 시안: absolute left-4 top-[110] · w98 · rounded-2xl · 흰 테두리 40%
+  // 자리만 잡는 껍데기입니다. 테두리·배경은 아래 frame 이 갖습니다.
   pip: {
     position: 'absolute',
     left: HOME_LEFT,
     top: HOME_TOP,
-    borderRadius: radius.lg,
-    borderWidth: theme.border.hairline,
-    borderColor: 'rgba(255,255,255,0.4)',
-    backgroundColor: color.mediaBlack,
-    overflow: 'hidden',
     zIndex: 30,
   },
-  // 영상 위가 아니라 영상 위쪽 띠. 여기에만 우리 것이 올라갑니다.
-  bar: {
-    height: BAR,
+  // 시안: rounded 14 · 테두리 1 white/20 · 그림자 0 10 28 rgba(0,0,0,.35)
+  frame: {
+    borderRadius: 14,
+    borderWidth: theme.border.hairline,
+    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: color.mediaBlack,
+    overflow: 'hidden',
+    ...elevation('card'),
+  },
+  // 영상 **아래** 확대 버튼 겸 손잡이. 영상 위에는 아무것도 올리지 않습니다.
+  bar: { height: BAR, marginTop: BAR_GAP },
+  barPress: { flex: 1 },
+  // 시안: h26 전체폭 pill · 테두리 white/15 · bg rgba(20,20,30,.65) · gap-1
+  barInner: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 4,
-    paddingRight: 4,
-  },
-  // 오른쪽 절반을 눌러도 확대되도록 남는 폭을 전부 먹습니다.
-  barPress: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  barBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: color.overlay.badge,
+    gap: 4,
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(20, 20, 30, 0.65)',
   },
+  // 시안: 11 semibold 흰색
+  barLabel: { ...theme.text.micro, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, lineHeight: 16.5, color: color.paper },
   full: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: color.mediaBlack },
   shrink: {
     flexDirection: 'row',

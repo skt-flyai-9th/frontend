@@ -8,22 +8,25 @@
  *   - 권한을 한 번에 묶어 요청하지 않는다          → 카메라 먼저, 마이크는 필요할 때만
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, AppState, Easing, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  AppState,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   CAMERA_IS_PLACEHOLDER,
   CameraPreview,
   type CameraPreviewHandle,
 } from '../../../ui/CameraPreview';
-import {
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
-  RotateCcw,
-  SwitchCamera,
-} from 'lucide-react-native';
+import { Check, ChevronLeft, SwitchCamera } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
@@ -39,7 +42,7 @@ import {
   useUpdateTask,
   useUploadFootage,
 } from '../../../api/queries/shoot';
-import { useProject, useVideoFormat } from '../../../api/queries/project';
+import { useProject, useScenes, useVideoFormat } from '../../../api/queries/project';
 import { useAppState } from '../../../lib/appState';
 import type { CreateStackParamList } from '../../../navigation/types';
 import type { Id, ShootTask } from '../../../api/schema/types';
@@ -47,151 +50,157 @@ import type { Id, ShootTask } from '../../../api/schema/types';
 type Props = NativeStackScreenProps<CreateStackParamList, 'Camera'>;
 
 /**
- * 시안 11차 `TaskToggle` · `TaskCard` — 셔터 위 컷 칩 줄을 대신합니다.
+ * 시안 `촬영부분수정` — 셔터 위 세로 목록을 **하단 가로 클립 스트립**으로 바꿉니다.
  *
- * 9차까지는 셔터 위(bottom 190)에 컷 칩이 줄줄이 깔려 있었고, 이름이 길면
- * 전광판(`Marquee`)으로 흘려 보여줬습니다. 11차는 그 줄을 걷어내고 **접히는
- * 목록 카드**로 바꿨습니다 — 평소에는 "테스크 보기" 토글 하나만 있고, 누르면
- * 토글 바로 위로 목록이 올라옵니다. 화면이 가려지는 면적이 그만큼 줄어듭니다.
+ * 11차의 "테스크 보기" 토글 + 세로 카드는 이 시안에서 폐기됐습니다. 컷이 늘어도
+ * 화면을 덜 가리고, 지금 어느 컷을 찍는지가 한 줄에 다 보입니다. 화면 밖으로
+ * 넘치면 **가로로 밀어서** 넘깁니다.
  *
- * 시안 원문 실측값 (11차 `js/screens-shoot.jsx`)
- *   TaskToggle  bottom-[58px] left-[22px] · h-[34px] · px-3.5 · gap-1.5
- *               text-[13px] font-semibold · chevron 14
- *               닫힘 bg rgba(20,20,30,.75) · 테두리/글자 #FFFFFF
- *               열림 bg rgba(255,255,255,.96) · 테두리/글자 #3200F9
- *   TaskCard    bottom-[104px] left-[16px] · w-[258px] · rounded-2xl(16)
- *               테두리 white/15 · 행 px-3.5 py-2.5 · 구분선 white/10(마지막 행 없음)
- *               현재 행 bg rgba(255,255,255,.96) · 등장 rise-in(14px, .3s)
- *   TaskMark    완료 check 13 #fff · 현재 ✦ 12 bold · 미촬영 ○ 12 white/45
- *               이미 찍은 행은 표식 대신 rotate-ccw 13 white/80 (재촬영을 뜻합니다)
+ * 시안 실측값 (템플릿 인라인 `ClipStrip`)
+ *   스트립  bottom 156 · px 20 · pt 28 · pb 4 · gap 10 · 가로 스크롤
+ *   클립    56×72 · radius 12
+ *           미촬영  bg rgba(20,20,30,.65) · 테두리 1 white/28 · 가운데 번호 15 bold
+ *           활성    테두리 2 #3200F9 · scale 1.05 · 그림자 0 0 14 rgba(50,0,249,.55)
+ *           완료    bg #0F172A + 촬영본 첫 프레임
+ *   재촬영  완료이면서 활성일 때 클립 위 -21 · #3200F9 · 10 semibold
  *
- * ⚠️ `#3200F9` 는 **이 목록 전용 색입니다.** 시안 전체를 훑어도 여기 한 곳
- *    (`TASK_ACCENT`)에만 쓰이고 `--brand` 토큰은 11차에서도 `#2563EB` 그대로입니다.
- *    `theme.ts` 로 올리면 38개 화면이 함께 바뀝니다 — 이 파일에서만 둡니다.
- * ⚠️ 시안의 `backdrop-blur-md` 는 넣지 않았습니다. 같은 화면의 다른 카메라 크롬
- *    (전환 버튼 `flipBtn`)도 같은 이유로 불투명 `CHROME` 색만 씁니다.
+ * ⚠️ **완료 칸 그림은 방금 찍은 한 칸만 진짜입니다** (2026-08-28 결정).
+ *    서버가 촬영본 썸네일을 주지 않고(`/tasks/{id}/footage` 는 영상 URL 뿐),
+ *    영상에서 첫 프레임을 뽑으려면 `expo-video-thumbnails` 네이티브 패키지가 필요해
+ *    APK 를 새로 구워야 합니다. 그래서 기기에 파일이 남아 있는 **직전 촬영본만**
+ *    정지 프레임으로 그리고, 나머지 완료 칸은 브랜드색 채움 + 체크로 둡니다.
+ *    없는 그림을 지어내지 않습니다 (CLAUDE.md §2).
+ *
+ * ⚠️ `#3200F9` 는 이 스트립 전용입니다. `--brand` 는 시안에서도 `#2563EB` 그대로라
+ *    `theme.ts` 에 올리지 않습니다.
  */
-const TASK_GLASS = 'rgba(20, 20, 30, 0.75)';
-const TASK_ACCENT = '#3200F9';
+const CLIP_ACTIVE = '#3200F9';
+const CLIP_GLASS = 'rgba(20, 20, 30, 0.65)';
+const CLIP_DONE_BG = '#0F172A';
 
-type TaskMarkState = 'done' | 'current' | 'todo';
-
-/** 상태 표식 — 완료 ✓ / 현재 ✦ / 미촬영 ○ */
-function TaskMark({ state }: { state: TaskMarkState }) {
-  if (state === 'done') return <Check size={13} strokeWidth={2} color={color.paper} />;
-  if (state === 'current') return <Text style={styles.taskMarkCurrent}>✦</Text>;
-  return <Text style={styles.taskMarkTodo}>○</Text>;
+/**
+ * 녹화 표시 점 — 시안 `@keyframes rec-blink{0%,49%{opacity:1}50%,100%{opacity:.12}}`.
+ *
+ * `steps(1, end)` 이라 **부드럽게 흐려지는 게 아니라 1 ↔ .12 로 딱딱 바뀝니다**(1초 주기).
+ * 그래서 애니메이션 드라이버를 쓰지 않고 0.5초마다 값을 직접 넣습니다 —
+ * `Animated.loop` 은 웹에서 한 바퀴 뒤 굳어 캡처가 매번 달라집니다(CLAUDE.md §5-④).
+ * 값만 바꾸므로 리렌더도 없고 웹·기기에서 똑같이 돕니다.
+ */
+function RecDot() {
+  const o = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    let on = true;
+    const t = setInterval(() => {
+      on = !on;
+      o.setValue(on ? 1 : 0.12);
+    }, 500);
+    return () => {
+      clearInterval(t);
+      o.setValue(1);
+    };
+  }, [o]);
+  return <Animated.View style={[styles.recDot, { opacity: o }]} />;
 }
 
-function TaskToggle({
-  open,
+function ClipCell({
+  label,
+  index,
+  done,
+  active,
+  stillUri,
   disabled,
   onPress,
 }: {
-  open: boolean;
+  label: string;
+  index: number;
+  done: boolean;
+  active: boolean;
+  /** 있으면 이 영상의 첫 프레임을 깝니다 (방금 찍은 칸) */
+  stillUri?: string;
   disabled: boolean;
   onPress: () => void;
 }) {
-  const Chevron = open ? ChevronDown : ChevronUp;
+  /*
+    재생하지 않고 첫 프레임만 세워 둡니다 — `MyShortCell` 과 같은 방식입니다.
+    uri 가 없으면 플레이어를 아예 만들지 않습니다(빈 칸에 디코더를 붙이지 않습니다).
+  */
+  const player = useVideoPlayer(stillUri ?? null, (p) => {
+    p.muted = true;
+  });
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ expanded: open }}
-      accessibilityLabel="테스크 보기"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.taskToggle,
-        open ? styles.taskToggleOpen : styles.taskToggleClosed,
-        pressTap(pressed, 'icon'),
-      ]}
-    >
-      <Text style={[styles.taskToggleText, open && styles.taskToggleTextOpen]}>테스크 보기</Text>
-      <Chevron size={14} strokeWidth={2} color={open ? TASK_ACCENT : color.paper} />
-    </Pressable>
+    <View style={styles.clipWrap}>
+      {done && active && (
+        <View style={styles.retake} pointerEvents="none">
+          <Text style={styles.retakeText}>재촬영 ↺</Text>
+        </View>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={`${index + 1}. ${label}${done ? ' (찍음)' : ''}`}
+        disabled={disabled}
+        onPress={onPress}
+        style={[styles.clip, done ? styles.clipDone : styles.clipTodo, active && styles.clipActive]}
+      >
+        {stillUri ? (
+          <VideoView
+            player={player}
+            style={styles.clipFill}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        ) : done ? (
+          /* 썸네일을 못 얻는 칸 — 찍었다는 사실만 색과 체크로 말합니다 */
+          <View style={[styles.clipFill, styles.clipCheck]}>
+            <Check size={20} strokeWidth={3} color={color.paper} />
+          </View>
+        ) : (
+          <Text style={styles.clipIndex}>{index + 1}</Text>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
-function TaskCard({
+function ClipStrip({
   tasks,
   taskId,
   isShot,
   disabled,
+  lastShot,
   onSelectTask,
 }: {
   tasks: ShootTask[];
   taskId?: Id;
   isShot: (t: ShootTask) => boolean;
   disabled: boolean;
+  lastShot: { taskId: Id; uri: string } | null;
   onSelectTask: (id: Id) => void;
 }) {
-  /* 시안 `.rise-in` — opacity 0→1 · translateY 14→0 · .3s cubic-bezier(.16,1,.3,1) */
-  const rise = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(rise, {
-      toValue: 1,
-      duration: 300,
-      easing: Easing.bezier(0.16, 1, 0.3, 1),
-      useNativeDriver: true,
-    }).start();
-  }, [rise]);
-
   return (
-    <Animated.View
-      style={[
-        styles.taskCard,
-        {
-          opacity: rise,
-          transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-        },
-      ]}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.strip}
+      contentContainerStyle={styles.stripContent}
     >
-      {tasks.map((t, i) => {
-        const done = isShot(t);
-        const on = t.id === taskId;
-        const state: TaskMarkState = on ? 'current' : done ? 'done' : 'todo';
-        return (
-          <Pressable
-            key={t.id}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={`${t.taskTitle}${done ? ' (찍음)' : ''}`}
-            disabled={disabled}
-            onPress={() => onSelectTask(t.id)}
-            style={[
-              styles.taskRow,
-              i < tasks.length - 1 && styles.taskRowLine,
-              on && styles.taskRowOn,
-            ]}
-          >
-            <Text style={[styles.taskIndex, on && styles.taskIndexOn]}>{i + 1}</Text>
-            <View style={styles.taskTextBox}>
-              <Text numberOfLines={1} style={[styles.taskName, on && styles.taskNameOn]}>
-                {t.taskTitle}
-              </Text>
-              {/*
-                시안 둘째 줄은 "가이드 N초" 입니다. 8.1 `ShootTask` 에도 9.1 `TaskGuide` 에도
-                길이 필드가 없어 초를 지어내지 않습니다(CLAUDE.md §2). 줄 자리는 그대로 두고
-                있는 값인 **촬영 종류**를 씁니다 — 행 높이가 시안과 달라지지 않습니다.
-              */}
-              <Text numberOfLines={1} style={[styles.taskSub, on && styles.taskSubOn]}>
-                {t.taskType}
-                {done ? ' · 촬영 완료' : ''}
-              </Text>
-            </View>
-            <View style={styles.taskMarkBox}>
-              {done && !on ? (
-                <RotateCcw size={13} strokeWidth={2} color="rgba(255,255,255,0.8)" />
-              ) : (
-                <TaskMark state={state} />
-              )}
-            </View>
-          </Pressable>
-        );
-      })}
-    </Animated.View>
+      {tasks.map((t, i) => (
+        <ClipCell
+          key={t.id}
+          label={t.taskTitle}
+          index={i}
+          done={isShot(t)}
+          active={t.id === taskId}
+          stillUri={lastShot?.taskId === t.id ? lastShot.uri : undefined}
+          disabled={disabled}
+          onPress={() => onSelectTask(t.id)}
+        />
+      ))}
+    </ScrollView>
   );
 }
+
 
 export default function CameraScreen({ navigation, route }: Props) {
   const { projectId, taskId: firstTaskId, formatId: pickedFormatId } = route.params;
@@ -273,23 +282,35 @@ export default function CameraScreen({ navigation, route }: Props) {
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  /** 시안 11차: 컷 목록은 접혀 있다가 "테스크 보기" 로 열립니다. */
-  const [tasksOpen, setTasksOpen] = useState(false);
   /**
-   * 목록에서 컷을 고릅니다. 시안 `pickTask` 와 같게 **고르면 목록이 닫힙니다** —
-   * 촬영 화면을 가린 채로 두지 않습니다. 녹화 중이거나 검수 시트가 떠 있으면
-   * 컷을 바꾸지 않습니다(옛 칩 줄의 `disabled` 조건을 그대로 옮겼습니다).
+   * 컷을 고릅니다. 스트립의 칸을 누르는 것이 유일한 경로입니다.
+   * 녹화 중이거나 검수 시트가 떠 있으면 바꾸지 않습니다(옛 칩 줄의 조건 그대로).
    */
   const onSelectTask = (id: Id) => {
     if (recording || take) return;
     setTaskId(id);
-    setTasksOpen(false);
   };
-  /** 녹화 중에는 목록을 열지 않습니다 (시안 `onClick={() => !recording && …}`). */
-  const onToggleTasks = () => {
-    if (recording) return;
-    setTasksOpen((o) => !o);
-  };
+
+  /**
+   * 상단 카운트다운의 최대 시간 — **7.2 콘티의 `targetDurationSec`** 입니다.
+   *
+   * 8.1 `ShootTask` 에는 길이가 없지만 `sceneId` 가 있고, 7.2 장면이 그 장면의
+   * 목표 길이를 줍니다. 두 값을 이어 쓰면 지어내지 않고 실제 초를 씁니다.
+   *
+   * ⚠️ 기획(7.1)이 실패했거나 장면이 아직 없으면 **길이를 모릅니다.** 그때는
+   *    카운트다운 대신 지금까지 찍은 시간을 셉니다 — 없는 제한 시간을 만들어
+   *    사장님을 재촉하지 않습니다 (CLAUDE.md §2).
+   */
+  const { data: scenes } = useScenes(projectId);
+  const targetSec = scenes?.find((s) => s.id === task?.sceneId)?.targetDurationSec ?? null;
+  /** 남은 초. null 이면 길이를 모르는 것이라 카운트다운을 하지 않습니다. */
+  const [left, setLeft] = useState<number | null>(null);
+
+  /**
+   * 방금 찍은 컷 하나만 스트립에 정지 프레임으로 보여 줍니다 (결정 B).
+   * 업로드가 끝난 뒤에도 기기의 파일은 남아 있어 그 uri 를 들고 있습니다.
+   */
+  const [lastShot, setLastShot] = useState<{ taskId: Id; uri: string } | null>(null);
 
   /** 대사가 없는 B-roll 은 마이크 권한을 요구하지 않습니다. */
   const needsMic = task?.taskType === '영상촬영' || task?.taskType === '음성녹음';
@@ -312,11 +333,33 @@ export default function CameraScreen({ navigation, route }: Props) {
     return () => clearInterval(t);
   }, [recording]);
 
+  /** 컷을 바꾸거나 장면 길이를 알게 되면 남은 시간을 그 값으로 되돌립니다. */
+  useEffect(() => {
+    setLeft(targetSec);
+  }, [targetSec, taskId]);
+
+  /**
+   * 카운트다운. 0 이 되면 **녹화를 스스로 끝냅니다** — 시안이 그렇게 동작합니다.
+   * 카메라에도 `maxDuration` 으로 같은 값을 넘겨 두 시계가 어긋나지 않게 합니다.
+   */
+  useEffect(() => {
+    if (!recording || left == null) return;
+    if (left <= 0) {
+      cameraRef.current?.stopRecording();
+      setRecording(false);
+      return;
+    }
+    const t = setTimeout(() => setLeft((s) => (s == null ? null : s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [recording, left]);
+
   const beginRecording = useCallback(async () => {
     if (!cameraRef.current) return;
+    setLeft(targetSec);
     setRecording(true);
     try {
-      const video = await cameraRef.current.recordAsync({ maxDuration: 30 });
+      // 장면 길이를 알면 그만큼만, 모르면 예전처럼 30초를 상한으로 둡니다.
+      const video = await cameraRef.current.recordAsync({ maxDuration: targetSec ?? 30 });
       setRecording(false);
       // 지어낸 5초 대신 실제로 흐른 시간을 씁니다(1초 미만도 그대로).
       if (video?.uri) setTake({ uri: video.uri, durationSec: Math.max(1, elapsed) });
@@ -324,7 +367,7 @@ export default function CameraScreen({ navigation, route }: Props) {
       setRecording(false);
       console.warn('[camera] 녹화 실패', e);
     }
-  }, [elapsed]);
+  }, [elapsed, targetSec]);
 
   const upload = useUploadFootage(projectId);
   const markTask = useUpdateTask(projectId);
@@ -339,6 +382,8 @@ export default function CameraScreen({ navigation, route }: Props) {
       { taskId, uri: take.uri, durationSec: take.durationSec, onProgress: setUploadPct },
       {
         onSuccess: () => {
+          // 스트립의 이 칸을 정지 프레임으로 바꿉니다 (기기에 파일이 남아 있습니다)
+          if (taskId != null) setLastShot({ taskId, uri: take.uri });
           setTake(null);
           const rest = tasks.filter((t) => t.id !== taskId && !shot(t));
           if (rest.length > 0) setTaskId(rest[0].id);
@@ -350,6 +395,28 @@ export default function CameraScreen({ navigation, route }: Props) {
 
   // 화면을 벗어나면 업로드를 정리합니다. 안 하면 백그라운드에서 계속 돕니다.
   useEffect(() => () => upload.cancel(), []);
+
+  /*
+    권한은 **안내 화면 없이 OS 창으로 바로** 묻습니다 (2026-08-28 지시 —
+    무엇에 쓰는지는 약관에 있어 화면에서 다시 설명하지 않습니다).
+    명세 규칙대로 카메라를 먼저 묻고, 마이크는 소리가 필요한 컷에서만 묻습니다.
+  */
+  useEffect(() => {
+    if (CAMERA_IS_PLACEHOLDER) return;
+    if (camPermission && !camPermission.granted && camPermission.canAskAgain) void requestCam();
+  }, [camPermission, requestCam]);
+
+  useEffect(() => {
+    if (CAMERA_IS_PLACEHOLDER || !needsMic) return;
+    if (micPermission && !micPermission.granted && micPermission.canAskAgain) void requestMic();
+  }, [needsMic, micPermission, requestMic]);
+
+  /**
+   * 마이크가 없으면 **소리 없이 찍습니다.** 예전에는 "소리 없이 찍기" 를 눌러 고르게
+   * 했는데 그 화면을 없앴으므로, 거부된 상태에서 막지 않고 그대로 진행합니다 —
+   * 여기서 막으면 촬영 자체를 못 합니다.
+   */
+  const canRecordAudio = needsMic && (CAMERA_IS_PLACEHOLDER || !!micPermission?.granted);
 
   // 안무 컷으로 넘어가는 사이에 이 화면이 한 프레임 스쳐 보이지 않게 검은 판만 둡니다.
   if (goingToDance) return <View style={styles.black} />;
@@ -377,47 +444,37 @@ export default function CameraScreen({ navigation, route }: Props) {
     );
   }
 
-  // ── 권한 게이트 ──────────────────────────────────────
-  // 웹 자리표시자에서는 권한을 물을 대상이 없어 건너뜁니다(디자인 대조용).
+  /*
+    ── 권한 ────────────────────────────────────────────
+    2026-08-28 지시로 **안내 화면 두 개를 없앴습니다.**
+    ("카메라를 켜야 찍을 수 있습니다" · "이 장면은 소리도 담습니다")
+    무엇에 쓰는지는 약관에 있어 화면에서 다시 설명하지 않습니다.
+    이제 이 화면에 들어오면 위 `useEffect` 가 **OS 권한창을 바로 띄웁니다.**
+
+    명세 규칙은 그대로입니다 — 카메라 먼저, 마이크는 필요한 컷에서만 묻습니다.
+
+    ⚠️ **되돌릴 수 없게 거부된 경우만** 화면을 남깁니다. 그 상태에서는 앱이 다시
+       물을 수 없어(`canAskAgain: false`), 아무것도 안 그리면 검은 화면에 갇힙니다.
+       안내가 아니라 **빠져나갈 길**이라 지우지 않았습니다.
+  */
   if (!CAMERA_IS_PLACEHOLDER && !camPermission) return <View style={styles.black} />;
 
-  if (!CAMERA_IS_PLACEHOLDER && !camPermission?.granted) {
-    const blocked = !camPermission?.canAskAgain;
+  if (!CAMERA_IS_PLACEHOLDER && !camPermission?.granted && !camPermission?.canAskAgain) {
     return (
       <SafeAreaView style={styles.permWrap}>
         <View style={styles.permBody}>
-          <Text style={text.title}>카메라를 켜야 찍을 수 있습니다</Text>
-          <Text style={text.body}>
-            {blocked
-              ? '전에 거부하셔서 앱에서는 켤 수 없습니다. 설정에서 카메라를 켜 주세요.'
-              : '영상을 찍기 위해서만 씁니다. 사진첩 전체를 보지 않습니다.'}
-          </Text>
+          <Text style={text.title}>설정에서 카메라를 켜 주세요</Text>
         </View>
         <View style={{ gap: space[2] }}>
-          <Button
-            label={blocked ? '설정 열기' : '카메라 켜기'}
-            onPress={blocked ? () => Linking.openSettings() : requestCam}
-          />
+          <Button label="설정 열기" onPress={() => Linking.openSettings()} />
           <Button label="나중에 하기" variant="secondary" onPress={() => navigation.goBack()} />
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!CAMERA_IS_PLACEHOLDER && needsMic && micPermission && !micPermission.granted) {
-    return (
-      <SafeAreaView style={styles.permWrap}>
-        <View style={styles.permBody}>
-          <Text style={text.title}>이 장면은 소리도 담습니다</Text>
-          <Text style={text.body}>말소리를 쓰지 않는 장면이라면 소리 없이 찍어도 됩니다.</Text>
-        </View>
-        <View style={{ gap: space[2] }}>
-          <Button label="마이크 켜기" onPress={requestMic} />
-          <Button label="소리 없이 찍기" variant="secondary" onPress={() => setReady(true)} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // 권한창이 떠 있는 동안은 검은 판만 둡니다 (카메라를 열 수 없는 상태입니다).
+  if (!CAMERA_IS_PLACEHOLDER && !camPermission?.granted) return <View style={styles.black} />;
 
   return (
     <View style={styles.black}>
@@ -425,7 +482,7 @@ export default function CameraScreen({ navigation, route }: Props) {
       <CameraPreview
         ref={cameraRef}
         facing={facing}
-        mute={!needsMic}
+        mute={!canRecordAudio}
         onReady={() => setReady(true)}
       />
 
@@ -451,42 +508,39 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
       </SafeAreaView>
 
-      {recording && (
-        <View style={styles.recPill} pointerEvents="none">
-          <View style={styles.recDot} />
-          <Text style={styles.recText}>{elapsed}초</Text>
+      {/*
+        상단 카운트다운 — 시안 top-[62px] · 빨간 점 9(깜빡임) + 숫자 18 bold tabular.
+
+        장면 길이를 알면 **남은 초가 줄어들고**, 모르면 지금까지 찍은 초가 늘어납니다
+        (위 `targetSec` 주석). 어느 쪽이든 실제 시간이라 지어낸 값이 아닙니다.
+
+        점은 녹화 중에만 뜨고 1초 주기로 깜빡입니다 (`RecDot` 주석 참고).
+      */}
+      {!take && (
+        <View style={styles.countdown} pointerEvents="none">
+          {recording && <RecDot />}
+          <Text style={styles.countdownText}>{left != null ? Math.max(0, left) : elapsed}</Text>
         </View>
       )}
 
-      {/*
-        시안 11차 상단 안내줄 — top-[100px] · 가운데 · 12 semibold · white/90 ·
-        textShadow 0 1px 6px rgba(0,0,0,.45).
-
-        컷 목록이 접히면서 "지금 몇 번째로 뭘 찍는지" 를 늘 보여 주는 자리가
-        여기로 옮겨졌습니다. 옛 칩 줄이 하던 일입니다.
-        시안 원문은 뒤에 "· N초" 가 더 붙지만 8.1·9.1 에 길이 필드가 없어 뺐습니다.
-      */}
+      {/* 그 아래 지금 찍을 컷 이름 — 시안 top-[92px] · 유리질 pill · 12.5 semibold */}
       {!take && task && (
-        <View style={styles.takeGuideWrap} pointerEvents="none">
-          <Text style={styles.takeGuide}>
-            {tasks.findIndex((t) => t.id === taskId) + 1}/{tasks.length} · {task.taskTitle}
+        <View style={styles.takeLabelWrap} pointerEvents="none">
+          <Text style={styles.takeLabel} numberOfLines={1}>
+            {task.taskTitle}
           </Text>
         </View>
       )}
 
       {!take && tasks.length > 0 && (
-        <>
-          <TaskToggle open={tasksOpen} disabled={recording} onPress={onToggleTasks} />
-          {tasksOpen && (
-            <TaskCard
-              tasks={tasks}
-              taskId={taskId}
-              isShot={shot}
-              disabled={recording || !!take}
-              onSelectTask={onSelectTask}
-            />
-          )}
-        </>
+        <ClipStrip
+          tasks={tasks}
+          taskId={taskId}
+          isShot={shot}
+          disabled={recording}
+          lastShot={lastShot}
+          onSelectTask={onSelectTask}
+        />
       )}
 
       <SafeAreaView style={styles.bottomLayer} edges={['bottom']} pointerEvents="box-none">
@@ -589,102 +643,121 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: CHROME,
   },
-  // ── 시안 11차 컷 목록 ──────────────────────────────
+  // ── 시안 `촬영부분수정` 상단 표시 · 하단 클립 스트립 ──────────
   //
-  // 줄높이는 전부 시안 값(글자크기 × 1.5)으로 덮었습니다 — 토큰 줄높이가
-  // 그보다 짧아 행마다 짧아지고 그게 쌓입니다 (CLAUDE.md §5-①).
-  //   13 → 19.5 (토큰 chip 18) · 12 → 18 (토큰 label 17) · 11 → 16.5 (토큰 micro 15)
+  // 줄높이는 시안 값(글자크기 × 1.5)으로 덮었습니다 — 토큰이 그보다 짧습니다
+  // (CLAUDE.md §5-①). 12.5 → 18.75 · 15 → 22.5
 
-  // 상단 안내줄: top-[100px] · 가운데 · 12 semibold · white/90 · 그림자 0 1px 6px
-  takeGuideWrap: { position: 'absolute', top: 100, left: 0, right: 0, zIndex: 20 },
-  takeGuide: {
-    ...text.label,
+  // 카운트다운: 시안 top-[62px] · 가운데 · 점 9 + 숫자 18 bold tabular
+  countdown: {
+    position: 'absolute',
+    top: 62,
+    left: 0,
+    right: 0,
+    zIndex: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space[2],
+  },
+  recDot: {
+    width: 9,
+    height: 9,
+    borderRadius: radius.pill,
+    backgroundColor: color.danger[500],
+  },
+  countdownText: {
+    ...text.heading,
+    fontSize: 18,
     lineHeight: 18,
-    textAlign: 'center',
-    color: 'rgba(255,255,255,0.9)',
-    textShadowColor: 'rgba(0,0,0,0.45)',
+    color: color.paper,
+    fontVariant: ['tabular-nums'],
+    textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
 
-  // TaskToggle: bottom-[58px] left-[22px] · h-[34px] · px-3.5 · gap-1.5 · 테두리 1
-  taskToggle: {
+  // 컷 이름 배지: 시안 top-[92px] · px-3.5 py-1.5 · 12.5 semibold · 유리질
+  takeLabelWrap: {
     position: 'absolute',
-    bottom: 58,
-    left: 22,
+    top: 92,
+    left: 0,
+    right: 0,
     zIndex: 30,
-    height: 34,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: space[1.5],
-    paddingHorizontal: space[3.5],
+    paddingHorizontal: space[6],
+  },
+  takeLabel: {
+    ...text.chipLabel,
+    fontSize: 12.5,
+    lineHeight: 18.75,
+    maxWidth: '100%',
+    paddingHorizontal: space['3.5'],
+    paddingVertical: 6,
     borderRadius: radius.pill,
-    borderWidth: 1,
-  },
-  taskToggleClosed: { backgroundColor: TASK_GLASS, borderColor: color.paper },
-  taskToggleOpen: { backgroundColor: 'rgba(255,255,255,0.96)', borderColor: TASK_ACCENT },
-  taskToggleText: { ...text.chipLabel, lineHeight: 19.5, color: color.paper },
-  taskToggleTextOpen: { color: TASK_ACCENT },
-
-  // TaskCard: bottom-[104px] left-[16px] · w-[258px] · rounded-2xl · 테두리 white/15
-  taskCard: {
-    position: 'absolute',
-    bottom: 104,
-    left: space[4],
-    zIndex: 30,
-    width: 258,
-    overflow: 'hidden',
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    borderWidth: theme.border.hairline,
     borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: TASK_GLASS,
+    backgroundColor: CLIP_GLASS,
+    color: color.paper,
+    overflow: 'hidden',
   },
-  // 행: px-3.5 py-2.5 · gap-2.5 (마지막 행은 구분선 없음)
-  taskRow: {
+
+  // 스트립: 시안 bottom-[156px] · px-5 · pt-7 · pb-1 · gap-2.5
+  // 높이 = 클립 72 + 위 28 + 아래 4. 위 28 은 "재촬영" 배지가 들어갈 자리입니다.
+  strip: { position: 'absolute', left: 0, right: 0, bottom: 156, zIndex: 30, height: 104 },
+  stripContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
-    paddingHorizontal: space[3.5],
-    paddingVertical: 10,
+    paddingHorizontal: space[5],
+    paddingTop: 28,
+    paddingBottom: 4,
   },
-  taskRowLine: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
-  taskRowOn: { backgroundColor: 'rgba(255,255,255,0.96)' },
-  // 번호: w-[10px] · 12 bold tabular-nums (12-bold 토큰이 없어 title 의 굵기를 빌립니다)
-  taskIndex: {
-    ...text.label,
-    fontFamily: text.title.fontFamily,
-    fontWeight: text.title.fontWeight,
-    lineHeight: 18,
-    width: 10,
-    color: 'rgba(255,255,255,0.55)',
-    fontVariant: ['tabular-nums'],
+  clipWrap: { width: 56 },
+  // 클립: 56×72 · rounded-xl
+  clip: {
+    width: 56,
+    height: 72,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  taskIndexOn: { color: TASK_ACCENT },
-  taskTextBox: { flex: 1, minWidth: 0 },
-  taskName: { ...text.chipLabel, lineHeight: 19.5, color: color.paper },
-  taskNameOn: { color: TASK_ACCENT },
-  /*
-    시안 둘째 줄은 굵기 지정이 없어 400(regular) 입니다. 토큰에 11-regular 이
-    없고 `family()` 를 거치지 않으면 폰트 미로딩 때 깨지므로 micro(11 medium)를
-    씁니다 — 크기·줄높이는 시안과 같고 굵기 한 단계만 다릅니다.
-  */
-  taskSub: {
-    ...text.micro,
-    lineHeight: 16.5,
-    marginTop: space[0.5],
-    color: 'rgba(255,255,255,0.55)',
+  clipTodo: {
+    backgroundColor: CLIP_GLASS,
+    borderWidth: theme.border.hairline,
+    borderColor: 'rgba(255,255,255,0.28)',
   },
-  taskSubOn: { color: 'rgba(50,0,249,0.65)' },
-  taskMarkBox: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  // 시안 `leading-none` — 줄높이를 글자크기와 같게 둡니다
-  taskMarkCurrent: {
-    ...text.label,
-    fontFamily: text.title.fontFamily,
-    fontWeight: text.title.fontWeight,
+  clipDone: { backgroundColor: CLIP_DONE_BG, borderWidth: theme.border.hairline, borderColor: 'rgba(255,255,255,0.28)' },
+  // 활성: 테두리 2 · scale 1.05 · 글로우. RN 은 그림자 색을 안드로이드에서 못 써서
+  // elevation 대신 테두리와 확대로 강조합니다(시안 boxShadow 의 역할).
+  clipActive: {
+    borderWidth: 2,
+    borderColor: CLIP_ACTIVE,
+    transform: [{ scale: 1.05 }],
+  },
+  clipFill: { width: '100%', height: '100%' },
+  clipCheck: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.brand[600] },
+  clipIndex: { ...text.chipLabel, fontSize: 15, lineHeight: 15, color: color.paper },
+  // 재촬영 배지: 시안 -top-[21px] · 가운데 · px-2 py-[3px] · 10 semibold
+  retake: {
+    position: 'absolute',
+    top: -21,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  retakeText: {
+    ...text.nano,
     lineHeight: 12,
-    color: TASK_ACCENT,
+    paddingHorizontal: space[2],
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: CLIP_ACTIVE,
+    color: color.paper,
+    overflow: 'hidden',
   },
-  taskMarkTodo: { ...text.label, lineHeight: 12, color: 'rgba(255,255,255,0.45)' },
 
   // 시안 ReviewSheet
   sheetScrim: {
@@ -735,20 +808,6 @@ const styles = StyleSheet.create({
   taskTitle: { ...text.bodyStrong, color: color.paper },
   stripWrap: { paddingHorizontal: space[5], paddingTop: space[3] },
 
-  recPill: {
-    position: 'absolute',
-    top: '16%',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    backgroundColor: 'rgba(217,62,18,0.9)',
-    paddingHorizontal: space[4],
-    paddingVertical: space[2],
-    borderRadius: radius.pill,
-  },
-  recDot: { width: 10, height: 10, borderRadius: radius.pill, backgroundColor: color.paper },
-  recText: { ...text.bodySmall, color: color.paper },
 
   // 시안: 셔터 밴드는 h150 (칩 줄은 그 위 bottom-[190] 에 따로 있습니다)
   bottomLayer: {
