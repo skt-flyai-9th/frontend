@@ -24,7 +24,7 @@
  * 그리드 아래로 내려 시안의 상단 구성을 가리지 않게 했습니다.
  */
 import React from 'react';
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Image, Linking, Pressable, StyleSheet } from 'react-native';
 import { ChevronRight, Menu, PencilLine } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -76,6 +76,80 @@ function Stat({ label, value, loading }: { label: string; value?: string; loadin
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
+}
+
+/**
+ * 연동한 SNS 줄에 **무엇을 찍고, 누르면 어디로 보낼지** 정합니다.
+ *
+ * 🔴 **서버가 계정 이름 자리에 내부 id 를 보냅니다** (2026-08-28 사장님 지적 · BE §2-6).
+ *    16.1 의 `sns_account_name` 은 이름이 name 이지만 실제로는 `17841…` 같은 숫자가
+ *    옵니다. 그걸 그대로 찍고 있어서 마이페이지에 뜻 모를 숫자가 떠 있었습니다.
+ *
+ * 명세에 핸들도 프로필 주소도 없어서(계정을 가리키는 필드가 이것 하나뿐입니다)
+ * **앱이 이름을 만들어 낼 방법은 없습니다.** 그래서 값의 **모양을 보고** 가릅니다.
+ *
+ *   숫자만          → id. 숫자 대신 "연동됨"
+ *   UC + 22글자     → 유튜브 채널 id. 이름은 몰라도 **주소는 확실합니다**
+ *   @로 시작        → 핸들. 그대로 찍고 주소도 만듭니다
+ *   그 밖의 글자    → 사람이 읽는 이름
+ *
+ * **연동돼 있으면 눌렀을 때 언제나 그 소셜로 보냅니다** (2026-08-28 사장님 지시).
+ * 계정 주소를 정확히 못 만드는 경우에는 그 플랫폼의 **내 계정 화면**을 엽니다 —
+ * 폰에 이미 로그인돼 있으니 거기서 자기 계정입니다. 앱이 깔려 있으면 https 주소가
+ * 네이티브 앱으로 열립니다.
+ *
+ * ⚠️ **유튜브 채널명으로는 주소를 만들지 않습니다.** 채널명("동그리오")과
+ *    핸들(`@dongguri0`)이 다를 수 있어, 채널명을 `youtube.com/@…` 에 끼우면
+ *    **엉뚱한 남의 채널로 보냅니다.** 그때는 내 계정 화면으로 보냅니다.
+ *
+ * BE 가 §2-6 대로 이름을 채워 주면 **이 함수를 고치지 않아도** 이름이 뜨고
+ * 정확한 계정 주소로 넘어갑니다.
+ */
+const SNS_HOME = {
+  INSTAGRAM: 'https://www.instagram.com/',
+  YOUTUBE: 'https://www.youtube.com/feed/you',
+} as const;
+
+function snsLink(
+  platform: 'INSTAGRAM' | 'YOUTUBE',
+  raw?: string
+): { label: string; url: string | null } {
+  const v = raw?.trim();
+  // 연동 자체를 안 했으면 누를 곳은 연동 화면입니다.
+  if (!v) return { label: '연동하기', url: null };
+
+  const home = SNS_HOME[platform];
+  // 숫자만 오면 내부 id 입니다 — 사장님에게 아무 뜻이 없습니다.
+  if (/^\d+$/.test(v)) return { label: '연동됨', url: home };
+
+  const handle = v.replace(/^@/, '');
+
+  if (platform === 'INSTAGRAM') {
+    return { label: `@${handle}`, url: `https://www.instagram.com/${handle}/` };
+  }
+
+  // 유튜브 채널 id 는 UC 로 시작하는 24글자입니다.
+  if (/^UC[\w-]{22}$/.test(v)) {
+    return { label: '연동됨', url: `https://www.youtube.com/channel/${v}` };
+  }
+  if (v.startsWith('@')) return { label: v, url: `https://www.youtube.com/${v}` };
+  // 채널명으로 보입니다 — 주소를 지어내지 않고 내 계정 화면으로 보냅니다(위 ⚠️).
+  return { label: v, url: home };
+}
+
+/**
+ * 소셜을 엽니다. 주소가 없으면(연동 전) 연동 화면으로 보냅니다.
+ *
+ * 열기가 실패해도 **아무 일 없던 것처럼 두지 않습니다** — 브라우저가 없거나 주소를
+ * 받을 앱이 없는 드문 경우에, 눌러도 반응이 없으면 고장으로 보입니다. 그때는
+ * 연동 화면으로 보내 사장님이 뭐라도 할 수 있게 합니다.
+ */
+function openSns(url: string | null, fallback: () => void) {
+  if (!url) {
+    fallback();
+    return;
+  }
+  Linking.openURL(url).catch(() => fallback());
 }
 
 export default function MyPageScreen() {
@@ -132,6 +206,9 @@ export default function MyPageScreen() {
   const resumeLabel = resumeAllShot ? '이어서 편집하기' : '이어서 촬영하기';
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
+
+  const instagramLink = snsLink('INSTAGRAM', instagram?.snsAccountName);
+  const youtubeLink = snsLink('YOUTUBE', youtube?.snsAccountName);
 
   /*
    * ⚠️ `Screen` 기본 scrollContent 는 paddingTop 16 · gap 16 입니다.
@@ -197,21 +274,23 @@ export default function MyPageScreen() {
           <View style={styles.linkRowWide}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="인스타그램 연동"
-              onPress={() => nav.navigate('EditProfile')}
+              accessibilityLabel={
+                instagramLink.url ? '인스타그램 계정 열기' : '인스타그램 연동'
+              }
+              onPress={() => openSns(instagramLink.url, () => nav.navigate('EditProfile'))}
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
               <BrandMark kind="instagram" />
-              <Text style={styles.linkText}>{instagram?.snsAccountName ?? '연동하기'}</Text>
+              <Text style={styles.linkText}>{instagramLink.label}</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="유튜브 연동"
-              onPress={() => nav.navigate('EditProfile')}
+              accessibilityLabel={youtubeLink.url ? '유튜브 채널 열기' : '유튜브 연동'}
+              onPress={() => openSns(youtubeLink.url, () => nav.navigate('EditProfile'))}
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
               <BrandMark kind="youtube" />
-              <Text style={styles.linkText}>{youtube?.snsAccountName ?? '연동하기'}</Text>
+              <Text style={styles.linkText}>{youtubeLink.label}</Text>
             </Pressable>
           </View>
         </View>
