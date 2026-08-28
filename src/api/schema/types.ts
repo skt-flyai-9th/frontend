@@ -558,17 +558,6 @@ export interface TaskGuide {
   guideType: GuideType;
   overlay?: {
     instructions: string[];
-    /**
-     * 최소 촬영 시간 (2026-08-28 명세 추가).
-     *
-     * **정보형 촬영 요소에만 있습니다.** AI 가 "이 요소는 최소 N초 이상" 이라고 줄 때만
-     * 채워지고, 밈·챌린지처럼 요구가 없으면 `null` 입니다.
-     *
-     * ⚠️ 이 값보다 짧게 찍으면 **9.2 업로드가 400 `FOOTAGE_TOO_SHORT` 로 거부합니다.**
-     *    그래서 촬영 전에 보여 주고, 자동 종료 시점도 이 값 아래로는 내려가지 않게 합니다
-     *    (`CameraScreen` 참고).
-     */
-    minimumRecordingSec?: number | null;
   } | null;
   referenceVideo?: GuideReferenceVideo | null;
   brollShot?: {

@@ -35,7 +35,6 @@ import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
 import { pressTap } from '../../../ui/press';
-import { ApiError } from '../../../api/http';
 import theme, { color, elevation, radius, sizing, space, text } from '../../../design/theme';
 import { JobProgress } from '../../../ui/Feedback';
 import {
@@ -345,36 +344,8 @@ export default function CameraScreen({ navigation, route }: Props) {
   const { data: scenes } = useScenes(projectId);
   const targetSec = scenes?.find((s) => s.id === task?.sceneId)?.targetDurationSec ?? null;
 
-  /**
-   * 🔴 **촬영 시간은 성격이 둘입니다 — 하나는 상한, 하나는 하한.**
-   *
-   * | | 안무·챌린지 | 가게 홍보·정보형 |
-   * |---|---|---|
-   * | 7.2 `target_duration_sec`     | 1·3·1·3·1·2·1 | **장면 자체가 없음** |
-   * | 9.1 `minimum_recording_sec`   | `null`        | 15·20·15·12 |
-   *
-   * 2026-08-28 QA 계정 실측(챌린지=프로젝트 181, 정보형=196)입니다. 두 값은 지금
-   * **서로 배타적으로** 옵니다.
-   *
-   * 안무는 "이 초에 맞춰 끊어라"(상한)라 남은 초를 세다 0 에서 스스로 멈춥니다.
-   * 홍보는 "이보다 짧으면 안 받는다"(하한)라 **자동 종료가 없고** 사장님이 멈춥니다.
-   *
-   * ⚠️ 예전에는 둘을 `max()` 로 뭉쳐 하한을 카운트다운에 밀어 넣었습니다. 그래서
-   *    정보형에서 "간판 클로즈업 **15초 남음**" 처럼 하한이 상한으로 표시되고 딱
-   *    15초에 끊겼습니다. 15초는 "여기까지" 가 아니라 "여기부터" 입니다.
-   */
-  const minSec = guide?.overlay?.minimumRecordingSec ?? null;
-
-  /** 하한이 있으면 최소형입니다 — 시간을 세어 올리고 자동 종료를 하지 않습니다. */
-  const isMinMode = minSec != null && minSec > 0;
-
-  /**
-   * 자동 종료 시점(상한). 최소형이면 없습니다.
-   *
-   * ⚠️ **0 이하는 "없음" 으로 봅니다.** 0 을 그대로 상한에 두면 녹화가 시작과 동시에
-   *    끝나 0초짜리가 만들어지고, 그게 거부돼 무한히 다시 찍게 됩니다.
-   */
-  const stopAt = !isMinMode && targetSec != null && targetSec >= 1 ? targetSec : null;
+  /** 장면의 목표 길이를 자동 종료 시점으로 사용하고, 0 이하는 제한 없음으로 봅니다. */
+  const stopAt = targetSec != null && targetSec >= 1 ? targetSec : null;
 
   /** 남은 초. null 이면 상한이 없는 것이라 카운트다운을 하지 않습니다. */
   const [left, setLeft] = useState<number | null>(null);
@@ -425,14 +396,7 @@ export default function CameraScreen({ navigation, route }: Props) {
     setLeft(stopAt);
     setRecording(true);
     try {
-      /*
-        상한이 있으면 그만큼만.
-
-        최소형은 사장님이 멈출 때까지 두는 게 맞지만, 카메라를 무한정 열어 두면 파일이
-        커져 업로드가 오래 걸립니다. 그래서 **하한 + 30초** 를 넉넉한 안전장치로 둡니다
-        (하한 15초면 45초). 둘 다 모르면 예전처럼 30초입니다.
-      */
-      const cap = stopAt ?? (minSec != null ? minSec + 30 : 30);
+      const cap = stopAt ?? 30;
       const video = await cameraRef.current.recordAsync({ maxDuration: cap });
       setRecording(false);
       // 지어낸 5초 대신 실제로 흐른 시간을 씁니다(1초 미만도 그대로).
@@ -441,40 +405,10 @@ export default function CameraScreen({ navigation, route }: Props) {
       setRecording(false);
       console.warn('[camera] 녹화 실패', e);
     }
-  }, [elapsed, stopAt, minSec]);
+  }, [elapsed, stopAt]);
 
   const upload = useUploadFootage(projectId);
   const markTask = useUpdateTask(projectId);
-
-  /**
-   * 9.2 가 최소 길이 미달로 거부한 경우 (0828 명세 · 400 `FOOTAGE_TOO_SHORT`).
-   * 같은 파일을 다시 올려도 또 거부되므로 화면이 **다시 찍으라고** 말해야 합니다.
-   * 문구는 서버가 준 것을 그대로 씁니다 — 필요한 초가 그 안에 들어 있습니다.
-   */
-  const uploadError = upload.error instanceof ApiError ? upload.error : null;
-
-  /**
-   * 🔴 **하한 미달은 올리기 전에 우리가 먼저 압니다.**
-   *
-   * 하한(9.1)도, 방금 찍은 길이도 둘 다 손에 있습니다. 그런데도 굳이 올려서 400 을
-   * 받아야 할 이유가 없습니다 — 사장님은 영상이 다 올라갈 때까지 기다렸다가 퇴짜를
-   * 맞고, 그동안 데이터도 씁니다. 그래서 시트가 열리는 즉시 막습니다.
-   * 서버 400 은 그대로 **두 번째 방어선**으로 남습니다.
-   *
-   * ⚠️ `elapsed` 는 1초마다 오르므로 15.7초를 찍어도 15 입니다 — 즉 **실제보다 짧게**
-   *    셉니다. 그래서 이 검사는 아슬아슬한 촬영본을 서버보다 먼저 막는 쪽으로만
-   *    틀립니다. "조금 더 찍으세요" 로 틀리는 건 안전한 방향입니다.
-   */
-  const takeTooShort = isMinMode && take != null && take.durationSec < (minSec as number);
-  const tooShort = takeTooShort || uploadError?.code === 'FOOTAGE_TOO_SHORT';
-
-  /**
-   * 문구는 서버가 준 것을 우선합니다(필요한 초가 그 안에 들어 있습니다).
-   * 아직 안 올려 본 경우에는 하한 값으로 직접 만듭니다 — `minSec` 은 서버가 준
-   * 실제 값이라 지어낸 숫자가 아닙니다.
-   */
-  const tooShortMessage =
-    uploadError?.serverMessage ?? (minSec != null ? `최소 ${minSec}초 이상 촬영해 주세요.` : null);
 
   /** 찍은 컷을 올리고, 남은 컷이 있으면 그리로, 없으면 편집으로 갑니다. */
   const useTake = () => {
@@ -629,10 +563,7 @@ export default function CameraScreen({ navigation, route }: Props) {
       {/*
         그 아래 지금 찍을 컷 이름 — 시안 top-[92px] · 유리질 pill · 12.5 semibold
 
-        ⚠️ **컷 이름만 둡니다 — "· 최소 N초" 를 붙이지 않습니다** (2026-08-28 지시).
-           "간판 클로즈업 15초 남음" 처럼 읽혀서 하한이 상한으로 보였습니다.
-           남은/찍은 시간은 바로 위 카운터가 방향으로 말하고, 하한 미달은 검수 시트가
-           올리기 전에 막습니다(`takeTooShort`).
+        컷 이름만 두고, 남은/찍은 시간은 바로 위 카운터에서 보여 줍니다.
       */}
       {!take && task && (
         <View style={styles.takeLabelWrap} pointerEvents="none">
@@ -737,42 +668,26 @@ export default function CameraScreen({ navigation, route }: Props) {
                   <Text style={[styles.sheetBtnText, { color: color.ink[800] }]}>다시 촬영</Text>
                 </Pressable>
 
-                {/*
-                  너무 짧아 거부된 촬영본은 **쓸 수 있는 길이 없습니다.** 같은 파일을
-                  다시 올려도 또 400 이라, "사용하기" 를 남겨 두면 눌러도 안 되는
-                  버튼이 됩니다. 그때는 다시 촬영 하나만 남깁니다(위 버튼이 전체 폭을 씁니다).
-                */}
-                {!tooShort && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={useTake}
-                    style={({ pressed }) => [
-                      styles.sheetBtn,
-                      styles.sheetBtnPrimary,
-                      pressTap(pressed, 'button'),
-                    ]}
-                  >
-                    <Check size={18} strokeWidth={2.5} color={color.paper} />
-                    <Text style={[styles.sheetBtnText, { color: color.paper }]}>
-                      {upload.isError ? '다시 올리기' : '사용하기'}
-                    </Text>
-                  </Pressable>
-                )}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={useTake}
+                  style={({ pressed }) => [
+                    styles.sheetBtn,
+                    styles.sheetBtnPrimary,
+                    pressTap(pressed, 'button'),
+                  ]}
+                >
+                  <Check size={18} strokeWidth={2.5} color={color.paper} />
+                  <Text style={[styles.sheetBtnText, { color: color.paper }]}>
+                    {upload.isError ? '다시 올리기' : '사용하기'}
+                  </Text>
+                </Pressable>
               </View>
             )}
 
-            {/*
-              🔴 **너무 짧아서 거부된 경우는 다시 올려도 소용없습니다** (0828 명세 9.2).
-
-              같은 파일을 또 보내면 또 400 입니다. 그래서 그때는 서버가 준 문구를 그대로
-              보여 주고 **다시 찍도록** 안내합니다 — 서버 문구에 필요한 초가 들어 있어
-              우리가 다시 쓰지 않습니다("최소 15초 이상 촬영해주세요").
-            */}
-            {(upload.isError || takeTooShort) && (
+            {upload.isError && (
               <Text style={styles.sheetError}>
-                {tooShort
-                  ? (tooShortMessage ?? '촬영 시간이 너무 짧습니다. 다시 찍어 주세요.')
-                  : '올리지 못했습니다. 촬영본은 그대로 있으니 다시 시도해 주세요.'}
+                올리지 못했습니다. 촬영본은 그대로 있으니 다시 시도해 주세요.
               </Text>
             )}
           </SafeAreaView>
