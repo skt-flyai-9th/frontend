@@ -199,9 +199,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
                 <View style={styles.num}>
                   <Text style={styles.numText}>{i + 1}</Text>
                 </View>
-                <Text style={styles.cutLabel} numberOfLines={2}>
-                  {t.taskTitle.slice(0, 9)}
-                </Text>
+                <Text style={styles.cutLabel}>{t.taskTitle}</Text>
               </View>
             ))}
           </View>
@@ -276,6 +274,7 @@ const styles = StyleSheet.create({
   },
   cutLabel: {
     ...text.bodySmall,
+    flex: 1,
     flexShrink: 1,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
