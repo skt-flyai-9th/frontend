@@ -411,13 +411,23 @@ export default function AiChatScreen() {
     acceptRecommendation.mutate(rec.recommendationId, {
       onSuccess: (project) => {
         setSessionId(undefined);
-        nav.navigate('Create', {
-          screen: 'Camera',
-          params: {
-            projectId: Number(project.id),
-            formatId: project.videoFormatId ? Number(project.videoFormatId) : undefined,
-          },
-        });
+        /*
+          🔴 **촬영 준비를 거쳐서 갑니다** (2026-08-28).
+
+          예전에는 여기서 곧장 카메라로 보냈습니다. 홈 피드에서 포맷을 고른 흐름은
+          촬영 준비(컷 구성·안무 가이드)를 보고 시작하는데, **추천으로 들어온 사장님만
+          아무 안내 없이 카메라가 켜졌습니다.** 같은 자리에서 같은 화면을 보게 맞춥니다.
+
+          ⚠️ `formatId` 가 없으면 촬영 준비가 그릴 것이 없습니다. 그때만 예외로
+             카메라로 보냅니다 — 7.1 기획이 실패하면 `video_format_id` 가 null 로 옵니다.
+        */
+        const projectId = Number(project.id);
+        const formatId = project.videoFormatId ? Number(project.videoFormatId) : undefined;
+        if (formatId) {
+          nav.navigate('Create', { screen: 'FormatDetail', params: { projectId, formatId } });
+        } else {
+          nav.navigate('Create', { screen: 'Camera', params: { projectId } });
+        }
       },
     });
   };
