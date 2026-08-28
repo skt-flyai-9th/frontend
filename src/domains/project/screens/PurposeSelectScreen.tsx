@@ -34,10 +34,15 @@ import { AppBar } from '../../../ui/AppBar';
 import { Banner } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
 import theme, { color, radius, space, sizing, text } from '../../../design/theme';
-import { useCreateProject, useProjects } from '../../../api/queries/project';
+import { useCreateProject } from '../../../api/queries/project';
 import { useMenus } from '../../../api/queries/store';
 import { useCurrentStore } from '../../../lib/appState';
-import type { MenuDetailTag, PromotionPurpose } from '../../../api/schema/types';
+import type {
+  MenuDetailTag,
+  PromotionDetail,
+  PromotionPurpose,
+  StoreElement,
+} from '../../../api/schema/types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CreateStackParamList, RootStackParamList } from '../../../navigation/types';
@@ -146,12 +151,6 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
     return narrowed;
   }, [menus, topic, value]);
 
-  /**
-   * 명세 확정 (2026-08-23): 목적은 4.1 생성 때 정해지고 **만든 뒤 바꿀 수 없습니다.**
-   * 같은 목적의 DRAFT 가 있으면 그대로 이어 쓰고, 다르면 새로 만듭니다.
-   */
-  const { data: projects } = useProjects(storeId, 'DRAFT');
-
   const next = () => {
     if (!topic || !storeId) return;
     /*
@@ -165,14 +164,26 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
       else rootNav.navigate('Main', { screen: 'HomeFeed' });
     };
 
-    const reusable = projects?.find((d) => d.promotionPurpose === topic.purpose);
-    if (reusable) {
-      go(reusable.id);
-      return;
-    }
+    const answer = value.trim();
+    const selectedMenu = menus?.find((menu) => menu.name === answer);
+    const storeElement: StoreElement =
+      answer === '편의시설' ? '서비스경험' : '공간';
+    const promotionDetail: PromotionDetail =
+      topic.purpose === '메뉴소개'
+        ? { detailTag: topic.detailTag ?? '대표메뉴', menuName: answer }
+        : topic.purpose === '이벤트알리기'
+          ? { eventName: answer }
+          : { elements: [storeElement], description: answer };
 
     createProject.mutate(
-      { storeId, promotionPurpose: topic.purpose },
+      {
+        storeId,
+        promotionPurpose: topic.purpose,
+        settings: {
+          menuId: topic.purpose === '메뉴소개' ? selectedMenu?.id ?? null : null,
+          promotionDetail,
+        },
+      },
       { onSuccess: (p) => go(p.id) }
     );
   };

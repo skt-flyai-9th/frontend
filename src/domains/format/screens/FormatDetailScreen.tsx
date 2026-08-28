@@ -32,7 +32,12 @@ import { Banner, Loading } from '../../../ui/Feedback';
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
-import { useCreatePlan, useShootingSummary, useVideoFormat } from '../../../api/queries/project';
+import {
+  useCreatePlan,
+  useProject,
+  useShootingSummary,
+  useVideoFormat,
+} from '../../../api/queries/project';
 import { useTasks } from '../../../api/queries/shoot';
 import theme, { color, radius, space, text } from '../../../design/theme';
 import { shootTime } from '../../../lib/format';
@@ -69,6 +74,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
   const { data: format, isLoading, isError, refetch } = useVideoFormat(formatId);
 
   const createPlan = useCreatePlan(projectId ?? 0);
+  const project = useProject(projectId);
   /** 화면을 다시 열어도 남는 값 — 7.2 조회에서 같은 요약을 봅니다. */
   const storedSummary = useShootingSummary(projectId);
   const { data: board, isLoading: tasksLoading } = useTasks(projectId);
@@ -80,11 +86,13 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
    */
   useEffect(() => {
     if (!projectId) return;
-    if (tasksLoading || tasks.length > 0) return;
+    if (tasksLoading || project.isLoading) return;
+    const matchesSelectedFormat = Number(project.data?.videoFormatId) === Number(formatId);
+    if (tasks.length > 0 && matchesSelectedFormat) return;
     if (createPlan.isPending || createPlan.isSuccess || createPlan.isError) return;
     createPlan.mutate(formatId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, tasksLoading, tasks.length]);
+  }, [projectId, formatId, tasksLoading, tasks.length, project.isLoading, project.data?.videoFormatId]);
 
   if (isError || (!isLoading && !format)) {
     return (
@@ -109,7 +117,10 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  const preparing = !!projectId && tasks.length === 0 && !createPlan.isError;
+  const selectedFormatMismatch =
+    !!projectId && Number(project.data?.videoFormatId) !== Number(formatId);
+  const preparing =
+    !!projectId && (tasks.length === 0 || selectedFormatMismatch) && !createPlan.isError;
 
   /**
    * 7.1 이 준 촬영 요약. 화면을 다시 열면 mutation 결과가 없어지므로
@@ -181,7 +192,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
           />
         ) : preparing ? (
           <Loading label="촬영 컷을 만드는 중" />
-        ) : tasks.length > 0 ? (
+        ) : tasks.length > 0 && !selectedFormatMismatch ? (
           <View style={styles.cuts}>
             {tasks.map((t, i) => (
               <View key={t.id} style={styles.cut}>
@@ -189,7 +200,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
                   <Text style={styles.numText}>{i + 1}</Text>
                 </View>
                 <Text style={styles.cutLabel} numberOfLines={2}>
-                  {t.taskTitle}
+                  {t.taskTitle.slice(0, 9)}
                 </Text>
               </View>
             ))}

@@ -43,6 +43,7 @@ export function useNextShortformRecommendation(sessionId?: number) {
         recommendations?: ShortformRecommendation[];
         recommendation?: ShortformRecommendation;
         shownTemplateIds: string[];
+        hasMoreRecommendations?: boolean;
       }>(API.nextShortformRecommendation(sessionId), { method: 'POST' });
       return {
         id: data.id,
@@ -52,6 +53,7 @@ export function useNextShortformRecommendation(sessionId?: number) {
         projectState: {},
         recommendations:
           data.recommendations ?? (data.recommendation ? [data.recommendation] : []),
+        hasMoreRecommendations: data.hasMoreRecommendations,
       };
     },
   });
