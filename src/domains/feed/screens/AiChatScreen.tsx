@@ -443,20 +443,31 @@ export default function AiChatScreen() {
    *   · 오류가 났을 때 (선택지가 없으니 길이 막힙니다)
    */
   /**
-   * 🔴 **서버 선택지에서 "직접 입력하기" 를 걷어냅니다** (2026-08-28 사장님 지시).
+   * 🔴 **서버 선택지에서 "직접 적으라" 는 칩을 걷어냅니다** (2026-08-28 사장님 지시).
    *
-   * 서버가 선택지 끝에 `{ id: 'FREE_INPUT', label: '직접 입력하기' }` 를 함께 줍니다
-   * (실측: `POST /stores/21/shortform-sessions` → PROMOTION_GUIDE + FREE_INPUT).
-   * 그런데 우리는 그 아래에 **같은 일을 하는 회색 칩**을 이미 그리고 있어서
-   * "직접 입력" 이 파랑·회색 두 개로 보였습니다.
+   * 그 아래에 같은 일을 하는 회색 칩을 우리가 이미 그리고 있어서, 파랑·회색 두 개가
+   * 나란히 서 있었습니다.
    *
-   * 남기는 쪽은 **회색**입니다. 파란 칩을 누르면 서버에 한 번 갔다 와야 하지만
-   * 회색 칩은 그 자리에서 입력창을 열고 커서까지 넣습니다 — 한 박자 빠릅니다.
-   * 색도 "객관식이 먼저 눈에 들어와야 한다" 는 원래 의도에 맞습니다.
+   * ⚠️ **id 로만 거르면 첫 차례밖에 못 막습니다.** 처음에 `FREE_INPUT` 하나만 걸렀는데
+   *    사장님이 "선택지를 누를 때마다 또 나온다" 고 하셨습니다. 대화를 끝까지 밟아 보니
+   *    **차례마다 id 가 다릅니다.**
    *
-   * 라벨이 아니라 **`id` 로 거릅니다.** 문구는 서버가 언제든 바꿀 수 있습니다.
+   *      1차  FREE_INPUT               "직접 입력하기"
+   *      3차  representative_menu_none "메뉴명 직접 입력"
+   *      4차  manual_menu              "메뉴명 직접 입력"
+   *
+   *    (실측: 세션 278, store 21. 2·5·6차에는 아예 없었습니다.)
+   *    id 목록을 늘려 봐야 다음에 또 새 이름이 나옵니다. 그래서 **문구로도** 봅니다.
+   *
+   * 남기는 쪽은 **회색**입니다. 파란 칩은 눌러도 서버에 한 번 갔다 와서 "그럼 적어
+   * 주세요" 라는 차례를 하나 더 거치지만, 회색 칩은 그 자리에서 입력창을 열고 커서까지
+   * 넣습니다. 적어 낸 값은 어느 쪽이든 `TEXT` 로 가고 서버가 똑같이 받습니다
+   * (실측: 메뉴를 묻는 차례에 "수제버거" 를 TEXT 로 보내니 `SAVE_AND_ASK` 로 넘어갔습니다).
    */
-  const choices = options.filter((o) => o.id !== 'FREE_INPUT');
+  const isFreeInputOption = (o: ShortformOption) =>
+    o.id === 'FREE_INPUT' || o.label.replace(/\s/g, '').includes('직접입력');
+
+  const choices = options.filter((o) => !isFreeInputOption(o));
 
   const openEnded = !!sessionId && !pending && options.length === 0 && !hasRecs;
   const showInput = !!sessionId && (freeInput || hasRecs || openEnded || hasError);
