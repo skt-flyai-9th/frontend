@@ -430,6 +430,22 @@ export default function AiChatScreen() {
    *   · 서버가 **선택지 없이** 물어볼 때 (열린 질문이라 적는 수밖에 없습니다)
    *   · 오류가 났을 때 (선택지가 없으니 길이 막힙니다)
    */
+  /**
+   * 🔴 **서버 선택지에서 "직접 입력하기" 를 걷어냅니다** (2026-08-28 사장님 지시).
+   *
+   * 서버가 선택지 끝에 `{ id: 'FREE_INPUT', label: '직접 입력하기' }` 를 함께 줍니다
+   * (실측: `POST /stores/21/shortform-sessions` → PROMOTION_GUIDE + FREE_INPUT).
+   * 그런데 우리는 그 아래에 **같은 일을 하는 회색 칩**을 이미 그리고 있어서
+   * "직접 입력" 이 파랑·회색 두 개로 보였습니다.
+   *
+   * 남기는 쪽은 **회색**입니다. 파란 칩을 누르면 서버에 한 번 갔다 와야 하지만
+   * 회색 칩은 그 자리에서 입력창을 열고 커서까지 넣습니다 — 한 박자 빠릅니다.
+   * 색도 "객관식이 먼저 눈에 들어와야 한다" 는 원래 의도에 맞습니다.
+   *
+   * 라벨이 아니라 **`id` 로 거릅니다.** 문구는 서버가 언제든 바꿀 수 있습니다.
+   */
+  const choices = options.filter((o) => o.id !== 'FREE_INPUT');
+
   const openEnded = !!sessionId && !pending && options.length === 0 && !hasRecs;
   const showInput = !!sessionId && (freeInput || hasRecs || openEnded || hasError);
 
@@ -493,9 +509,9 @@ export default function AiChatScreen() {
             />
           )}
 
-          {!pending && options.length > 0 && (
+          {!pending && choices.length > 0 && (
             <View style={styles.options}>
-              {options.map((option) => (
+              {choices.map((option) => (
                 <Pressable
                   key={option.id}
                   accessibilityRole="button"
@@ -513,6 +529,10 @@ export default function AiChatScreen() {
             "직접 입력" 도 **선택지와 같은 칩**입니다 (사장님 지시).
             누르면 아래 입력창이 올라오고 커서가 들어가 키보드까지 같이 뜹니다.
             선택지 줄 안에 들어가야 같은 높이로 나란히 서므로 위 블록과 한 몸입니다.
+
+            ⚠️ 조건이 `choices` 가 아니라 **`options`** 인 것은 일부러입니다. 서버가
+               `FREE_INPUT` **하나만** 보내는 차례에는 걸러낸 목록이 비는데, 그때
+               `choices` 로 재면 이 칩까지 같이 사라져 길이 막힙니다.
           */}
           {!pending && options.length > 0 && !freeInput && (
             <View style={styles.options}>
