@@ -1,10 +1,14 @@
 /**
- * MyPageScreen — 마이 탭. **시안 2차 `mypage` 대조 이식** (2026-08-26).
+ * MyPageScreen — 마이 탭. **기준 시안 11차** (2026-08-28 갱신).
+ *
+ * 이식은 시안 2차 기준이었고 버튼 문구만 9차로 고쳐져 있었습니다. 8차에서
+ * place+ 줄이 빠진 것을 2026-08-28 에 반영했습니다.
+ * 아직 안 온 것: 11차의 "이어서 편집하기" 카드 (아래 '만들던 영상' 참고).
  *
  * 시안 레이아웃 순서를 그대로 따릅니다.
  *   ① 헤더: 가게 이름(중앙 18·bold) + 메뉴 아이콘
  *   ② 아바타 92 + 링 · 오른쪽에 Videos / Views 통계
- *   ③ 카테고리 · place+ · 인스타그램 · 유튜브
+ *   ③ 카테고리 · 인스타그램 · 유튜브 (place+ 는 8차에서 빠졌습니다)
  *   ④ "매장 정보 수정" 전체폭 아웃라인 버튼 (시안 9차 문구)
  *   ⑤ Professional Insight 카드 (brand-tint + brand-border)
  *   ⑥ 3열 그리드 **풀블리드** (간격 2px, 좌우 여백 0)
@@ -151,13 +155,14 @@ export default function MyPageScreen() {
       <View style={styles.info}>
         <Text style={[text.bodySmall, { color: color.ink[500] }]}>{store?.category ?? ''}</Text>
 
+        {/*
+          시안 8차에서 place+ "네이버 스마트 플레이스" 줄이 빠졌습니다.
+          11차 원문에도 `PlaceMark` 는 정의만 남고 어느 화면에서도 쓰이지 않습니다 —
+          실수로 누락된 게 아니라 화면에서 내린 것입니다.
+          이 한 줄이 약 24pt(행 18 + 줄간격 6)라, 그동안 매장 정보 수정 버튼·
+          인사이트 카드·3열 그리드가 통째로 그만큼 내려와 있었습니다.
+        */}
         <View style={styles.links}>
-          <View style={styles.linkRow}>
-            <BrandMark kind="place" />
-            <Text style={styles.linkText}>
-              {store?.infoSource === 'NAVER' ? '네이버 스마트 플레이스' : '연동 안 됨'}
-            </Text>
-          </View>
           <View style={styles.linkRowWide}>
             <Pressable
               accessibilityRole="button"
@@ -331,7 +336,8 @@ const styles = StyleSheet.create({
   infoPad: { paddingHorizontal: space[4] },
   // 시안: gap-1.5(6) — 8 이 아닙니다
   links: { gap: 6 },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  // 시안: 링크 안쪽 gap-1.5(6) — 8 이 아닙니다
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   linkRowWide: { flexDirection: 'row', alignItems: 'center', gap: space[4] },
   linkText: { ...theme.text.bodySmall, color: color.ink[800] },
 

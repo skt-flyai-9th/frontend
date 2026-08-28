@@ -34,7 +34,6 @@ import {
   ChevronLeft,
   MapPin,
   RefreshCw,
-  Sparkles,
   TrendingUp,
   Users,
 } from 'lucide-react-native';
@@ -318,8 +317,8 @@ export default function InsightScreen() {
         <View style={styles.recCard}>
           <View style={styles.recMedia} />
           <View style={{ padding: space[4] }}>
+            {/* 시안 8차에서 배지 안 sparkles 아이콘이 빠졌습니다 (gap-1 도 함께) */}
             <View style={styles.recBadge}>
-              <Sparkles size={12} strokeWidth={2} color={color.brand[600]} />
               <Text style={styles.recBadgeText}>인사이트 분석 기반</Text>
             </View>
             {/*
@@ -473,11 +472,11 @@ const styles = StyleSheet.create({
     ...theme.elevation('card'),
   },
   recMedia: { width: '100%', aspectRatio: 4 / 5, backgroundColor: color.ink[200] },
+  // 시안 8차: 아이콘이 빠지면서 gap-1 도 함께 없어졌습니다 (글자만 남는 배지)
   recBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 4,
     height: 20,
     paddingHorizontal: space[2],
     borderRadius: radius.pill,
