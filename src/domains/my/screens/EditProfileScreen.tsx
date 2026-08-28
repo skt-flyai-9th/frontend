@@ -39,7 +39,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, Check, CircleAlert, Plus, ShieldCheck, X } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
@@ -138,6 +138,7 @@ function formatPhone(v: string) {
 }
 
 export default function EditProfileScreen() {
+  const route = useRoute<RouteProp<RootStackParamList, 'EditProfile'>>();
   const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
@@ -185,6 +186,27 @@ export default function EditProfileScreen() {
     setConnecting(p);
     setPhase('consent');
   };
+
+  /**
+   * 🔴 **마이페이지에서 바로 연동 시트를 엽니다** (2026-08-28 사장님 지시).
+   *
+   * 예전에는 마이페이지 SNS 줄에서 아직 연동 안 된 쪽을 누르면 이 화면만 띄우고
+   * 끝났습니다. 사장님은 여기서 다시 아래로 내려 그 플랫폼을 찾아 눌러야 했습니다.
+   * 갈 곳이 뻔한데 한 단계를 더 걷게 한 셈입니다.
+   *
+   * `connect` 파라미터가 있으면 그 플랫폼의 동의 시트까지 열어 줍니다.
+   * **한 번만** 엽니다 — 시트를 닫고 화면에 머무는데 다시 열리면 안 됩니다.
+   */
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    const want = route.params?.connect;
+    if (!want || autoOpened.current) return;
+    const p = PLATFORMS.find((x) => x.key === want);
+    if (!p) return;
+    autoOpened.current = true;
+    setConnecting(p);
+    setPhase('consent');
+  }, [route.params?.connect]);
 
   const closeSheet = () => {
     setConnecting(null);

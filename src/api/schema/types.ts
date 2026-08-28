@@ -264,6 +264,15 @@ export interface Insight {
   /** 명세: 외부데이터 / AI추론 등. 사실과 추측을 구분해 표시하기 위한 값 */
   insightSource: string;
   generatedAt: string;
+  /**
+   * 명세 3.5 에 **필드는 있는데 내용이 정해져 있지 않습니다.**
+   *
+   * 소비층 구성(연령대·성별 비율)이 여기 들어올 것으로 보이지만, 실서버 3.5 가
+   * 아직 빈 배열이라(store 21·67 둘 다 `{"insights": []}`) 실제 모양을 한 번도
+   * 못 봤습니다. BE 에 질의 중이라 `unknown` 으로 두고 화면에서 조심히 읽습니다
+   * (`InsightScreen` 의 `readMix`).
+   */
+  insightData?: unknown;
 }
 
 // ══════════════════════════════════════════════════
@@ -872,6 +881,32 @@ export interface PublishResponse {
   postPlatform: SnsPlatform;
   postStatus: PostStatus;
   createdAt: string;
+}
+
+/**
+ * 명세 17.3 주간 요약 — 매장 단위 집계.
+ *
+ * `views_change_rate` 는 **조회수에만** 있습니다. 좋아요 증감률은 서버가 주지
+ * 않으므로 화면에서도 붙이지 않습니다(없는 값을 지어내지 않습니다).
+ */
+export interface DailyViewsPoint {
+  /** `2026-08-24` */
+  date: string;
+  views: number;
+}
+
+export interface PlatformWeeklyTotal {
+  platform: SnsPlatform;
+  weeklyViews: number;
+  weeklyLikes: number;
+  /** 지난주 대비 증감. 비교할 지난주가 없으면 `null` 입니다. */
+  viewsChangeRate?: number | null;
+  dailyViews: DailyViewsPoint[];
+}
+
+export interface WeeklySummaryResponse {
+  weekStart: string;
+  platforms: PlatformWeeklyTotal[];
 }
 
 export interface SnsPost {

@@ -163,6 +163,15 @@ export const API = {
     if (goal) parts.push(`goal=${encodeURIComponent(goal)}`);
     return `/sns-posts/compare?${parts.join('&')}`;                  // 17.2
   },
+  /**
+   * 17.3 주간 요약 — **계정(매장) 단위 집계**입니다.
+   *
+   * 17.1 은 게시물 하나의 지표라 주간 합산을 만들 수 없었습니다. 이게 생기면서
+   * 매장 인사이트의 조회수·좋아요·주간 추이를 실제 값으로 채울 수 있게 됐습니다.
+   * 플랫폼(INSTAGRAM·YOUTUBE)별로 한 덩어리씩 옵니다.
+   */
+  weeklySummary: (storeId: number) =>
+    `/sns-posts/weekly-summary?store_id=${storeId}`,                 // 17.3
 } as const;
 
 /**

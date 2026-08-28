@@ -45,4 +45,6 @@ export const qk = {
     ['metrics', postId, from ?? 'all', to ?? 'all'] as const,
   compare: (storeId: number, platform?: string, goal?: string) =>
     ['compare', storeId, platform ?? 'all', goal ?? 'all'] as const,
+  /** 17.3 주간 요약 — 매장 인사이트 상단이 씁니다. */
+  weeklySummary: (storeId: number) => ['weeklySummary', storeId] as const,
 };

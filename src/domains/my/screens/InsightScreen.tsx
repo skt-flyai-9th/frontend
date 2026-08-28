@@ -27,38 +27,104 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, View, Text, Pressable, StyleSheet, type ViewStyle, ScrollView } from 'react-native';
-import {
-  Bookmark,
-  Camera,
-  ChevronDown,
-  ChevronLeft,
-  MapPin,
-  TrendingUp,
-  Users,
-} from 'lucide-react-native';
+import { Camera, ChevronLeft, Eye, Heart, Sparkles } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
 import { LineChart } from '../../../ui/LineChart';
+import { Donut, DonutLegend, type DonutSeg } from '../../../ui/Donut';
 import { LoadGate } from '../../../ui/LoadGate';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
-import { useInsights } from '../../../api/queries/store';
+import { useInsights, useStore } from '../../../api/queries/store';
 import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import theme, { color, radius, space, text } from '../../../design/theme';
 import type { RootStackParamList, MyStackParamList } from '../../../navigation/types';
+import type { SnsPlatform } from '../../../api/schema/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList & MyStackParamList>;
 
-/** 지표의 icon 문자열 → lucide 컴포넌트 */
-const KPI_ICONS: Record<string, typeof TrendingUp> = {
-  'trending-up': TrendingUp,
-  'map-pin': MapPin,
-  bookmark: Bookmark,
-  users: Users,
-};
+/**
+ * 시안 소비층 도넛 색 — 진한 브랜드에서 옅은 쪽으로.
+ *
+ * ⚠️ **순서가 아니라 비중으로 나눠 줍니다.** 시안 `AGE_MIX` 를 보면
+ *    10대(8%) 가 가장 옅고 20대(42%) 가 브랜드색입니다 — 목록 순서가 아니라
+ *    **큰 조각일수록 진한 색**입니다. 순서대로 주면 8% 짜리가 가장 진해져
+ *    무엇이 주 고객인지 거꾸로 읽힙니다.
+ *
+ *    시안 값을 비중 순으로 세우면 정확히 이 배열이 됩니다:
+ *    42→#2563eb · 27→#60a5fa · 15→#93c5fd · 8→#dbeafe · 8→#cbd5e1
+ */
+const MIX_COLORS = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#cbd5e1'];
+
+/**
+ * 3.5 `insight_data` 에서 소비층 비율을 꺼냅니다.
+ *
+ * ⚠️ **서버가 주는 모양을 아직 모릅니다.** 실서버 3.5 가 빈 배열이라 한 번도 못
+ *    봤습니다(BE 질의 중). 그래서 **아는 모양만 읽고, 아니면 그냥 없다고 봅니다** —
+ *    억지로 해석해서 엉뚱한 비율을 그리는 것보다 빈 칸이 낫습니다.
+ *
+ * 지금 읽는 모양(목업 기준): `{ age_mix: [{label, value}], gender_mix: [...] }`
+ * BE 가 다른 이름으로 주면 **이 함수만** 고치면 됩니다.
+ */
+function readMix(data: unknown, key: 'ageMix' | 'genderMix'): DonutSeg[] | null {
+  if (!data || typeof data !== 'object') return null;
+  const raw = (data as Record<string, unknown>)[key];
+  if (!Array.isArray(raw)) return null;
+  const items = raw.filter((r): r is { label: string; value: number } =>
+    !!r && typeof r === 'object' &&
+    typeof (r as { label?: unknown }).label === 'string' &&
+    typeof (r as { value?: unknown }).value === 'number'
+  );
+  if (items.length === 0) return null;
+
+  // 비중이 큰 순으로 색을 나눠 줍니다(위 MIX_COLORS 머리말). 그리는 **순서는
+  // 원래대로** 둡니다 — 도넛은 10대부터 시계방향으로 도는 게 읽기 좋습니다.
+  const rank = new Map<number, number>();
+  [...items.keys()]
+    .sort((a, b) => items[b].value - items[a].value)
+    .forEach((idx, place) => rank.set(idx, place));
+
+  return items.map((r, i) => ({
+    label: r.label,
+    value: r.value,
+    color: MIX_COLORS[rank.get(i) ?? 0] ?? MIX_COLORS[MIX_COLORS.length - 1],
+  }));
+}
+
+/**
+ * 지역 상권 칩에 찍을 이름 — 시안 `지역 상권 분석  [보라매 상권]`.
+ *
+ * **시안이 어디서 가져왔는지 원문에서 확인했습니다.** 시안 매장이
+ * `열정커피 보라매점 · 서울 동작구 보라매로 87` 입니다 — 칩의 "보라매" 는
+ * **그 매장 주소의 길 이름**입니다(`STORE_DB`, 시안 번들 `535ddecc`).
+ * 지어낸 값이 아니라 우리도 2.1·3.1 로 갖고 있는 데이터입니다.
+ *
+ * 그래서 같은 규칙으로 뽑습니다 — 도로명에서 `로 / 대로 / 길` 을 떼고 "OO 상권".
+ * 길 이름을 못 읽으면 `구 / 시 / 군` 으로 물러섭니다.
+ *
+ *   서울 동작구 보라매로 87        → 보라매 상권   (시안과 일치)
+ *   서울 관악구 난곡로 42          → 난곡 상권
+ *   서울 은평구 대서문길 24-11     → 대서문 상권
+ *   서울특별시 중구 세종대로 124   → 세종 상권
+ *
+ * ⚠️ **이건 주소에서 뽑은 이름이지 서버가 분류한 상권명이 아닙니다.** 실제 상권
+ *    이름과 다를 수 있어 BE 에 필드를 요청해 뒀습니다. 값이 오면 그쪽을 씁니다.
+ */
+function areaLabel(address?: string | null): string | null {
+  if (!address) return null;
+  // 괄호 안 법정동(예: "(태평로1가)")은 도로명과 섞이면 잘못 읽힙니다.
+  const parts = String(address).replace(/\([^)]*\)/g, ' ').trim().split(/\s+/);
+  const road = parts.find((t) => /(대로|로|길)$/.test(t) && t.length >= 3);
+  if (road) {
+    const stem = road.replace(/(대로|로|길)$/, '');
+    if (stem.length >= 2) return `${stem} 상권`;
+  }
+  const gu = parts.find((t) => /(구|시|군)$/.test(t) && t.length >= 3);
+  return gu ? `${gu} 상권` : null;
+}
 
 /**
  * 시안 `rise-in` — `@keyframes rise{from{opacity:0;transform:translateY(14px)}}`
@@ -102,60 +168,50 @@ function RiseIn({
   );
 }
 
-/**
- * 상권 막대 — 시안 `transition: width .6s ease-out`, 지연 `0.2 + 0.1×i` 초.
- *
- * ⚠️ width 는 레이아웃 속성이라 **네이티브 드라이버를 못 씁니다**.
- *    scaleX 로 바꾸면 네이티브로 돌릴 수 있지만, pill 막대라 자라는 동안
- *    양 끝 둥근 모서리가 눌려 보입니다. 시안이 쓰는 값이 width 이기도 해서
- *    그대로 두고 JS 스레드로 돌립니다 — 진입 때 한 번, 막대 3개뿐입니다.
- */
-function ShareBar({ value, tint, index }: { value: number; tint: string; index: number }) {
-  const t = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(t, {
-      toValue: 1,
-      duration: 600,
-      delay: 200 + index * 100,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: false,
-    }).start();
-  }, [t, index]);
-
-  return (
-    // 시안: h-2 pill · 트랙 #F1F5F9
-    <View style={styles.shareTrack}>
-      <Animated.View
-        style={[
-          styles.shareFill,
-          {
-            backgroundColor: tint,
-            width: t.interpolate({ inputRange: [0, 1], outputRange: ['0%', `${value}%`] }),
-          },
-        ]}
-      />
-    </View>
-  );
-}
 
 export default function InsightScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
   const storeId = useAppState((s) => s.storeId);
+  /** 상권 칩 이름을 주소에서 뽑습니다 — 다른 값은 쓰지 않습니다. */
+  const { data: store } = useStore(storeId ?? undefined);
   const insights = useInsights(storeId ?? undefined);
-  const metrics = useInsightMetrics();
-  const [showLocalText, setShowLocalText] = useState(false);
+  /** 17.3 — 플랫폼별 주간 조회수·좋아요·7일 추이 */
+  const metrics = useInsightMetrics(storeId ?? undefined);
+
+  const platforms = metrics.data ?? [];
+  /** 고른 플랫폼. 처음에는 시안 순서대로 유튜브가 잡힙니다. */
+  const [plat, setPlat] = useState<SnsPlatform | null>(null);
+  const cur = platforms.find((p) => p.platform === plat) ?? platforms[0];
 
   const list = insights.data ?? [];
   const local = list.find((i) => i.insightType === '상권분석');
   const next = list.find((i) => i.insightType === '다음숏폼추천');
-  /*
-   * 비율 막대가 있을 때만 문장형 분석을 접습니다.
-   * 막대가 없으면(집계 없는 실서버) 카드에 남는 게 문장뿐이라 접을 이유가 없고,
-   * 접으면 카드가 제목만 남아 빈 상자로 보입니다.
+
+  /**
+   * 시안은 제목 옆에 **"보라매 상권" 같은 짧은 지역 이름**을 칩으로 답니다.
+   *
+   * ⚠️ **그런 필드가 없습니다.** 3.5 의 `insight_title` 을 넣어 봤더니
+   *    "주거 밀집 생활형 골목상권, 점심 시간대 집중" 처럼 문장이 통째로 들어가
+   *    칩이 제목보다 길어졌습니다(캡처로 확인).
+   *
+   * 그래서 **칩은 달지 않고**, 제목을 시안의 한 줄 요약 자리에 씁니다 — 길이도
+   * 역할도 그쪽이 맞습니다(시안: "20대 여성 유입이 가장 높은 상권이에요").
+   * 자세한 설명은 그 아래 줄로 내립니다. 지역 이름은 BE 에 요청해 두었습니다.
    */
-  const hasShares = (metrics.data?.local.length ?? 0) > 0;
-  const foldable = !!local && hasShares;
+  const areaSummary = local?.insightTitle?.trim() || null;
+
+  /** 시안 칩 — 매장 주소에서 뽑습니다(위 `areaLabel` 머리말). */
+  const areaName = areaLabel(store?.address);
+
+  /** 소비층 도넛 두 개. 값이 없으면 null 이고 화면은 빈 칸을 그립니다. */
+  const mixes: { label: string; segs: DonutSeg[] | null }[] = [
+    { label: '연령대', segs: readMix(local?.insightData, 'ageMix') },
+    { label: '성별', segs: readMix(local?.insightData, 'genderMix') },
+  ];
+
+  /** 두 플랫폼 모두 0 이면 아직 올린 영상이 없는 것입니다. */
+  const noPosts = platforms.length > 0 && platforms.every((p) => p.week.every((d) => d.value === 0));
 
   return (
     /*
@@ -196,45 +252,98 @@ export default function InsightScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ② KPI 2열 그리드 */}
-        <View style={styles.kpiGrid}>
-          {(metrics.data?.kpis ?? []).map((kpi, i) => {
-            const Icon = KPI_ICONS[kpi.icon] ?? TrendingUp;
-            return (
-              <View key={kpi.label} style={styles.kpiWrap}>
-                {/* 시안: rise-in · animationDelay 0.05×i */}
-                <RiseIn delay={50 * i} style={styles.kpiCard}>
-                  <View style={styles.kpiHead}>
-                    <Icon size={16} strokeWidth={2} color={color.ink[500]} />
-                    <Text style={styles.kpiLabel}>{kpi.label}</Text>
-                  </View>
-                  <View style={styles.kpiValueRow}>
-                    <Text style={styles.kpiValue}>{kpi.value ?? '—'}</Text>
-                    {kpi.delta ? <Text style={styles.kpiDelta}>{kpi.delta}</Text> : null}
-                  </View>
-                </RiseIn>
-              </View>
-            );
-          })}
-        </View>
-        {/* 값이 없을 때만 왜 비었는지 밝힙니다. 빈 값만 두면 고장으로 읽힙니다. */}
-        {!metrics.data?.kpis.some((k) => k.value) && (
-          <Text style={styles.note}>
-            조회수·전환 집계는 준비 중입니다. 게시한 숏폼의 성과는 반응 보기에서 볼 수 있어요.
-          </Text>
-        )}
+        {/*
+          ① 플랫폼 토글 — 시안 `PlatformTabs`.
+             mb-3 · bg #F1F5F9 · p-0.5 · 버튼 h-7 · 11 semibold
+             고른 쪽만 흰 배경 + 브랜드색, 나머지는 회색 글자입니다.
 
-        {/* ③ 주간 조회수 추이 */}
+          17.3 이 주는 플랫폼만 그립니다. 한 쪽만 오면 토글이 한 칸이 되고,
+          아예 없으면 줄 자체가 사라집니다 — 없는 플랫폼을 만들지 않습니다.
+        */}
+        {platforms.length > 1 ? (
+          <View style={styles.tabs}>
+            {platforms.map((p) => {
+              // ⚠️ `plat` 이 아니라 **지금 그리는 플랫폼**과 견줍니다. 처음에는 고른 적이
+              //    없어 `plat` 이 null 인데, 화면은 첫 번째 것을 이미 그리고 있습니다.
+              //    null 로 견주면 **아무 탭도 안 켜진 채** 숫자만 나옵니다.
+              const on = p.platform === cur?.platform;
+              return (
+                <Pressable
+                  key={p.platform}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setPlat(p.platform)}
+                  style={({ pressed }) => [
+                    styles.tab,
+                    on && styles.tabOn,
+                    pressTap(pressed, 'icon'),
+                  ]}
+                >
+                  <Text style={[styles.tabText, on && styles.tabTextOn]}>{p.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {/*
+          ② 조회수·좋아요 2열 — 시안 rounded-2xl · p-3.5 · 아이콘 16 + 12 라벨,
+             값 19 bold tabular · 증감 12 semibold(초록).
+
+          ⚠️ **좋아요에는 증감이 없습니다.** 서버가 주는 증감률은 조회수 것
+             (`views_change_rate`) 하나뿐입니다. 시안에는 `+9%` 가 붙어 있지만
+             지어내지 않습니다 (CLAUDE.md §2).
+        */}
+        <View style={styles.kpiGrid}>
+          <View style={styles.kpiWrap}>
+            {/*
+              시안은 숫자에 `key={"v" + plat}` 를 걸어 **탭을 바꿀 때마다 다시 떠오르게**
+              합니다. key 가 바뀌면 React 가 새로 붙이므로 rise-in 이 다시 돕니다.
+              값이 바뀐 걸 눈으로 알아채라고 두는 장치입니다 — 숫자만 슬쩍 갈리면
+              바뀐 줄 모릅니다.
+            */}
+            <RiseIn key={`v${cur?.platform ?? ''}`} style={styles.kpiCard}>
+              <View style={styles.kpiHead}>
+                <Eye size={16} strokeWidth={2} color={color.ink[500]} />
+                <Text style={styles.kpiLabel}>총 조회수</Text>
+              </View>
+              <View style={styles.kpiValueRow}>
+                <Text style={styles.kpiValue}>{cur?.views ?? '—'}</Text>
+                {cur?.viewsDelta ? <Text style={styles.kpiDelta}>{cur.viewsDelta}</Text> : null}
+              </View>
+            </RiseIn>
+          </View>
+          <View style={styles.kpiWrap}>
+            <RiseIn key={`l${cur?.platform ?? ''}`} delay={50} style={styles.kpiCard}>
+              <View style={styles.kpiHead}>
+                <Heart size={16} strokeWidth={1.75} color={color.ink[500]} />
+                <Text style={styles.kpiLabel}>좋아요 수</Text>
+              </View>
+              <View style={styles.kpiValueRow}>
+                <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
+              </View>
+            </RiseIn>
+          </View>
+        </View>
+
+        {/* 아직 게시한 숏폼이 없으면 0 만 늘어서 고장으로 보입니다. 이유를 밝힙니다. */}
+        {noPosts ? (
+          <Text style={styles.note}>
+            아직 게시한 숏폼이 없어요. 영상을 올리면 조회수와 좋아요가 여기 쌓입니다.
+          </Text>
+        ) : null}
+
+        {/* ③ 주간 조회수 추이 — 시안 mt-3 · p-4 */}
         <View style={styles.card}>
           <View style={styles.cardHead}>
             <Text style={styles.cardTitle}>주간 조회수 추이</Text>
-            {metrics.data?.weekViewsDelta ? (
-              <Text style={styles.delta}>{metrics.data.weekViewsDelta}</Text>
-            ) : null}
+            {cur?.viewsDelta ? <Text style={styles.delta}>{cur.viewsDelta}</Text> : null}
           </View>
-          {(metrics.data?.weekViews.length ?? 0) >= 2 ? (
+          {(cur?.week.length ?? 0) >= 2 ? (
             <LineChart
-              data={metrics.data!.weekViews.map((d) => ({ label: d.day, value: d.value }))}
+              // 플랫폼을 바꾸면 선을 다시 그립니다(시안 key={plat}).
+              key={plat}
+              data={cur!.week.map((d) => ({ label: d.day, value: d.value }))}
             />
           ) : (
             <View style={styles.chartEmpty}>
@@ -243,36 +352,25 @@ export default function InsightScreen() {
           )}
         </View>
 
-        {/* ④ 지역 상권 분석 — 3.5 로 실제 값이 옵니다 */}
-        <View style={styles.card}>
-          {/*
-            3.5 문장형 분석은 시안에 없는 요소입니다. 지우면 닿을 길이 사라지므로
-            **제목 줄 오른쪽 끝의 chevron** 으로 접어 둡니다 (2026-08-26 결정).
-            제목 줄 안이라 카드 높이가 시안과 같습니다 — 별도 행으로 두었을 때는
-            카드가 38 커져서 아래 "다음 숏폼 추천" 이 통째로 밀렸습니다.
+        {/*
+          ④ 지역 상권 분석 — 시안 mt-6.
+             제목 16 옆에 **지역 이름 칩**(h-6 · brand-tint · 12 semibold),
+             그 아래 한 줄 요약 pill(sparkles 13 + 12 medium).
 
-            카드 전체를 누르게 하지 않은 이유: 막대를 짚어 보려다 접힙니다.
-          */}
-          {foldable ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="지역 상권 분석 자세한 설명"
-              accessibilityState={{ expanded: showLocalText }}
-              hitSlop={6}
-              onPress={() => setShowLocalText((v) => !v)}
-              style={({ pressed }) => [styles.localHead, pressTap(pressed, 'card')]}
-            >
-              <Text style={styles.cardTitle}>지역 상권 분석</Text>
-              <ChevronDown
-                size={16}
-                strokeWidth={2}
-                color={color.ink[500]}
-                style={showLocalText ? styles.chevronOpen : undefined}
-              />
-            </Pressable>
-          ) : (
-            <Text style={[styles.cardTitle, { marginBottom: space[4] }]}>지역 상권 분석</Text>
-          )}
+          둘 다 3.5 가 줍니다. 지역 이름은 `insight_title`, 요약은 `insight_content`
+          입니다. 값이 없으면 칩과 pill 을 **그리지 않습니다** — "— 상권" 같은
+          빈 칩을 두면 고장으로 보입니다.
+        */}
+        <View style={styles.localWrap}>
+          <View style={styles.localHead}>
+            <Text style={styles.cardTitle}>지역 상권 분석</Text>
+            {areaName ? (
+              <View style={styles.areaChip}>
+                <Text style={styles.areaChipText}>{areaName}</Text>
+              </View>
+            ) : null}
+          </View>
+
           <LoadGate
             loading={insights.isLoading}
             error={insights.isError}
@@ -280,35 +378,61 @@ export default function InsightScreen() {
             onRetry={insights.refetch}
             loadingLabel="분석을 불러오고 있어요"
           >
-            {hasShares ? (
-              <View style={{ gap: 14 }}>
-                {metrics.data!.local.map((item, i) => (
-                  <View key={item.label}>
-                    <View style={styles.shareHead}>
-                      <Text style={styles.shareLabel}>{item.label}</Text>
-                      <Text style={styles.shareValue}>{item.value}%</Text>
-                    </View>
-                    <ShareBar value={item.value} tint={item.color} index={i} />
-                  </View>
-                ))}
-                {/* 제목 줄 chevron 으로 펼칩니다. 접혀 있으면 카드 높이가 시안과 같습니다. */}
-                {foldable && showLocalText ? (
-                  <View style={{ gap: space[1] }}>
-                    <Text style={styles.localBody}>{local.insightContent}</Text>
-                    <Text style={styles.source}>출처 {local.insightSource}</Text>
+            {areaSummary || local?.insightContent ? (
+              <View style={{ gap: space[2] }}>
+                {areaSummary ? (
+                  <View style={styles.summaryPill}>
+                    <Sparkles size={13} strokeWidth={2} color={color.brand[600]} />
+                    <Text style={styles.summaryText} numberOfLines={2}>
+                      {areaSummary}
+                    </Text>
                   </View>
                 ) : null}
-              </View>
-            ) : local ? (
-              <View style={{ gap: space[2] }}>
-                <Text style={styles.localTitle}>{local.insightTitle}</Text>
-                <Text style={styles.localBody}>{local.insightContent}</Text>
-                <Text style={styles.source}>출처 {local.insightSource}</Text>
+                {local?.insightContent ? (
+                  <Text style={styles.localBody}>{local.insightContent}</Text>
+                ) : null}
               </View>
             ) : (
               <Text style={styles.localBody}>아직 상권 분석이 준비되지 않았습니다.</Text>
             )}
           </LoadGate>
+        </View>
+
+        {/*
+          ⑤ 소비층 구성 — 시안 mt-6 · 2열 · 도넛 80 + 범례.
+
+          🔴 **자리만 만들어 둡니다** (2026-08-28 사장님 지시).
+             시안은 연령대(10대~50+)와 성별 비율을 도넛 두 개로 보여 주는데,
+             **그 값을 주는 필드를 아직 모릅니다.** 3.5 `insight_data` 안에 올 것으로
+             보이지만 지금 insights 가 빈 배열이라 형태를 확인할 수 없었습니다
+             (실측: store 21·67 둘 다 `{"insights": []}`).
+
+             비율을 지어내면 사장님이 그 숫자를 보고 영상을 만드십니다. 그래서
+             칸만 두고 왜 비었는지 밝힙니다 — 값이 오면 여기에 도넛을 넣습니다.
+        */}
+        <Text style={[styles.cardTitle, styles.sectionTitle]}>소비층 구성</Text>
+        <View style={styles.mixGrid}>
+          {mixes.map(({ label, segs }) => (
+            <View key={label} style={styles.mixWrap}>
+              <View style={styles.mixCard}>
+                {segs ? (
+                  <>
+                    {/* 12시부터 시계방향으로 1초에 걸쳐 쓸립니다 (`Donut` 머리말) */}
+                    <Donut segs={segs} size={80} />
+                    <DonutLegend segs={segs} />
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.mixDonut} />
+                    <View style={styles.mixTextWrap}>
+                      <Text style={styles.mixLabel}>{label}</Text>
+                      <Text style={styles.mixEmpty}>집계 준비 중</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          ))}
         </View>
 
         {/* ⑤ 다음 숏폼 추천 */}
@@ -449,22 +573,77 @@ const styles = StyleSheet.create({
   chartEmptyText: { ...theme.text.caption, color: color.ink[400] },
 
   delta: { ...theme.text.label, lineHeight: 18, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.done[500] },
-  shareHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  shareLabel: { ...theme.text.caption, lineHeight: 19.5, color: color.ink[700] },
-  shareValue: { ...theme.text.caption, lineHeight: 19.5, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[900] },
-  shareTrack: { height: 8, borderRadius: radius.pill, backgroundColor: '#F1F5F9', overflow: 'hidden' },
-  shareFill: { height: '100%', borderRadius: radius.pill },
-  /* 시안 제목 줄(mb-4)에 chevron 만 얹습니다 — 16 은 제목 줄높이 안이라 높이가 안 늘어납니다. */
-  localHead: {
+  /* ── 플랫폼 토글 (시안 PlatformTabs) ────────────────
+     mb-3 · rounded-lg · bg #F1F5F9 · p-0.5 · gap-0.5 */
+  tabs: {
+    flexDirection: 'row',
+    gap: 2,
+    marginBottom: space[3],
+    padding: 2,
+    borderRadius: radius.md,
+    backgroundColor: '#F1F5F9',
+  },
+  /* 시안: h-7(28) · flex-1 · rounded-md · 11 semibold */
+  tab: { flex: 1, height: 28, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  tabOn: { backgroundColor: color.paper, ...theme.elevation('bubble') },
+  tabText: { ...theme.text.micro, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.ink[500] },
+  tabTextOn: { color: color.brand[600] },
+
+  /* ── 지역 상권 분석 (시안 mt-6) ──────────────────── */
+  localWrap: { marginTop: space[6], gap: space[2] },
+  /* 제목 옆에 지역 칩이 붙습니다 — 시안 gap-2 */
+  localHead: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  /* 시안: h-6 · rounded-full · bg-brand-tint · px-2.5 · 12 semibold brand */
+  areaChip: {
+    height: 24,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    backgroundColor: color.brand[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  areaChipText: { ...theme.text.label, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.brand[600] },
+  /* 시안: 한 줄 요약 pill — rounded-full · 테두리 hairline · px-3 py-2 · 12 medium */
+  summaryPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: space[4],
+    gap: 6,
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+    borderColor: color.cardBorder,
+    backgroundColor: color.paper,
+    ...theme.elevation('card'),
   },
-  chevronOpen: { transform: [{ rotate: '180deg' }] },
-  localTitle: { ...theme.text.bodyStrong },
+  summaryText: { ...theme.text.label, lineHeight: 18, flex: 1, minWidth: 0, color: color.ink[700] },
   localBody: { ...theme.text.caption, lineHeight: 21, color: color.ink[700] },
-  source: { ...theme.text.micro, color: color.ink[400] },
+
+  /* ── 소비층 구성 (시안 grid-cols-2 gap-3 · 도넛 80) ──
+     ⚠️ **두 카드는 같은 높이여야 합니다.** 범례 줄 수가 연령대 5줄 · 성별 2줄로
+        달라서, 그냥 두면 카드 높이가 따로 놉니다. 시안은 CSS grid 라 자동으로
+        같아지는데 우리는 flex 라 `alignItems: 'stretch'` + 카드 `flex: 1` 로
+        높은 쪽에 맞춥니다. `flexWrap` 은 뺐습니다 — 두 장뿐이라 줄바꿈이 없고,
+        wrap 이 붙어 있으면 줄 단위 정렬이 끼어들어 stretch 가 안 먹습니다. */
+  mixGrid: { flexDirection: 'row', alignItems: 'stretch', gap: space[3] },
+  mixWrap: { flex: 1 },
+  mixCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    padding: space[4],
+    borderRadius: radius.lg,
+    borderWidth: theme.border.hairline,
+    borderColor: color.cardBorder,
+    backgroundColor: color.paper,
+    ...theme.elevation('card'),
+  },
+  /* 도넛이 앉을 자리. 값이 오면 여기에 그립니다 — 지금은 비어 있음을 색으로만 말합니다. */
+  mixDonut: { width: 64, height: 64, borderRadius: 32, borderWidth: 12, borderColor: '#F1F5F9' },
+  mixTextWrap: { flex: 1, minWidth: 0, gap: 2 },
+  mixLabel: { ...theme.text.label, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[700] },
+  mixEmpty: { ...theme.text.micro, color: color.ink[400] },
 
   recCard: {
     borderRadius: radius.lg,

@@ -184,15 +184,20 @@ export default function MyPageScreen() {
   /** 탭을 옮기면 재생을 세웁니다 — 안 보이는 영상이 배터리를 먹지 않게. */
   const isFocused = useIsFocused();
   const { data: connections } = useSnsConnections();
-  const metrics = useInsightMetrics();
+  const metrics = useInsightMetrics(storeId ?? undefined);
 
   /*
    * 시안 문구: "최근 1주일 동안 1,500번 조회되었어요".
-   * 주간 조회수는 계정 단위 집계 API 가 없어 지금은 mock 에서만 옵니다.
-   * 값이 오면 시안과 같은 문장으로, 없으면 준비 중이라고 말합니다 — 숫자를 짓지 않습니다.
+   *
+   * 2026-08-28: 17.3 주간 요약이 생겨 **실제 값**으로 채웁니다(옛 주석은 "집계 API 가
+   * 없어 mock 에서만 온다" 였습니다). 플랫폼이 여럿이라 **전부 더합니다** — 사장님이
+   * 궁금한 건 "내 영상이 이번 주에 몇 번 보였나" 지 플랫폼별 분해가 아닙니다.
+   * 아직 아무것도 안 올렸으면 합이 0 이라, 0 은 값 없음과 구분해 그대로 씁니다.
    */
-  const week = metrics.data?.weekViews ?? [];
-  const weekTotal = week.length > 0 ? week.reduce((sum, d) => sum + d.value, 0) : null;
+  const weekTotal =
+    metrics.data && metrics.data.length > 0
+      ? metrics.data.reduce((sum, p) => sum + p.week.reduce((a, d) => a + d.value, 0), 0)
+      : null;
 
   const items = shorts.data?.items ?? [];
   /**
@@ -300,7 +305,11 @@ export default function MyPageScreen() {
               accessibilityLabel={
                 instagramLink.url ? '인스타그램 계정 열기' : '인스타그램 연동'
               }
-              onPress={() => openSns(instagramLink.url, () => nav.navigate('EditProfile'))}
+              onPress={() =>
+                openSns(instagramLink.url, () =>
+                  nav.navigate('EditProfile', { connect: 'INSTAGRAM' })
+                )
+              }
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
               <BrandMark kind="instagram" />
@@ -309,7 +318,9 @@ export default function MyPageScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={youtubeLink.url ? '유튜브 채널 열기' : '유튜브 연동'}
-              onPress={() => openSns(youtubeLink.url, () => nav.navigate('EditProfile'))}
+              onPress={() =>
+                openSns(youtubeLink.url, () => nav.navigate('EditProfile', { connect: 'YOUTUBE' }))
+              }
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
               <BrandMark kind="youtube" />
