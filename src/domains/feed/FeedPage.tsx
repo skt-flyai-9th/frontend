@@ -29,6 +29,7 @@ import { Heart } from 'lucide-react-native';
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { SlateEditGlyph } from '../../ui/SlateEditGlyph';
+import { CoachTarget } from '../../ui/coach/CoachContext';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
 import { formatHashtags } from '../../lib/format';
@@ -74,7 +75,8 @@ export function FeedPage({
 
   return (
     <View style={[styles.page, { height, width }]}>
-      <View style={[styles.stage, { height: stageHeight }]}>
+      {/* 코치마크 2단계가 짚는 곳 — 시안 data-coach="video" */}
+      <CoachTarget name="video" style={[styles.stage, { height: stageHeight }]}>
         {active ? (
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
@@ -92,7 +94,7 @@ export function FeedPage({
             style={{ width }}
           />
         )}
-      </View>
+      </CoachTarget>
 
       {/*
         시안 메타 패널 — **한 줄**입니다.
@@ -147,15 +149,18 @@ export function FeedPage({
                  삼각형은 "영상을 튼다" 로 읽혀서, 누르면 촬영 준비로 간다는 게
                  안 보였습니다.
             */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="이 영상으로 촬영하기"
-              hitSlop={6}
-              onPress={() => onCreate(format)}
-              style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
-            >
-              <SlateEditGlyph size={24} color={color.paper} strokeWidth={1.7} />
-            </Pressable>
+            {/* 코치마크 3단계가 짚는 곳 — 시안 data-coach="make" */}
+            <CoachTarget name="make" style={styles.roundWrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="이 영상으로 촬영하기"
+                hitSlop={6}
+                onPress={() => onCreate(format)}
+                style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
+              >
+                <SlateEditGlyph size={24} color={color.paper} strokeWidth={1.7} />
+              </Pressable>
+            </CoachTarget>
           </View>
         </View>
       </View>
@@ -205,6 +210,8 @@ const styles = StyleSheet.create({
   tags: { ...theme.text.label, lineHeight: 17, color: 'rgba(255,255,255,0.55)' },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  /* 코치마크 이름표 상자 — 버튼 크기를 그대로 물려받습니다. */
+  roundWrap: { width: 40, height: 40 },
   /* 시안: 40 원형. 어두운 바닥이라 유리질 배경을 깔아 아이콘이 뜹니다. */
   roundBtn: {
     width: 40,

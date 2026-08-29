@@ -35,6 +35,7 @@ import { MyShortCell } from '../components/MyShortCell';
 import { AppBar } from '../../../ui/AppBar';
 import { Button } from '../../../ui/Button';
 import { BrandMark } from '../../../ui/BrandMark';
+import { CoachTarget } from '../../../ui/coach/CoachContext';
 import { Skeleton } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
@@ -337,7 +338,8 @@ export default function MyPageScreen() {
           style={styles.editBtn}
         />
 
-        {/* ── ⑤ Professional Insight ── */}
+        {/* ── ⑤ Professional Insight ── (코치마크 7단계가 짚는 곳 — 시안 data-coach="insight") */}
+        <CoachTarget name="insight">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="매장 인사이트 분석 보기"
@@ -363,6 +365,7 @@ export default function MyPageScreen() {
           </View>
           <ChevronRight size={22} strokeWidth={2} color={color.brand[600]} />
         </Pressable>
+        </CoachTarget>
 
         {/*
           이어서 하기 — 시안 11차 `editDraft` 카드 (2026-08-28 반영).

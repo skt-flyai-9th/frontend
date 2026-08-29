@@ -11,6 +11,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // 로고 splash 는 인트로 화면(IntroSplash)이 대신합니다 — Image·View 를 여기서 쓰지 않습니다
 import RootNavigator from './src/navigation/RootNavigator';
+import { CoachProvider } from './src/ui/coach/CoachContext';
+import { CoachMarks } from './src/ui/coach/CoachMarks';
 import { useAppFonts } from './src/design/fonts';
 import { useHydrated } from './src/lib/appState';
 import { usePushNotifications } from './src/lib/push';
@@ -161,16 +163,26 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        {QA_CAPTURE ? (
-          <CaptureSafeArea>
-            <RootNavigator />
-          </CaptureSafeArea>
-        ) : (
-          <>
-            <StatusBar style="dark" />
-            <RootNavigator />
-          </>
-        )}
+        {/*
+          코치마크는 **화면 위에 덮는 막**이라 네비게이터 밖(가장 바깥)에 둡니다.
+          안에 두면 탭을 옮길 때 같이 사라지는데, 이 튜토리얼은 탭을 옮겨 가며
+          짚어야 해서 화면이 바뀌어도 살아 있어야 합니다.
+
+          `CoachProvider` 는 짚을 곳들이 자기 위치를 보고할 곳이라 더 바깥입니다.
+        */}
+        <CoachProvider>
+          {QA_CAPTURE ? (
+            <CaptureSafeArea>
+              <RootNavigator />
+            </CaptureSafeArea>
+          ) : (
+            <>
+              <StatusBar style="dark" />
+              <RootNavigator />
+            </>
+          )}
+          <CoachMarks />
+        </CoachProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

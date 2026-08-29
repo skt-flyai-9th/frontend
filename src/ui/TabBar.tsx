@@ -17,6 +17,15 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { CoachTarget, type CoachName } from './coach/CoachContext';
+
+/** 라우트 이름 → 시안 코치마크 이름표. */
+const COACH_TAB: Record<string, CoachName | undefined> = {
+  HomeFeed: 'tab-home',
+  Favorites: 'tab-saved',
+  AiChat: 'tab-chat',
+  My: 'tab-mypage',
+};
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { CommonActions } from '@react-navigation/native';
@@ -182,7 +191,13 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
           };
           const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
 
-          return (
+          /*
+            코치마크가 짚을 이름표. 시안 `data-coach="tab-home"` 과 같은 이름입니다.
+            라우트 이름(HomeFeed…)과 시안 이름(tab-home…)이 달라 여기서 잇습니다.
+          */
+          const coachName = COACH_TAB[route.name];
+
+          const button = (
             <Pressable
               key={route.key}
               accessibilityRole="button"
@@ -202,6 +217,14 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
                 size={meta.size}
               />
             </Pressable>
+          );
+
+          return coachName ? (
+            <CoachTarget key={route.key} name={coachName} style={styles.tabWrap}>
+              {button}
+            </CoachTarget>
+          ) : (
+            button
           );
         })}
       </View>
@@ -226,4 +249,6 @@ const styles = StyleSheet.create({
   },
   capsuleFill: { flex: 1, borderRadius: radius.pill },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' },
+  /* 코치마크 이름표 상자 — 버튼이 차지하던 자리를 그대로 물려받습니다. */
+  tabWrap: { flex: 1, alignSelf: 'stretch' },
 });
