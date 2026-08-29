@@ -291,12 +291,21 @@ export const projectList = [
   },
 ];
 
+/*
+  ⚠️ 2026-08-30 BE PR #126 로 필드가 갈라졌습니다.
+       reference_duration_sec  완성 영상 길이 (옛 expected_duration_sec)
+       estimated_shooting_sec  촬영 시간 (신규 · 화면의 #촬영 태그가 읽는 값)
+  73 번은 **일부러 촬영 시간을 비워 뒀습니다** — 서버가 아직 못 채운 포맷이 그렇게
+  옵니다(배포 직후 다섯 개 전부 null 이었습니다). 그때 카드가 어떻게 보이는지를
+  QA 캡처에서 같이 보려는 것입니다. 값이 없으면 시간 태그가 줄에서 빠집니다.
+*/
 export const videoFormats = [
   {
     id: 71,
     format_title: '만드는 과정만 보여주기',
     format_type: '정보형',
-    expected_duration_sec: 24,
+    reference_duration_sec: 24,
+    estimated_shooting_sec: 300,
     shooting_difficulty: '하',
     requires_face: false,
     recommend_reasons: [
@@ -313,7 +322,8 @@ export const videoFormats = [
     id: 72,
     format_title: '문 열고 들어오는 시점 소개',
     format_type: '잔잔한 소개',
-    expected_duration_sec: 30,
+    reference_duration_sec: 30,
+    estimated_shooting_sec: 240,
     shooting_difficulty: '하',
     requires_face: false,
     recommend_reasons: ['처음 오는 손님의 부담을 줄입니다', '혼자서도 촬영할 수 있습니다'],
@@ -326,7 +336,8 @@ export const videoFormats = [
     id: 73,
     format_title: '가격 공개 반전 챌린지',
     format_type: '밈',
-    expected_duration_sec: 15,
+    reference_duration_sec: 15,
+    estimated_shooting_sec: null,
     shooting_difficulty: '중',
     requires_face: true,
     recommend_reasons: ['가장 빨리 끝납니다', '공유가 잘 일어납니다'],

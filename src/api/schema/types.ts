@@ -397,7 +397,28 @@ export interface VideoFormat {
   id: Id;
   formatTitle: string;
   formatType: FormatType;
-  expectedDurationSec: number;
+  /**
+   * **완성 영상 길이** — 참고 영상이 몇 초짜리인가.
+   *
+   * 2026-08-30 에 `expected_duration_sec` 에서 **이름이 바뀌었습니다**(BE PR #126).
+   * 뜻과 타입은 그대로입니다. 7.1 의 `shooting_summary.expected_duration_sec`(촬영
+   * 시간)과 **이름이 같아서** 저희가 같은 값으로 읽었고, 홈 카드에 영상 길이를
+   * `#촬영13초` 로 넉 달 가까이 잘못 적었습니다. 그 사고 때문에 갈라 준 이름입니다.
+   */
+  referenceDurationSec?: number | null;
+  /**
+   * **예상 촬영 시간(초)** — 이 포맷을 찍는 데 걸리는 시간. 2026-08-30 신규.
+   *
+   * 예전에는 프로젝트를 만들어 7.1 을 태워야만 알 수 있었는데(그래서 홈 카드에서
+   * 못 썼습니다), BE 가 **트렌드 동기화 때 포맷마다 한 번 캐싱**해서 목록·상세에
+   * 얹어 줍니다. 값은 7.1 `shooting_summary.expected_duration_sec` 와 같은 개념·같은
+   * 값이고, 가게·메뉴와 무관한 템플릿 고정값입니다.
+   *
+   * ⚠️ **`null` 로 옵니다** — 아직 캐싱 안 된 포맷(동기화 전에 R06 추천으로만 들어온
+   *    것 등)이나 AI 가 값을 못 준 경우입니다. 지어내지 말고 자리를 비웁니다.
+   *    2026-08-30 실측: 서버의 포맷 다섯 개가 **전부 null** 이었습니다.
+   */
+  estimatedShootingSec?: number | null;
   shootingDifficulty: Difficulty;
   /** 얼굴 촬영이 포맷 재현에 필수인지 여부. */
   requiresFace?: boolean;
