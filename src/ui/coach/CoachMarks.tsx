@@ -17,6 +17,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { TutorialOverlay, type TutorialStep } from './TutorialOverlay';
+import { useCoach } from './CoachContext';
 import { navRef } from '../../navigation/navRef';
 import { COACH_VERSION, useAppState } from '../../lib/appState';
 
@@ -90,6 +91,7 @@ export function CoachMarks() {
   const signedIn = useAppState((s) => s.signedIn);
 
   const [running, setRunning] = useState(false);
+  const coach = useCoach();
 
   /*
     🔴 **업데이트를 받으면 한 번 저절로 뜹니다** (2026-08-29 사장님 요청).
@@ -112,6 +114,19 @@ export function CoachMarks() {
     const t = setTimeout(() => setRunning(true), 900);
     return () => clearTimeout(t);
   }, [signedIn, seen]);
+
+  /*
+    뜨기 **전에** 1단계 자리를 미리 재 둡니다 (2026-08-30).
+
+    안 재 두면 오버레이가 뜬 첫 순간에는 구멍을 몰라서 화면 전체가 막힌 채로 있다가,
+    측정이 돌아온 뒤에야 구멍이 뚫립니다. 그 사이가 "뜨고 나서 한 박자" 로 보입니다.
+    `setActive` 의 **두 번째 자리(다음에 짚을 곳)** 에 넣으면, 아직 짚지 않으면서
+    자리만 재 둡니다 — 위 900ms 를 기다리는 동안 값이 채워집니다.
+  */
+  useEffect(() => {
+    if (!signedIn || seen || running) return;
+    coach?.setActive(null, STEPS[0].targetId);
+  }, [coach, signedIn, seen, running]);
 
   /** 단계의 탭으로 옮깁니다 — 짚을 곳이 화면에 없으면 뚫을 수가 없습니다. */
   const goTab = useCallback((step: TutorialStep) => {

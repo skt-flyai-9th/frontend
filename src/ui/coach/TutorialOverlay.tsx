@@ -106,8 +106,19 @@ const HALF_DIAGONAL = TUTORIAL.pointer.size * Math.SQRT1_2;
  * 막 + 구멍. **일부러 따로 떼어 `memo` 로 감쌌습니다.**
  *
  * 오버레이 본체는 위치를 다시 잴 때마다 그려집니다. 그때 이 여덟 장까지 같이 그리면
- * 튜토리얼이 도는 내내 끕니다. 받는 값이 전부 고정된 것들(화면 크기 · `Animated.Value`
- * 그릇)이라 여기는 거의 안 그려지고, 구멍이 움직이는 건 그릇 안 숫자로만 처리됩니다.
+ * 튜토리얼이 도는 내내 끕니다. 받는 값이 전부 고정된 것들(`Animated.Value` 그릇)이라
+ * 여기는 **한 번만** 그려지고, 구멍이 움직이는 건 그릇 안 숫자로만 처리됩니다.
+ *
+ * 🔴 **구멍이 없을 때도 같은 여덟 장을 씁니다** (2026-08-30, 블러 딜레이).
+ *
+ *    예전에는 아직 못 쟀을 때 "막 한 장" 을 따로 그리고, 측정이 끝나면 그걸 버리고
+ *    여덟 장을 새로 달았습니다. 그 순간 **BlurView 가 통째로 다시 붙습니다** — 대상을
+ *    다시 찾고 처음부터 흐려야 해서, 화면이 뜬 뒤 한 박자 늦게 흐려졌습니다.
+ *    (`BlurView` 는 `componentDidMount` 에서 `blurTargetId` 를 state 로 넣기 때문에
+ *     붙을 때마다 최소 한 프레임은 대상 없이 그려집니다.)
+ *
+ *    값이 전부 0 이면 아래 장이 화면을 통째로 덮습니다 — 구멍 없는 막과 같은 그림이
+ *    나오고, 나중에 구멍이 잡혀도 **같은 판을 옮길 뿐** 다시 만들지 않습니다.
  */
 const Scrim = React.memo(function Scrim({
   ax,
@@ -115,7 +126,6 @@ const Scrim = React.memo(function Scrim({
   aw,
   ah,
   ar,
-  hasHole,
   blurOn,
   blurOpacity,
 }: {
@@ -124,7 +134,6 @@ const Scrim = React.memo(function Scrim({
   aw: Animated.Value;
   ah: Animated.Value;
   ar: Animated.Value;
-  hasHole: boolean;
   blurOn: boolean;
   blurOpacity: Animated.Value;
 }) {
@@ -155,23 +164,6 @@ const Scrim = React.memo(function Scrim({
       <View style={[StyleSheet.absoluteFill, styles.dim]} />
     </Animated.View>
   );
-
-  if (!hasHole) {
-    return (
-      <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-        {blurOn ? (
-          <AnimatedBlur
-            intensity={TUTORIAL.backdrop.blurIntensity}
-            tint={TUTORIAL.backdrop.tint}
-            blurMethod={ANDROID_BLUR_METHOD}
-            blurTarget={blurTargetRef}
-            style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
-          />
-        ) : null}
-        <View style={[StyleSheet.absoluteFill, styles.dim]} />
-      </View>
-    );
-  }
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
@@ -468,16 +460,7 @@ export function TutorialOverlay({
 
   return (
     <View style={styles.fill} pointerEvents="box-none">
-      <Scrim
-        ax={ax}
-        ay={ay}
-        aw={aw}
-        ah={ah}
-        ar={ar}
-        hasHole={!!hole}
-        blurOn={settled}
-        blurOpacity={blurOpacity}
-      />
+      <Scrim ax={ax} ay={ay} aw={aw} ah={ah} ar={ar} blurOn={settled} blurOpacity={blurOpacity} />
 
       {/* 스포트라이트 테두리 — 시안 1.5 white/50 + 바깥 흰 빛 */}
       <Animated.View
