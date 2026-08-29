@@ -420,35 +420,45 @@ export const tasks = [
  *    유행 소개 영상을 보게 됩니다 (BE_전달사항.md 참고).
  * (start_sec / end_sec 없음 — 구간은 사장님이 직접 잡습니다)
  */
+/**
+ * 컷별 참고 영상 구간 — 실서버가 주는 모양 그대로입니다.
+ *
+ * 2026-08-28 실측(챌린지 프로젝트 181): 한 영상을 컷 수만큼 **빈틈없이 쪼개서**
+ * 주고, 구간 길이가 7.2 `target_duration_sec` 과 일치합니다. 촬영 준비 화면이
+ * 컷을 넘길 때마다 이 구간만 되풀이합니다(`TaskPager`).
+ */
+const REF = (start: number, end: number) => ({
+  reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  source_platform: 'YOUTUBE',
+  start_ms: start,
+  end_ms: end,
+});
+
 export const guides: Record<number, unknown> = {
   701: {
     guide_type: 'OVERLAY',
     overlay: { instructions: ['간판 전체가 화면 안에 들어오게 서세요', '얼굴은 화면 밖으로 두세요'] },
-    reference_video: null,
+    reference_video: REF(0, 4000),
     broll_shot: null,
   },
   702: {
     guide_type: 'BROLL',
     overlay: { instructions: ['손이 위쪽에 오게, 위에서 아래로 찍으세요'] },
-    reference_video: null,
+    reference_video: REF(4000, 9000),
     broll_shot: { shot_type: '클로즈업', distance: '근접', angle: '위에서' },
   },
   703: {
     // R10 안무 가이드형
     guide_type: 'DANCE',
     overlay: null,
-    reference_video: {
-      // 가이드 영상 (포맷의 guide_video_url 과 같은 값)
-      reference_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      source_platform: 'YOUTUBE',
-    },
+    reference_video: REF(9000, 13000),
     broll_shot: null,
   },
   704: {
     // 컷 4 "리액션" — 얼굴이 나오므로 구도 지시문형입니다.
     guide_type: 'OVERLAY',
     overlay: { instructions: ['얼굴이 화면 가운데 오게 서세요', '한 입 먹고 바로 표정을 지으세요'] },
-    reference_video: null,
+    reference_video: REF(13000, 18000),
     broll_shot: null,
   },
 };
