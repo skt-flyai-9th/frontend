@@ -181,6 +181,29 @@ const FRAME_SCRIPT = `
   };
   window.__clearLoop = function () { clearLoopTimer(); loop = null; };
 
+  /**
+   * 잠깐 세우기 / 다시 틀기.
+   *
+   * 튜토리얼처럼 **화면을 덮어 두는 동안** 영상을 세워 두려는 것입니다. 보이지도
+   * 않는 영상을 계속 디코딩하면 그만큼 앱이 끕니다(2026-08-29 사장님 지적).
+   *
+   * ⚠️ 주소를 갈아끼우지 않습니다 — iframe 을 다시 만들면 검은 화면이 스치고
+   *    처음부터 다시 받습니다. 구간 반복(__setLoop)과 같은 이유·같은 방식입니다.
+   *
+   * 다시 틀 때 되감기를 여기서 걸지 않습니다. 곧 오는 위치 보고(infoDelivery)가
+   * armFrom 을 다시 걸어 줍니다 — 한 곳에서만 걸어야 두 번 걸리지 않습니다.
+   */
+  window.__setPaused = function (p) {
+    if (p) {
+      clearLoopTimer();
+      playing = false;
+      cmd('pauseVideo');
+    } else {
+      cmd('playVideo');
+      playing = true;
+    }
+  };
+
   /** 유튜브에 "이 프레임의 이벤트를 보내달라" 고 신청합니다. */
   function listen() {
     try {

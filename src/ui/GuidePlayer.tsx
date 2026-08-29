@@ -117,6 +117,15 @@ interface Props {
    */
   loopStart?: number | null;
   loopEnd?: number | null;
+  /**
+   * 잠깐 세워 둡니다. 튜토리얼처럼 **화면을 덮어 두는 동안** 쓰는 값입니다 —
+   * 안 보이는 영상을 계속 디코딩하면 그만큼 앱이 끕니다.
+   *
+   * ⚠️ `autoPlay` 와 달리 **영상을 다시 받지 않습니다.** `autoPlay` 는 주소에
+   *    들어가는 값이라 바꾸면 iframe 이 새로 뜹니다. 이 값은 프레임 안의
+   *    `__setPaused` 만 부릅니다 (구간 반복과 같은 방식).
+   */
+  paused?: boolean;
 }
 
 /** 페이지 → RN 메시지 (guidePlayerBridge.ts 의 규약) */
@@ -140,6 +149,7 @@ export function GuidePlayer({
   autoPlay = false,
   loopStart,
   loopEnd,
+  paused = false,
 }: Props) {
   const { width } = useWindowDimensions();
   const videoId = extractVideoId(url);
@@ -212,6 +222,14 @@ export function GuidePlayer({
       : 'window.__clearLoop && window.__clearLoop(); true;';
     webRef.current?.injectJavaScript(js);
   }, [phase, loopStart, loopEnd]);
+
+  /* 세우기·다시 틀기. 주소를 안 건드리므로 iframe 은 그대로 남습니다. */
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    webRef.current?.injectJavaScript(
+      `window.__setPaused && window.__setPaused(${paused ? 'true' : 'false'}); true;`
+    );
+  }, [phase, paused]);
 
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
     let m: PageMsg;

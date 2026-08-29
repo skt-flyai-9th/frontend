@@ -13,6 +13,15 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/**
+ * 코치마크 판 번호. 기기에 저장된 값이 이것과 다르면 **한 번 더** 뜹니다.
+ *
+ * 안내 내용을 바꿨을 때, 그리고 **다시 확인해야 할 때** 올립니다.
+ * 한 번 보면(건너뛰기·완료) 다시 안 뜨기 때문에, 고친 걸 확인하려면 이 값을
+ * 올려야 합니다 — 2026-08-29 에 그 이유로 v1 → v2 로 올렸습니다.
+ */
+export const COACH_VERSION = 'v9';
+
 interface AppState {
   /** 로그인 후 등록·선택한 가게 */
   storeId: number | null;
@@ -25,6 +34,17 @@ interface AppState {
    * 않습니다 — 로그아웃할 때마다 튜토리얼이 다시 뜨면 안내가 아니라 방해입니다.
    */
   tutorialSeen: boolean;
+
+  /**
+   * 스팟라이트 코치마크(`ui/coach`)를 본 판(版). 안 봤으면 `null` 입니다.
+   *
+   * ⚠️ **불린이 아니라 판 번호입니다.** `COACH_VERSION` 과 다르면 다시 뜹니다 —
+   *    안내할 내용이 바뀌면 그 상수만 올리면 모두에게 한 번 더 보입니다.
+   *    (2026-08-29: 이번 판이 처음이라 **모든 기기에서 한 번** 뜹니다.)
+   *
+   * `tutorialSeen` 과 마찬가지로 **기기 기준**이라 로그아웃이 건드리지 않습니다.
+   */
+  coachSeen: string | null;
 
   /**
    * 마케팅 수신 동의 (약관 화면에서 받습니다).
@@ -55,6 +75,8 @@ interface AppState {
   setStoreId: (id: number | null) => void;
   setSignedIn: (v: boolean) => void;
   setTutorialSeen: (v: boolean) => void;
+  /** 지금 판을 봤다고 표시합니다(코치마크). */
+  setCoachSeen: () => void;
   setMarketingAgreed: (v: boolean) => void;
   toggleGuide: () => void;
   setGuideOpacity: (v: number) => void;
@@ -69,6 +91,7 @@ export const useAppState = create<AppState>()(
       storeId: null,
       signedIn: false,
       tutorialSeen: false,
+      coachSeen: null,
       marketingAgreed: false,
       guideVisible: true,
       guideOpacity: 0.8,
@@ -77,6 +100,7 @@ export const useAppState = create<AppState>()(
       setStoreId: (storeId) => set({ storeId }),
       setSignedIn: (signedIn) => set({ signedIn }),
       setTutorialSeen: (tutorialSeen) => set({ tutorialSeen }),
+      setCoachSeen: () => set({ coachSeen: COACH_VERSION }),
       setMarketingAgreed: (marketingAgreed) => set({ marketingAgreed }),
       toggleGuide: () => set((s) => ({ guideVisible: !s.guideVisible })),
       setGuideOpacity: (guideOpacity) => set({ guideOpacity }),

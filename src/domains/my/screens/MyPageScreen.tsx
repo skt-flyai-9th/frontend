@@ -35,6 +35,7 @@ import { MyShortCell } from '../components/MyShortCell';
 import { AppBar } from '../../../ui/AppBar';
 import { Button } from '../../../ui/Button';
 import { BrandMark } from '../../../ui/BrandMark';
+import { CoachTarget } from '../../../ui/coach/CoachContext';
 import { Skeleton } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
@@ -337,7 +338,14 @@ export default function MyPageScreen() {
           style={styles.editBtn}
         />
 
-        {/* ── ⑤ Professional Insight ── */}
+        {/* ── ⑤ Professional Insight ── (코치마크 7단계가 짚는 곳 — 시안 data-coach="insight") */}
+        {/*
+          ⚠️ 위 여백은 **감싼 상자가** 가집니다.
+             카드에 `marginTop` 을 두면 감싼 상자가 그 여백까지 품어서, 코치마크가
+             잰 자리가 카드보다 8 위·8 크게 나옵니다(2026-08-29 실측: 구멍 y=327
+             h=94 · 카드 y=341 h=74). 여백을 바깥으로 옮겨 두 상자를 일치시킵니다.
+        */}
+        <CoachTarget name="insight" style={styles.insightWrap}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="매장 인사이트 분석 보기"
@@ -363,6 +371,7 @@ export default function MyPageScreen() {
           </View>
           <ChevronRight size={22} strokeWidth={2} color={color.brand[600]} />
         </Pressable>
+        </CoachTarget>
 
         {/*
           이어서 하기 — 시안 11차 `editDraft` 카드 (2026-08-28 반영).
@@ -499,11 +508,12 @@ const styles = StyleSheet.create({
 
   editBtn: { height: 36, marginTop: space[2], borderRadius: radius.sm },
 
+  /* 인사이트 카드의 위 여백 — 카드가 아니라 여기가 가집니다(JSX 주석 참고). */
+  insightWrap: { marginTop: space[2] },
   insightCta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[3],
-    marginTop: space[2],
     // 시안: px-4 py-3.5 — 세로는 14 입니다
     paddingHorizontal: space[4],
     paddingVertical: space['3.5'],
