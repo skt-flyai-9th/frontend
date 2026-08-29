@@ -15,9 +15,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * 코치마크 판 번호. 기기에 저장된 값이 이것과 다르면 **한 번 더** 뜹니다.
- * 안내 내용을 바꿨을 때 올리세요 (`v1` → `v2`).
+ *
+ * 안내 내용을 바꿨을 때, 그리고 **다시 확인해야 할 때** 올립니다.
+ * 한 번 보면(건너뛰기·완료) 다시 안 뜨기 때문에, 고친 걸 확인하려면 이 값을
+ * 올려야 합니다 — 2026-08-29 에 그 이유로 v1 → v2 로 올렸습니다.
  */
-export const COACH_VERSION = 'v1';
+export const COACH_VERSION = 'v2';
 
 interface AppState {
   /** 로그인 후 등록·선택한 가게 */
