@@ -148,11 +148,22 @@ export function CoachMarks() {
     return () => clearTimeout(t);
   }, [signedIn, seen]);
 
-  useEffect(() => {
-    coach?.setMeasuring(running);
-  }, [running, coach]);
-
   const cur = running ? STEPS[step] : null;
+
+  /*
+    지금 짚는 곳만 재게 합니다 — 나머지 여섯은 타이머조차 걸지 않습니다
+    (`CoachContext` 머리말: 일곱 개가 다 보고해서 앱이 버벅였습니다).
+  */
+  useEffect(() => {
+    coach?.setActive(cur ? cur.name : null);
+  }, [coach, cur?.name]);
+
+  /** 위치가 바뀌면 **이 컴포넌트만** 다시 그립니다. */
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    if (!coach) return;
+    return coach.subscribe(() => redraw((n) => n + 1));
+  }, [coach]);
 
   /** 단계의 탭으로 먼저 옮깁니다 — 짚을 곳이 화면에 없으면 뚫을 수가 없습니다. */
   useEffect(() => {
@@ -166,7 +177,7 @@ export function CoachMarks() {
     setCoachSeen();
   }, [setCoachSeen]);
 
-  const rect = cur ? coach?.rects[cur.name] : undefined;
+  const rect = cur ? coach?.rectsRef.current[cur.name] : undefined;
 
   /** 구멍 = 짚을 곳 + 여백. 화면 밖으로 나가지 않게 잘라 둡니다. */
   const hole = useMemo(() => {
