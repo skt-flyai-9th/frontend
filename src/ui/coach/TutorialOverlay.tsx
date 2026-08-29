@@ -57,6 +57,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCoach, type CoachName } from './CoachContext';
 import { ANDROID_BLUR_METHOD, TUTORIAL } from './tutorialTheme';
+import { blurTargetRef } from './blurTarget';
 import { pressTap } from '../press';
 import theme, { color } from '../../design/theme';
 
@@ -139,6 +140,8 @@ const Scrim = React.memo(function Scrim({
           tint={TUTORIAL.backdrop.tint}
           // 안드로이드는 이걸 안 주면 흐려지지 않고 색만 덮입니다(tutorialTheme 머리말)
           blurMethod={ANDROID_BLUR_METHOD}
+          // 안드로이드는 흐릴 대상을 지정해야 켜집니다 (blurTarget.ts 머리말)
+          blurTarget={blurTargetRef}
           style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
         />
       ) : null}
@@ -154,6 +157,7 @@ const Scrim = React.memo(function Scrim({
             intensity={TUTORIAL.backdrop.blurIntensity}
             tint={TUTORIAL.backdrop.tint}
             blurMethod={ANDROID_BLUR_METHOD}
+            blurTarget={blurTargetRef}
             style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
           />
         ) : null}
@@ -490,6 +494,7 @@ export function TutorialOverlay({
             intensity={TUTORIAL.card.blurIntensity}
             tint={TUTORIAL.card.tint}
             blurMethod={ANDROID_BLUR_METHOD}
+            blurTarget={blurTargetRef}
             style={StyleSheet.absoluteFill}
           />
           <View style={[StyleSheet.absoluteFill, styles.tipTint]} />

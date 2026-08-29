@@ -11,7 +11,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // 로고 splash 는 인트로 화면(IntroSplash)이 대신합니다 — Image·View 를 여기서 쓰지 않습니다
 import RootNavigator from './src/navigation/RootNavigator';
+import { BlurTargetView } from 'expo-blur';
 import { CoachProvider } from './src/ui/coach/CoachContext';
+import { blurTargetRef } from './src/ui/coach/blurTarget';
 import { CoachMarks } from './src/ui/coach/CoachMarks';
 import { useAppFonts } from './src/design/fonts';
 import { useHydrated } from './src/lib/appState';
@@ -171,16 +173,23 @@ export default function App() {
           `CoachProvider` 는 짚을 곳들이 자기 위치를 보고할 곳이라 더 바깥입니다.
         */}
         <CoachProvider>
-          {QA_CAPTURE ? (
-            <CaptureSafeArea>
-              <RootNavigator />
-            </CaptureSafeArea>
-          ) : (
-            <>
-              <StatusBar style="dark" />
-              <RootNavigator />
-            </>
-          )}
+          {/*
+            🔴 **튜토리얼 블러가 흐릴 대상**입니다 (`ui/coach/blurTarget.ts` 머리말).
+               안드로이드는 이 그릇을 지정하지 않으면 블러가 조용히 꺼집니다.
+               다른 플랫폼에서는 그냥 `View` 라 아무 영향이 없습니다.
+          */}
+          <BlurTargetView ref={blurTargetRef} style={{ flex: 1 }}>
+            {QA_CAPTURE ? (
+              <CaptureSafeArea>
+                <RootNavigator />
+              </CaptureSafeArea>
+            ) : (
+              <>
+                <StatusBar style="dark" />
+                <RootNavigator />
+              </>
+            )}
+          </BlurTargetView>
           <CoachMarks />
         </CoachProvider>
       </SafeAreaProvider>
