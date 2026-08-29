@@ -35,12 +35,19 @@
  * ⚠️ 조각끼리 **겹치면 안 됩니다.** 반투명이라 겹친 곳만 두 배로 진해집니다.
  *
  * ─────────────────────────────────────────────────────────────
- * ⚠️ 블러는 **멈춰 있을 때만** 켭니다
+ * ⚠️ 블러 — 켜는 시점과 안드로이드에서 조용히 꺼지는 함정
  * ─────────────────────────────────────────────────────────────
- * 요청서는 배경에 `blur(14px)` 를 씁니다. `expo-blur` 로 되지만, 움직이는 네 장을
- * 매 프레임 다시 흐리게 하면 위에서 걷어낸 그 비용이 그대로 돌아옵니다. 그래서
- * **이동 중에는 딤만, 멈추면 블러를 걸쳐 올립니다**(`settled`). 280ms 미끄러지는
- * 동안 흐림이 없는 건 눈에 안 띄고, 멈춘 뒤의 그림은 요청서와 같습니다.
+ * 요청서는 배경에 `blur(14px)` 를 씁니다.
+ *
+ * **안드로이드는 흐릴 대상을 지정해야 켜집니다.** 안 주면 예외도 없이 색만 덮습니다
+ * — `blurTarget.ts` 머리말에 소스와 함께 적어 뒀습니다. 두 번 놓쳤던 자리입니다.
+ *
+ * **켜는 시점**은 셋으로 갈립니다.
+ *   · 처음 뜰 때        바로 켭니다. 미끄러질 곳이 없어 기다릴 이유가 없습니다.
+ *   · 빠른 기기         계속 켜 둡니다(안드로이드 12+ · iOS · 웹).
+ *   · 느린 기기의 이동  잠깐 끄고 멈추면 걸쳐 올립니다 — 비트맵을 매 프레임 뜨면
+ *                       어제 걷어낸 그 비용이 그대로 돌아옵니다.
+ * 가르는 값은 `tutorialTheme.ts` 의 `BLUR_WHILE_MOVING` 입니다.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -56,7 +63,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCoach, type CoachName } from './CoachContext';
-import { ANDROID_BLUR_METHOD, TUTORIAL } from './tutorialTheme';
+import { ANDROID_BLUR_METHOD, BLUR_WHILE_MOVING, TUTORIAL } from './tutorialTheme';
 import { blurTargetRef } from './blurTarget';
 import { pressTap } from '../press';
 import theme, { color } from '../../design/theme';
@@ -237,8 +244,10 @@ export function TutorialOverlay({
   const [index, setIndex] = useState(0);
   /** 말풍선을 한 번 그려 보고 잰 실제 높이. 0 이면 아직 못 잰 것입니다. */
   const [tipH, setTipH] = useState(0);
-  /** 이동이 끝났는가 — 블러는 이때만 켭니다(머리말). */
-  const [settled, setSettled] = useState(false);
+  /** 블러를 켤 때가 됐는가. 느린 기기에서만 이동 중에 잠깐 꺼집니다(`BLUR_WHILE_MOVING`). */
+  const [settled, setSettled] = useState(true);
+  /** 처음 뜨는 순간인가 — 그때는 기다리지 않습니다. */
+  const firstShow = useRef(true);
 
   const cur = visible ? steps[index] : undefined;
   const total = cur?.totalSteps ?? steps.length;
@@ -265,10 +274,25 @@ export function TutorialOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cur?.targetId]);
 
-  /* 이동이 끝나면 블러를 켭니다. 단계가 바뀌면 다시 끕니다. */
-  const blurOpacity = useRef(new Animated.Value(0)).current;
+  /*
+    블러를 켜는 시점.
+
+    · 처음 뜰 때        → **바로** 켭니다. 미끄러질 곳이 없어 기다릴 이유가 없습니다.
+    · 빠른 기기         → 계속 켜 둡니다(`BLUR_WHILE_MOVING`).
+    · 느린 기기의 이동  → 잠깐 끄고, 멈추면 걸쳐 올립니다.
+  */
+  const blurOpacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      firstShow.current = true;
+      return;
+    }
+    if (BLUR_WHILE_MOVING || firstShow.current) {
+      firstShow.current = false;
+      blurOpacity.setValue(1);
+      setSettled(true);
+      return;
+    }
     setSettled(false);
     blurOpacity.setValue(0);
     const t = setTimeout(() => setSettled(true), TUTORIAL.motion.moveMs + 40);

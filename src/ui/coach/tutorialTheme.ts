@@ -43,6 +43,23 @@ export const ANDROID_BLUR_METHOD: BlurMethod | undefined =
       : 'dimezisBlurView'
     : undefined;
 
+/**
+ * 구멍이 **움직이는 동안에도** 블러를 켜 둘지.
+ *
+ * 흐리는 값이 기기마다 다릅니다.
+ *   · 안드로이드 12+ · iOS · 웹  시스템이 GPU 로 흐립니다. 움직여도 견딥니다.
+ *   · 안드로이드 11 이하        뷰를 비트맵으로 떠서 흐립니다. 매 프레임이면 끕니다.
+ *
+ * 그래서 느린 쪽에서만 **이동 중에 잠깐 끕니다.** 나머지는 계속 켜 둡니다 —
+ * 껐다 켜면 단계를 넘길 때마다 배경이 또렷해졌다 흐려져 그게 더 거슬립니다.
+ *
+ * ⚠️ 어느 쪽이든 **처음 뜨는 순간에는 기다리지 않습니다.** 첫 등장은 미끄러질 곳이
+ *    없어서 기다릴 이유가 없는데, 처음엔 여기서도 320ms 를 기다렸습니다 —
+ *    "화면 뜨고 딜레이 있다가 블러처리된다" 는 지적이 그것입니다(2026-08-30).
+ */
+export const BLUR_WHILE_MOVING =
+  Platform.OS !== 'android' || Number(Platform.Version) >= 31;
+
 export const TUTORIAL = {
   /** 전체 배경 — 딤 + 블러 */
   backdrop: {
