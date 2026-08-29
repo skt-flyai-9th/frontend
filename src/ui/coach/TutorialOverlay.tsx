@@ -56,7 +56,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCoach, type CoachName } from './CoachContext';
-import { TUTORIAL } from './tutorialTheme';
+import { ANDROID_BLUR_METHOD, TUTORIAL } from './tutorialTheme';
 import { pressTap } from '../press';
 import theme, { color } from '../../design/theme';
 
@@ -137,6 +137,8 @@ const Scrim = React.memo(function Scrim({
         <AnimatedBlur
           intensity={TUTORIAL.backdrop.blurIntensity}
           tint={TUTORIAL.backdrop.tint}
+          // 안드로이드는 이걸 안 주면 흐려지지 않고 색만 덮입니다(tutorialTheme 머리말)
+          blurMethod={ANDROID_BLUR_METHOD}
           style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
         />
       ) : null}
@@ -151,6 +153,7 @@ const Scrim = React.memo(function Scrim({
           <AnimatedBlur
             intensity={TUTORIAL.backdrop.blurIntensity}
             tint={TUTORIAL.backdrop.tint}
+            blurMethod={ANDROID_BLUR_METHOD}
             style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
           />
         ) : null}
@@ -486,6 +489,7 @@ export function TutorialOverlay({
           <BlurView
             intensity={TUTORIAL.card.blurIntensity}
             tint={TUTORIAL.card.tint}
+            blurMethod={ANDROID_BLUR_METHOD}
             style={StyleSheet.absoluteFill}
           />
           <View style={[StyleSheet.absoluteFill, styles.tipTint]} />

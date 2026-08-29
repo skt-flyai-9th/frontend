@@ -1,3 +1,6 @@
+import { Platform } from 'react-native';
+import type { BlurMethod } from 'expo-blur';
+
 /**
  * 튜토리얼(코치마크) 값 한 곳 — **디자인팀 요청서 그대로입니다** (2026-08-30).
  *
@@ -15,6 +18,31 @@
  * 옮기는데 **픽셀과 1:1 이 아닙니다.** 눈으로 맞춘 값이라 그 근거를 적어 둡니다 —
  * 14px ≈ intensity 40, 20px ≈ intensity 55 로 뒀습니다. 기기에서 보고 조정하세요.
  */
+/**
+ * 🔴 **안드로이드는 블러를 따로 켜 줘야 합니다.**
+ *
+ * `expo-blur` 의 `blurMethod` 기본값이 안드로이드에서 **`'none'`** 입니다. 즉 그냥
+ * 쓰면 흐려지지 않고 **색만 덮입니다** — 웹(CSS `backdrop-filter`)과 iOS 는 그대로
+ * 흐려지기 때문에, 캡처로는 멀쩡해 보이고 폰에서만 안 걸립니다. 실제로 2026-08-30 에
+ * 그렇게 올렸다가 사장님께 "블러 안 해뒀잖아" 를 들었습니다.
+ *
+ *   dimezisBlurViewSdk31Plus  안드로이드 12+ — 시스템 RenderEffect. 빠릅니다.
+ *   dimezisBlurView           그 아래 — 뷰를 비트맵으로 떠서 흐립니다. 무겁습니다.
+ *
+ * 무거운 쪽을 쓰는 기기도 있으므로 **멈춰 있을 때만** 블러를 켭니다
+ * (`TutorialOverlay` 의 `settled`). 튜토리얼이 도는 동안 홈 영상도 세워 두기 때문에
+ * 밑그림이 정지 화면이라, 다시 뜨는 비용이 계속 들지는 않습니다.
+ *
+ * ⚠️ 앱바·탭바(`AppBar`·`TabBar`)의 BlurView 는 **일부러 안 건드렸습니다.** 거기까지
+ *    켜면 앱 전체 그림이 바뀌고 비용도 늘 붙습니다. 필요하면 따로 판단할 일입니다.
+ */
+export const ANDROID_BLUR_METHOD: BlurMethod | undefined =
+  Platform.OS === 'android'
+    ? Number(Platform.Version) >= 31
+      ? 'dimezisBlurViewSdk31Plus'
+      : 'dimezisBlurView'
+    : undefined;
+
 export const TUTORIAL = {
   /** 전체 배경 — 딤 + 블러 */
   backdrop: {
