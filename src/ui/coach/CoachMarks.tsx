@@ -175,9 +175,39 @@ export function CoachMarks() {
   }
 
   const ringRadius = cur.radius === 999 ? Math.max(hole.w, hole.h) / 2 : cur.radius;
-  /** 시안: 짚을 곳이 위쪽이면 말풍선을 아래에 둡니다. */
-  const below = hole.y < winH * 0.4;
   const last = step === STEPS.length - 1;
+
+  /*
+    🔴 **말풍선 자리는 "구멍이 위냐 아래냐" 가 아니라 "들어갈 자리가 있느냐" 로 정합니다.**
+
+    시안은 `hole.y < 340` 이면 아래에 둡니다. 그런데 2단계(영상 영역)는 구멍이
+    **화면을 거의 다 차지**합니다 — 구멍 위쪽이라 아래에 두는데, 아래에 남은 자리가
+    없어서 **버튼이 화면 밖으로 밀려났습니다**(사장님 지적, 2026-08-29).
+
+    그래서 위·아래 남은 자리를 재서 들어가는 쪽에 둡니다. 둘 다 모자라면
+    **화면 아래에 붙입니다** — 구멍을 조금 가려도 버튼이 보이는 쪽이 낫습니다.
+  */
+  const TIP_H = 190;
+  const EDGE = space[6];
+  const roomBelow = winH - (hole.y + hole.h) - 12;
+  const roomAbove = hole.y - 12;
+
+  /**
+   * 말풍선 위치를 **하나의 숫자(top)로** 정하고 화면 안으로 밀어 넣습니다.
+   *
+   * ⚠️ 처음에는 `top` / `bottom` 을 갈아 쓰며 놓았는데, 2단계에서 버튼이 화면
+   *    밖으로 나갔습니다. 짚을 곳을 잰 값이 틀어지면(스크롤이 있는 화면 등)
+   *    어느 쪽으로 놓든 밖으로 나갈 수 있습니다. **마지막에 무조건 잘라 넣는**
+   *    방식이라야 어떤 값이 와도 버튼이 보입니다.
+   */
+  const wanted =
+    roomBelow >= TIP_H
+      ? hole.y + hole.h + 12
+      : roomAbove >= TIP_H
+        ? hole.y - TIP_H - 12
+        : // 위아래 어디에도 안 들어가면 화면 아래에 붙입니다(2단계처럼 구멍이 클 때).
+          winH - TIP_H - EDGE;
+  const tipTop = Math.max(EDGE, Math.min(wanted, winH - TIP_H - EDGE));
 
   /** 구멍을 둘러싸는 네 조각. 가운데만 선명하게 남습니다. */
   const pieces: ViewStyle[] = [
@@ -217,10 +247,7 @@ export function CoachMarks() {
 
       {/* 말풍선 — 유리 카드 */}
       <View
-        style={[
-          styles.tipWrap,
-          below ? { top: hole.y + hole.h + 12 } : { bottom: winH - hole.y + 12 },
-        ]}
+        style={[styles.tipWrap, { top: tipTop }]}
         pointerEvents="box-none"
       >
         <BlurView intensity={30} tint="dark" style={styles.tip}>
