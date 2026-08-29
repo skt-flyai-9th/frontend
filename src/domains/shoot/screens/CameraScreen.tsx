@@ -525,17 +525,26 @@ export default function CameraScreen({ navigation, route }: Props) {
       <PipGuide url={pipUrl} loopStart={loopStart} loopEnd={loopEnd} />
 
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
+        {/*
+          🔴 **뒤로가기가 오른쪽 유리질 알약 안으로 갔습니다** (2026-08-29 시안).
+
+          카메라 미리보기 위에 맨 아이콘만 얹으면 밝은 장면에서 흰 화살표가 묻힙니다.
+          시안은 테두리(white/20) + 블러 알약을 깔아 어디서든 보이게 하고, 자리도
+          **오른쪽**으로 옮겼습니다 — 왼손으로 폰을 들고 오른손으로 찍는 자세에서
+          왼쪽 위는 가장 닿기 어려운 자리입니다.
+        */}
         <View style={styles.topBar}>
-          {/* 시안 카메라 상단에는 뒤로가기 하나뿐입니다. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="촬영 그만두기"
-            onPress={() => navigation.goBack()}
-            hitSlop={12}
-            style={styles.chromeButton}
-          >
-            <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
-          </Pressable>
+          <View style={styles.chromePill}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="촬영 그만두기"
+              onPress={() => navigation.goBack()}
+              hitSlop={12}
+              style={styles.chromeButton}
+            >
+              <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
+            </Pressable>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -721,6 +730,16 @@ const styles = StyleSheet.create({
   // 카운트다운: 시안 top-[62px] · 가운데 · 점 9 + 숫자 18 bold tabular
   countdown: {
     position: 'absolute',
+    /*
+      시안은 104 지만 **우리는 62 를 유지합니다** (2026-08-29 캡처로 확인).
+
+      시안의 참고 영상 창은 폭 **90** 이라 왼쪽 구석에 얌전히 있고, 가운데 정렬된
+      카운터·라벨과 겹치지 않습니다. 그런데 우리 창은 **170** 입니다 — 사장님이
+      "영상이 너무 작아서 안 보인다" 고 하셔서 키운 값입니다(`PipGuide` 머리말).
+      그 폭에서 104/134 로 내리면 **라벨이 창을 덮습니다.**
+
+      창 크기가 사장님 지시라 그쪽을 지키고, 카운터·라벨은 창 위에 그대로 둡니다.
+    */
     top: 62,
     left: 0,
     right: 0,
@@ -750,6 +769,7 @@ const styles = StyleSheet.create({
   // 컷 이름 배지: 시안 top-[92px] · px-3.5 py-1.5 · 12.5 semibold · 유리질
   takeLabelWrap: {
     position: 'absolute',
+    // 카운터와 30 간격. 시안은 134 지만 창 폭이 달라 62/92 를 씁니다(위 countdown 주석).
     top: 92,
     left: 0,
     right: 0,
@@ -897,12 +917,23 @@ const styles = StyleSheet.create({
   permBody: { flex: 1, justifyContent: 'center', gap: space[3] },
 
   topLayer: { position: 'absolute', top: 0, left: 0, right: 0 },
+  /* 시안: h-11 · px-4 · **오른쪽 정렬** */
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: 44,
     paddingHorizontal: space[4],
-    paddingTop: space[2],
-    gap: space[3],
+  },
+  /* 시안: h-42 · rounded-full · 테두리 white/20 · px-1.5 · 블러 유리 */
+  chromePill: {
+    height: 42,
+    paddingHorizontal: 6,
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+    borderColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
   },
   // 시안: 배경 없는 36 버튼. 카메라 위라 아이콘만 흰색으로 둡니다.
   chromeButton: {

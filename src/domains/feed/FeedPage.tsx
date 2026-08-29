@@ -24,14 +24,15 @@
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Heart, Play } from 'lucide-react-native';
+import { Heart } from 'lucide-react-native';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
+import { SlateEditGlyph } from '../../ui/SlateEditGlyph';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
 import { formatHashtags } from '../../lib/format';
-import theme, { color, radius, space, text } from '../../design/theme';
+import theme, { color, radius, space } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
 
 export function FeedPage({
@@ -57,13 +58,19 @@ export function FeedPage({
   const tags = formatHashtags(format);
 
   /*
-   * 영상 자리와 정보 띠를 나눕니다.
-   * 세로 영상(9:16)이라 폭보다 높이가 먼저 모자랍니다 — 남는 높이에 맞춰 폭을
-   * 되돌려 잡고 가운데 둡니다. 잘라내지 않습니다(잘리면 자막이 사라집니다).
-   */
-  const infoHeight = 128;
+    🔴 **영상과 정보 띠를 물리적으로 나눕니다** (2026-08-29, 시안 `튜토리얼,홈UI,촬영화면UI.html`).
+
+    시안 `ReelCard` 구조 — 세로 2단입니다.
+      위  영상 전용. 가로 여백 0, 9:16 을 **세로만 잘라** 폭을 꽉 채웁니다.
+          **위에 아무것도 얹지 않습니다** — 쇼츠 자체의 터치·재생·음소거를
+          막지 않기 위해서라고 시안 주석에 적혀 있습니다(유튜브 약관과도 맞습니다).
+      아래 메타·액션 패널 **96** 고정. 위쪽에 흰 실선(white/10) 한 줄.
+
+    예전에는 영상을 안 자르고 폭을 줄여 좌우에 검은 여백을 뒀습니다. 시안은
+    **폭을 꽉 채우고 위아래를 자릅니다** — 쇼츠는 원래 그렇게 봅니다.
+  */
+  const infoHeight = 96;
   const stageHeight = Math.max(200, height - infoHeight);
-  const playerWidth = Math.min(width, Math.round((stageHeight * 9) / 16));
 
   return (
     <View style={[styles.page, { height, width }]}>
@@ -72,85 +79,82 @@ export function FeedPage({
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
            * 화면에 자동재생 플레이어가 언제나 하나만 남습니다.
+           *
+           * 폭을 꽉 채우면 9:16 높이가 무대보다 큽니다 — 넘치는 만큼 위아래가
+           * 잘리게 두는 것이 시안입니다(`overflow-hidden` + 세로 가운데).
            */
-          <GuidePlayer url={representativeVideoUrl(format)} width={playerWidth} portrait autoPlay />
+          <GuidePlayer url={representativeVideoUrl(format)} width={width} portrait autoPlay />
         ) : (
           <VideoThumbnail
             url={representativeVideoUrl(format)}
             platform={format.sourcePlatform}
             aspectRatio={9 / 16}
-            style={{ width: playerWidth }}
+            style={{ width }}
           />
         )}
       </View>
 
       {/*
-        정보는 **영상 아래**입니다. 위에 얹으면 유튜브 약관 위반입니다.
-        제목이 버튼과 자리를 다투면 "문 열고 들어오는 시…" 처럼 잘리므로,
-        제목은 **한 줄 전체**를 쓰고 태그만 버튼과 나눠 씁니다.
+        시안 메타 패널 — **한 줄**입니다.
+          왼쪽  아바타 36 + [제목 14.5 semibold] / [해시태그 12] 세로 2단
+          오른쪽 하트 40 · 촬영 40
+
+        예전에는 제목이 한 행을 통째로 쓰고 그 아래 태그+버튼이 또 한 행이었습니다.
+        시안은 왼쪽 묶음과 오른쪽 버튼이 **같은 줄**을 나눠 씁니다 — 그래서 96 에
+        들어갑니다(사장님이 "구성 배치가 중요하다" 고 짚으신 부분).
       */}
       <View style={[styles.info, { height: infoHeight }]}>
-        <Text style={styles.title} numberOfLines={2}>
-          {format.formatTitle}
-        </Text>
-
-        <View style={styles.metaRow}>
-          {tags.length > 0 ? (
-            /*
-              🔴 2026-08-27: **전광판처럼 흐르던 것을 세웠습니다** (사장님 지시).
-
-              예전에는 태그가 하트·촬영 버튼과 한 줄을 나눠 쓰느라 자리가 좁아, 잘리는
-              대신 흘려보냈습니다. 옆 버튼이 아이콘으로 작아지면서 자리가 넉넉해졌고,
-              움직이는 글씨는 읽기 어렵다는 지적이 있었습니다.
-
-              시안도 흐르지 않습니다 — `truncate` 한 줄입니다(`shell.jsx:321`).
-              다만 세 태그가 한 줄에 안 들어가는 기기가 있어 **두 줄까지** 허용합니다.
-            */
-            <Text style={[styles.tags, styles.tagsBox]} numberOfLines={2}>
-              {tags.join(' ')}
-            </Text>
-          ) : (
-            <View style={{ flex: 1 }} />
-          )}
+        <View style={styles.infoRow}>
+          <View style={styles.left}>
+            {/*
+              시안은 채널 프로필 사진을 놓습니다. 5.1 에 avatar 필드가 없어
+              **자리만** 둡니다 — 없는 사진을 지어내지 않습니다(CLAUDE.md §2).
+              값이 생기면 여기에 <Image> 를 넣으면 됩니다.
+            */}
+            <View style={styles.avatar} />
+            <View style={styles.texts}>
+              <Text style={styles.title} numberOfLines={1}>
+                {format.formatTitle}
+              </Text>
+              {tags.length > 0 ? (
+                <Text style={styles.tags} numberOfLines={1}>
+                  {tags.join(' ')}
+                </Text>
+              ) : null}
+            </View>
+          </View>
 
           <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={fav ? '찜 해제' : '찜하기'}
-            accessibilityState={{ selected: fav }}
-            hitSlop={8}
-            onPress={() => onToggleFavorite(format)}
-            style={({ pressed }) => [styles.heartBtn, pressTap(pressed, 'icon')]}
-          >
-            <Heart
-              size={22}
-              strokeWidth={2}
-              color={fav ? color.danger[500] : color.ink[500]}
-              fill={fav ? color.danger[500] : 'transparent'}
-            />
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={fav ? '찜 해제' : '찜하기'}
+              accessibilityState={{ selected: fav }}
+              hitSlop={6}
+              onPress={() => onToggleFavorite(format)}
+              style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
+            >
+              <Heart
+                size={20}
+                strokeWidth={2}
+                color={fav ? color.danger[500] : color.paper}
+                fill={fav ? color.danger[500] : 'transparent'}
+              />
+            </Pressable>
 
-          {/*
-              🔴 2026-08-27: 파란 알약 "이 방식으로 찍기" → **시안 아이콘 버튼**.
-
-              시안 원문 (`js/shell.jsx:325`)
-                <button aria-label="영상 촬영 준비하기"
-                        className="h-9 w-9 rounded-full active:scale-90">
-                  <PlayGlyph size={24} color="#334155" strokeWidth={1.7} />
-                </button>
-
-              글자 대신 재생 아이콘 하나입니다. 색도 브랜드 파랑이 아니라 slate(#334155
-              = ink[700]) 입니다. 터치 영역은 44 로 두되(40~60대 손끝), 보이는 크기는
-              시안과 같습니다. 무엇을 하는 버튼인지는 accessibilityLabel 이 말합니다.
+            {/*
+              🔴 **촬영 아이콘이 바뀌었습니다** (2026-08-29 시안).
+                 재생 삼각형 → **슬레이트 + 연필**(`SlateEditGlyph`).
+                 삼각형은 "영상을 튼다" 로 읽혀서, 누르면 촬영 준비로 간다는 게
+                 안 보였습니다.
             */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${format.formatTitle} 영상 촬영 준비하기`}
-              hitSlop={8}
+              accessibilityLabel="이 영상으로 촬영하기"
+              hitSlop={6}
               onPress={() => onCreate(format)}
-              style={({ pressed }) => [styles.createBtn, pressTap(pressed, 'icon')]}
+              style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
             >
-              <Play size={24} strokeWidth={1.7} color={color.ink[700]} />
+              <SlateEditGlyph size={24} color={color.paper} strokeWidth={1.7} />
             </Pressable>
           </View>
         </View>
@@ -160,40 +164,54 @@ export function FeedPage({
 }
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: color.canvas },
-  // 영상 뒤는 검정입니다 — 세로 영상 좌우로 남는 자리가 화면과 섞이지 않게.
-  stage: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.mediaBlack },
+  /* 시안 `bg-ink` — 카드 전체가 어둡습니다. 쇼츠를 보는 화면이라 밝은 판이 눈을 찌릅니다. */
+  page: { backgroundColor: color.ink[900] },
+  /* 영상은 폭을 꽉 채우고 넘치는 높이를 잘라냅니다(시안 overflow-hidden). */
+  stage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: color.mediaBlack,
+  },
 
+  /* 시안: 높이 96 · 위쪽 white/10 실선 · px-4 · 세로 가운데 */
   info: {
     justifyContent: 'center',
-    gap: space[2],
-    paddingHorizontal: space[5],
-    backgroundColor: color.canvas,
+    paddingHorizontal: space[4],
+    borderTopWidth: theme.border.hairline,
+    borderTopColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: color.ink[900],
   },
-  title: { ...theme.text.subheading, color: color.ink[900] },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  tagsBox: { flex: 1, minWidth: 0 },
-  /*
-    시안: `text-[12px] font-medium text-slate-muted` (`shell.jsx:321`).
-    브랜드 파랑 13 이었는데 시안값으로 맞췄습니다 — 관심목록 카드(FormatCard)도
-    같은 값이라 두 화면의 같은 태그가 이제 같아 보입니다.
-  */
-  tags: { ...theme.text.label, color: color.ink[500], lineHeight: 18 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  left: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  /* 시안 h-9 w-9(36). 사진이 없어 옅은 원만 둡니다. */
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  texts: { flex: 1, minWidth: 0, gap: 2 },
+  /* 시안: 14.5 semibold leading-snug 흰색 */
+  title: {
+    ...theme.text.bodySmall,
+    fontSize: 14.5,
+    lineHeight: 20,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.paper,
+  },
+  /* 시안: 12 medium white/55 */
+  tags: { ...theme.text.label, lineHeight: 17, color: 'rgba(255,255,255,0.55)' },
 
-  actions: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  heartBtn: {
-    width: 44,
-    height: 44,
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+  /* 시안: 40 원형. 어두운 바닥이라 유리질 배경을 깔아 아이콘이 뜹니다. */
+  roundBtn: {
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  // 시안: h-9 w-9 rounded-full (아이콘만). 터치는 44 로 넓힙니다
-  createBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.45)',
   },
 });
