@@ -76,7 +76,7 @@ export function FeedPage({
   return (
     <View style={[styles.page, { height, width }]}>
       {/* 코치마크 2단계가 짚는 곳 — 시안 data-coach="video" */}
-      <CoachTarget name="video" style={[styles.stage, { height: stageHeight }]}>
+      <CoachTarget name="video" enabled={active} style={[styles.stage, { height: stageHeight }]}>
         {active ? (
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
@@ -150,7 +150,7 @@ export function FeedPage({
                  안 보였습니다.
             */}
             {/* 코치마크 3단계가 짚는 곳 — 시안 data-coach="make" */}
-            <CoachTarget name="make" style={styles.roundWrap}>
+            <CoachTarget name="make" enabled={active} style={styles.roundWrap}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="이 영상으로 촬영하기"

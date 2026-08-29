@@ -90,19 +90,30 @@ export function useCoach(): CoachApi | null {
  */
 export function CoachTarget({
   name,
+  enabled = true,
   children,
   style,
   ...rest
-}: { name: CoachName } & ViewProps) {
+}: {
+  name: CoachName;
+  /**
+   * 🔴 **같은 이름표가 화면에 여럿 있을 때 어느 것이 진짜인지 가릅니다.**
+   *
+   * 홈 피드는 장(page)마다 `CoachTarget name="video"` 를 그립니다. 전부 보고하면
+   * **마지막 장이 이겨서** 화면 밖 좌표가 들어옵니다 — 실제로 구멍 높이가 음수로
+   * 나왔습니다(2026-08-29 실측: y=1441 h=-589). 지금 보고 있는 장만 보고하게 합니다.
+   */
+  enabled?: boolean;
+} & ViewProps) {
   const coach = useCoach();
   const ref = useRef<View>(null);
 
   const measure = useCallback(() => {
-    if (!coach?.measuring) return;
+    if (!coach?.measuring || !enabled) return;
     ref.current?.measureInWindow((x, y, w, h) => {
       if (w > 0 && h > 0) coach.report(name, { x, y, w, h });
     });
-  }, [coach, name]);
+  }, [coach, name, enabled]);
 
   /*
     오버레이가 켜져 있는 동안 계속 다시 잽니다. 탭이 넘어가는 중에도 구멍이
@@ -110,11 +121,11 @@ export function CoachTarget({
     (시안도 같은 이유로 80ms 간격으로 다시 잽니다.)
   */
   React.useEffect(() => {
-    if (!coach?.measuring) return;
+    if (!coach?.measuring || !enabled) return;
     measure();
     const t = setInterval(measure, 120);
     return () => clearInterval(t);
-  }, [coach?.measuring, measure]);
+  }, [coach?.measuring, enabled, measure]);
 
   return (
     <View ref={ref} collapsable={false} style={style} onLayout={measure} {...rest}>

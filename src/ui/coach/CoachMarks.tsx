@@ -15,22 +15,39 @@
  *           버튼 h40 — 이전(유리) : 다음(흰 배경) = 1 : 1.4
  *   자리    타겟이 위쪽(y<340)이면 말풍선을 **아래**, 아니면 **위**
  *
- * ⚠️ **구멍은 마스크가 아니라 네 조각으로 만듭니다.**
- *    웹 시안은 CSS `mask-composite: exclude` 로 막에 구멍을 뚫습니다. RN 에는 그
- *    조합이 없고, `BlurView` 는 마스킹도 안 됩니다. 그래서 구멍의 위·아래·왼·오른쪽
- *    **네 개의 흐린 판**을 둘러 깝니다 — 가운데만 선명하게 남아 결과가 같습니다.
- *    (구멍 모서리는 각지지만 그 위에 얹는 둥근 테두리가 형태를 잡아 줍니다.)
+ * ⚠️ **구멍은 SVG 마스크로 뚫습니다 — 흐림 대신 둥근 모서리를 택했습니다.**
+ *
+ *    웹 시안은 막을 흐리게 하고(`blur 5`) CSS 마스크로 구멍을 뚫습니다. RN 에는
+ *    그 조합이 없습니다 — `BlurView` 는 마스킹이 안 돼서, 처음에는 구멍 사방에
+ *    흐린 판 네 개를 둘러 깔았습니다. 그랬더니 **구멍이 각지게 나왔습니다**
+ *    (사장님 지적, 2026-08-29).
+ *
+ *    둘 다는 안 되므로 **모양**을 택했습니다. `react-native-svg` 의 `Mask` 로
+ *    둥근 사각형 구멍을 정확히 뚫고, 흐림이 빠진 만큼 막을 조금 더 어둡게 합니다.
+ *    흐림이 꼭 필요하면 네이티브 모듈(`@react-native-masked-view`)을 넣어야 하고
+ *    그건 APK 재빌드가 필요합니다.
+ *
+ * 움직임 — 시안 `transition .28s cubic-bezier(.22,1,.36,1)`.
+ *    단계를 넘기면 구멍이 다음 자리로 **미끄러져 갑니다.** 자리·크기·모서리가
+ *    함께 움직입니다. 말풍선은 `pop-in` 으로 떠오릅니다.
+ *    ⚠️ 위치·크기는 레이아웃 값이라 **네이티브 드라이버를 못 씁니다**
+ *       (`useNativeDriver: false`). 한 번짜리 timing 이라 `Animated.loop` 함정
+ *       (CLAUDE.md §5-④)과는 무관합니다.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Dimensions,
+  Easing,
   Pressable,
   StyleSheet,
   Text,
   View,
-  type ViewStyle,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
+import Svg, { Defs, Mask, Rect } from 'react-native-svg';
+
+/** 구멍이 미끄러지려면 SVG 사각형의 값도 애니메이션을 받아야 합니다. */
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 import { useCoach, type CoachName } from './CoachContext';
 import { navRef } from '../../navigation/navRef';
@@ -156,13 +173,70 @@ export function CoachMarks() {
     if (!cur || !rect) return null;
     const x = Math.max(0, rect.x - cur.pad);
     const y = Math.max(0, rect.y - cur.pad);
+    /*
+      화면 밖으로 나가지 않게 자르되 **음수가 되지 않게** 막습니다.
+      짚을 곳을 잘못 잰 값이 들어오면 높이가 음수가 되어 구멍이 뒤집힙니다.
+    */
     return {
       x,
       y,
-      w: Math.min(winW - x, rect.w + cur.pad * 2),
-      h: Math.min(winH - y, rect.h + cur.pad * 2),
+      w: Math.max(0, Math.min(winW - x, rect.w + cur.pad * 2)),
+      h: Math.max(0, Math.min(winH - y, rect.h + cur.pad * 2)),
     };
   }, [cur, rect, winW, winH]);
+
+  /*
+    구멍이 다음 자리로 **미끄러져 갑니다** (시안 transition .28s).
+    자리·크기·모서리를 한 시계로 함께 움직여야 도중에 모양이 어긋나지 않습니다.
+  */
+  const ax = useRef(new Animated.Value(0)).current;
+  const ay = useRef(new Animated.Value(0)).current;
+  const aw = useRef(new Animated.Value(0)).current;
+  const ah = useRef(new Animated.Value(0)).current;
+  const ar = useRef(new Animated.Value(0)).current;
+  /** 첫 등장은 미끄러질 곳이 없습니다 — 그 자리에 바로 놓습니다. */
+  const placed = useRef(false);
+
+  const targetRadius = cur && hole ? (cur.radius === 999 ? Math.max(hole.w, hole.h) / 2 : cur.radius) : 0;
+
+  useEffect(() => {
+    if (!hole) return;
+    const to = [
+      [ax, hole.x],
+      [ay, hole.y],
+      [aw, hole.w],
+      [ah, hole.h],
+      [ar, targetRadius],
+    ] as const;
+    if (!placed.current) {
+      to.forEach(([v, n]) => v.setValue(n));
+      placed.current = true;
+      return;
+    }
+    const anims = to.map(([v, n]) =>
+      Animated.timing(v, {
+        toValue: n,
+        duration: 280,
+        // 시안 cubic-bezier(.22,1,.36,1) — 빠르게 나갔다 부드럽게 안착합니다.
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+        // ⚠️ 위치·크기는 레이아웃 값이라 네이티브 드라이버를 못 씁니다.
+        useNativeDriver: false,
+      })
+    );
+    Animated.parallel(anims).start();
+  }, [hole?.x, hole?.y, hole?.w, hole?.h, targetRadius]);
+
+  /** 말풍선은 단계가 바뀔 때마다 떠오릅니다 (시안 pop-in). */
+  const pop = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    pop.setValue(0);
+    Animated.timing(pop, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      useNativeDriver: true,
+    }).start();
+  }, [step, pop]);
 
   if (!running || !cur) return null;
 
@@ -171,10 +245,9 @@ export function CoachMarks() {
     안 뜬 것처럼 보이고, 구멍 없이 막만 있으면 곧 뚫린다는 게 전해집니다.
   */
   if (!hole) {
-    return <BlurView intensity={18} tint="dark" style={styles.fill} pointerEvents="auto" />;
+    return <View style={[styles.fill, styles.scrimFlat]} pointerEvents="auto" />;
   }
 
-  const ringRadius = cur.radius === 999 ? Math.max(hole.w, hole.h) / 2 : cur.radius;
   const last = step === STEPS.length - 1;
 
   /*
@@ -209,48 +282,56 @@ export function CoachMarks() {
           winH - TIP_H - EDGE;
   const tipTop = Math.max(EDGE, Math.min(wanted, winH - TIP_H - EDGE));
 
-  /** 구멍을 둘러싸는 네 조각. 가운데만 선명하게 남습니다. */
-  const pieces: ViewStyle[] = [
-    { left: 0, top: 0, right: 0, height: hole.y },
-    { left: 0, top: hole.y + hole.h, right: 0, bottom: 0 },
-    { left: 0, top: hole.y, width: hole.x, height: hole.h },
-    { left: hole.x + hole.w, top: hole.y, right: 0, height: hole.h },
-  ];
-
   return (
     <View style={styles.fill} pointerEvents="box-none">
-      {pieces.map((p, i) => (
-        <BlurView
-          key={i}
-          intensity={18}
-          tint="dark"
-          style={[styles.piece, p]}
-          // 막을 눌러도 아래 화면이 눌리지 않게 막습니다.
-          pointerEvents="auto"
-        />
-      ))}
+      {/*
+        막 + 구멍. 흰 곳은 남기고 검은 곳(구멍)은 지웁니다 — `Mask` 의 규칙입니다.
+        막을 눌러도 아래 화면이 눌리지 않게 이 층이 손가락을 받습니다.
+      */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+        <Svg width={winW} height={winH}>
+          <Defs>
+            <Mask id="coachHole">
+              <Rect x={0} y={0} width={winW} height={winH} fill="#fff" />
+              <AnimatedRect x={ax} y={ay} width={aw} height={ah} rx={ar} ry={ar} fill="#000" />
+            </Mask>
+          </Defs>
+          <Rect
+            x={0}
+            y={0}
+            width={winW}
+            height={winH}
+            fill="rgba(15,18,25,0.62)"
+            mask="url(#coachHole)"
+          />
+        </Svg>
+      </View>
 
       {/* 구멍 테두리 — 시안 1.5 white/50 + 바깥 흰 그림자 */}
-      <View
+      <Animated.View
         pointerEvents="none"
         style={[
           styles.ring,
-          {
-            left: hole.x,
-            top: hole.y,
-            width: hole.w,
-            height: hole.h,
-            borderRadius: ringRadius,
-          },
+          { left: ax, top: ay, width: aw, height: ah, borderRadius: ar },
         ]}
       />
 
       {/* 말풍선 — 유리 카드 */}
-      <View
-        style={[styles.tipWrap, { top: tipTop }]}
+      <Animated.View
+        style={[
+          styles.tipWrap,
+          {
+            top: tipTop,
+            opacity: pop,
+            transform: [
+              { translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+              { scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+          },
+        ]}
         pointerEvents="box-none"
       >
-        <BlurView intensity={30} tint="dark" style={styles.tip}>
+        <View style={styles.tip}>
           <View style={styles.tipHead}>
             <Text style={styles.count}>
               {step + 1}/{STEPS.length}
@@ -290,16 +371,16 @@ export function CoachMarks() {
               <Text style={styles.btnPrimaryText}>{last ? '완료' : '다음'}</Text>
             </Pressable>
           </View>
-        </BlurView>
-      </View>
+        </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 },
-  /* 시안 막 색 — blur 위에 옅게 덧칠해 대비를 만듭니다. */
-  piece: { position: 'absolute', backgroundColor: 'rgba(15,18,25,0.30)' },
+  /* 아직 짚을 곳을 못 쟀을 때 깔아 두는 막. 구멍 뚫린 막과 같은 색입니다. */
+  scrimFlat: { backgroundColor: 'rgba(15,18,25,0.62)' },
 
   ring: {
     position: 'absolute',
@@ -319,7 +400,8 @@ const styles = StyleSheet.create({
     borderRadius: rad.lg,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.25)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    // 흐림을 못 쓰므로(머리말 참고) 유리 느낌을 색으로 냅니다 — 시안보다 조금 진하게.
+    backgroundColor: 'rgba(38,44,56,0.92)',
     paddingHorizontal: space[4],
     paddingTop: space[3],
     paddingBottom: 14,
