@@ -300,21 +300,39 @@ export function CoachMarks() {
    */
   const held = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
 
-  /** 구멍 = 짚을 곳 + 여백. 화면 밖으로 나가지 않게 잘라 둡니다. */
+  /**
+   * 구멍 = 짚을 곳 + 여백.
+   *
+   * 🔴 **화면 안으로 밀어 넣지 않습니다 — 여백을 양쪽에서 똑같이 줄입니다**
+   *    (2026-08-29 사장님 지적: "아이콘 중앙에 안 맞고 쏠려 있다").
+   *
+   *    예전에는 `x` 를 0 아래로 못 가게 막고 폭은 그대로 뒀습니다. 그러면 구멍이
+   *    통째로 여백만큼 **옆으로 밀립니다.** 맨 왼쪽 홈 탭에서 8pt 오른쪽으로,
+   *    맨 오른쪽 마이페이지 탭에서 4pt 왼쪽으로 쏠렸습니다(실측). 가운데 두 탭은
+   *    걸릴 일이 없어 멀쩡했고, 그래서 홈·마이페이지만 어긋나 보였습니다.
+   *
+   *    시안은 아예 **안 자릅니다** — 구멍이 프레임 밖으로 나가든 말든 짚는 곳
+   *    정중앙에 둡니다(`hole = {x: box.x - pad, w: box.w + pad*2}`, 원문 4029행).
+   *    다만 사장님은 잘리는 것도 원치 않으셔서, 나가는 쪽만큼 **여백 자체를 양쪽에서
+   *    같이 줄입니다.** 중앙은 그대로 맞고 화면 밖으로도 안 나갑니다.
+   *    가장자리 탭은 여백이 0 이 되어 칸에 딱 맞고, 나머지 단계는 시안값 그대로입니다.
+   */
   const hole = useMemo(() => {
     if (!cur) return null;
     if (!rect) return held.current;
-    const x = Math.max(0, rect.x - cur.pad);
-    const y = Math.max(0, rect.y - cur.pad);
+    const padX = Math.max(0, Math.min(cur.pad, rect.x, winW - (rect.x + rect.w)));
+    const padY = Math.max(0, Math.min(cur.pad, rect.y, winH - (rect.y + rect.h)));
     /*
-      화면 밖으로 나가지 않게 자르되 **음수가 되지 않게** 막습니다.
-      짚을 곳을 잘못 잰 값이 들어오면 높이가 음수가 되어 구멍이 뒤집힙니다.
+      짚을 곳 자체가 화면 밖에 걸쳐 있으면(잘못 잰 값) 여기서 한 번 더 막습니다.
+      이때만 밀립니다 — 정상적인 값에서는 위 여백 계산이 이미 안쪽에 넣어 둡니다.
     */
+    const x = Math.max(0, rect.x - padX);
+    const y = Math.max(0, rect.y - padY);
     return {
       x,
       y,
-      w: Math.max(0, Math.min(winW - x, rect.w + cur.pad * 2)),
-      h: Math.max(0, Math.min(winH - y, rect.h + cur.pad * 2)),
+      w: Math.max(0, Math.min(winW - x, rect.w + padX * 2)),
+      h: Math.max(0, Math.min(winH - y, rect.h + padY * 2)),
     };
   }, [cur, rect, winW, winH]);
 
