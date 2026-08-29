@@ -50,6 +50,59 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 /** 구멍이 미끄러지려면 SVG 사각형의 값도 애니메이션을 받아야 합니다. */
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
+/**
+ * 막 + 구멍. **일부러 따로 떼어 `memo` 로 감쌌습니다.**
+ *
+ * 화면 전체를 덮은 SVG 는 다시 그리는 값이 비쌉니다. 오버레이 본체는 위치를 다시
+ * 잴 때마다 그려지는데, 그때 이 막까지 같이 그려지면 **튜토리얼이 도는 내내
+ * 화면이 끕니다**(사장님 지적, 2026-08-29). 받는 값이 전부 고정된 것들
+ * (화면 크기 · `Animated.Value` 그릇)이라 여기는 **처음 한 번만** 그려지고,
+ * 구멍이 움직이는 건 그릇 안 숫자가 바뀌는 것으로 처리됩니다.
+ */
+const Scrim = React.memo(function Scrim({
+  winW,
+  winH,
+  ax,
+  ay,
+  aw,
+  ah,
+  ar,
+  hasHole,
+}: {
+  winW: number;
+  winH: number;
+  ax: Animated.Value;
+  ay: Animated.Value;
+  aw: Animated.Value;
+  ah: Animated.Value;
+  ar: Animated.Value;
+  hasHole: boolean;
+}) {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+      <Svg width={winW} height={winH}>
+        <Defs>
+          {/* 흰 곳은 남기고 검은 곳(구멍)은 지웁니다 — `Mask` 의 규칙입니다. */}
+          <Mask id="coachHole">
+            <Rect x={0} y={0} width={winW} height={winH} fill="#fff" />
+            {hasHole ? (
+              <AnimatedRect x={ax} y={ay} width={aw} height={ah} rx={ar} ry={ar} fill="#000" />
+            ) : null}
+          </Mask>
+        </Defs>
+        <Rect
+          x={0}
+          y={0}
+          width={winW}
+          height={winH}
+          fill="rgba(15,18,25,0.62)"
+          mask="url(#coachHole)"
+        />
+      </Svg>
+    </View>
+  );
+});
+
 import { useCoach, type CoachName } from './CoachContext';
 import { navRef } from '../../navigation/navRef';
 import { COACH_VERSION, useAppState } from '../../lib/appState';
@@ -170,12 +223,17 @@ export function CoachMarks() {
     return coach.subscribe(() => redraw((n) => n + 1));
   }, [coach]);
 
-  /** 단계의 탭으로 먼저 옮깁니다 — 짚을 곳이 화면에 없으면 뚫을 수가 없습니다. */
+  /**
+   * 단계의 탭으로 먼저 옮깁니다 — 짚을 곳이 화면에 없으면 뚫을 수가 없습니다.
+   *
+   * ⚠️ 예전에는 `step` 도 의존성에 있어서 **같은 탭 안에서 단계를 넘겨도 매번**
+   *    `navigate` 를 불렀습니다(1·2·3 단계가 다 홈입니다). 탭이 바뀔 때만 부릅니다.
+   */
   useEffect(() => {
     if (!cur || !navRef.isReady()) return;
     // @ts-expect-error 중첩 라우트라 타입이 좁게 잡힙니다 — 이름은 실제 탭과 같습니다.
     navRef.navigate('Main', { screen: cur.tab });
-  }, [cur?.tab, step]);
+  }, [cur?.tab]);
 
   const finish = useCallback(() => {
     setRunning(false);
@@ -301,31 +359,8 @@ export function CoachMarks() {
 
   return (
     <View style={styles.fill} pointerEvents="box-none">
-      {/*
-        막 + 구멍. 흰 곳은 남기고 검은 곳(구멍)은 지웁니다 — `Mask` 의 규칙입니다.
-        막을 눌러도 아래 화면이 눌리지 않게 이 층이 손가락을 받습니다.
-      */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-        {/* 짚을 곳을 아직 못 쟀으면 구멍 없는 막만 깔립니다. */}
-        <Svg width={winW} height={winH}>
-          <Defs>
-            <Mask id="coachHole">
-              <Rect x={0} y={0} width={winW} height={winH} fill="#fff" />
-              {hole ? (
-                <AnimatedRect x={ax} y={ay} width={aw} height={ah} rx={ar} ry={ar} fill="#000" />
-              ) : null}
-            </Mask>
-          </Defs>
-          <Rect
-            x={0}
-            y={0}
-            width={winW}
-            height={winH}
-            fill="rgba(15,18,25,0.62)"
-            mask="url(#coachHole)"
-          />
-        </Svg>
-      </View>
+      {/* 막을 눌러도 아래 화면이 눌리지 않게 이 층이 손가락을 받습니다. */}
+      <Scrim winW={winW} winH={winH} ax={ax} ay={ay} aw={aw} ah={ah} ar={ar} hasHole={!!hole} />
 
       {/* 구멍 테두리 — 시안 1.5 white/50 + 바깥 흰 그림자 */}
       <Animated.View
