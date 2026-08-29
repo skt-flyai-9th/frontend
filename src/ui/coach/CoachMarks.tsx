@@ -45,6 +45,7 @@ import {
   View,
 } from 'react-native';
 import Svg, { Defs, Mask, Rect } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** 구멍이 미끄러지려면 SVG 사각형의 값도 애니메이션을 받아야 합니다. */
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -130,7 +131,11 @@ export function CoachMarks() {
 
   const [step, setStep] = useState(0);
   const [running, setRunning] = useState(false);
+  /** 말풍선을 한 번 그려 보고 잰 실제 높이. 0 이면 아직 못 잰 것입니다. */
+  const [tipH, setTipH] = useState(0);
   const { width: winW, height: winH } = Dimensions.get('window');
+  /* 화면 맨 아래에 붙일 때 홈 인디케이터를 침범하지 않게 합니다(CLAUDE.md §3). */
+  const insets = useSafeAreaInsets();
 
   /*
     🔴 **업데이트를 받으면 한 번 저절로 뜹니다** (2026-08-29 사장님 요청).
@@ -251,14 +256,6 @@ export function CoachMarks() {
 
   if (!running || !cur) return null;
 
-  /*
-    아직 짚을 곳을 못 쟀으면 **막만** 깔아 둡니다. 아무것도 안 그리면 튜토리얼이
-    안 뜬 것처럼 보이고, 구멍 없이 막만 있으면 곧 뚫린다는 게 전해집니다.
-  */
-  if (!hole) {
-    return <View style={[styles.fill, styles.scrimFlat]} pointerEvents="auto" />;
-  }
-
   const last = step === STEPS.length - 1;
 
   /*
@@ -271,10 +268,17 @@ export function CoachMarks() {
     그래서 위·아래 남은 자리를 재서 들어가는 쪽에 둡니다. 둘 다 모자라면
     **화면 아래에 붙입니다** — 구멍을 조금 가려도 버튼이 보이는 쪽이 낫습니다.
   */
-  const TIP_H = 190;
-  const EDGE = space[6];
-  const roomBelow = winH - (hole.y + hole.h) - 12;
-  const roomAbove = hole.y - 12;
+  /*
+    🔴 **말풍선 높이는 재서 씁니다 — 어림수로 두면 버튼이 밖으로 나갑니다.**
+
+    처음에는 190 으로 찍어 두고 계산했습니다. 실제 높이는 글자 수와 **사장님 폰의
+    글자 크기 설정**에 따라 달라집니다. 크게 쓰시는 분이면 220 을 넘고, 그만큼
+    아래 버튼이 화면 밖으로 밀립니다. 한 번 그려 본 값이 들어오면 그걸 씁니다.
+  */
+  const TIP_H = tipH || 200;
+  const EDGE = Math.max(space[6], insets.bottom + space[2]);
+  const roomBelow = hole ? winH - (hole.y + hole.h) - 12 : 0;
+  const roomAbove = hole ? hole.y - 12 : 0;
 
   /**
    * 말풍선 위치를 **하나의 숫자(top)로** 정하고 화면 안으로 밀어 넣습니다.
@@ -284,8 +288,10 @@ export function CoachMarks() {
    *    어느 쪽으로 놓든 밖으로 나갈 수 있습니다. **마지막에 무조건 잘라 넣는**
    *    방식이라야 어떤 값이 와도 버튼이 보입니다.
    */
-  const wanted =
-    roomBelow >= TIP_H
+  const wanted = !hole
+    ? // 짚을 곳을 아직 못 쟀으면 아래에 둡니다 — 구멍이 늦게 뚫려도 버튼은 먼저 보입니다.
+      winH - TIP_H - EDGE
+    : roomBelow >= TIP_H
       ? hole.y + hole.h + 12
       : roomAbove >= TIP_H
         ? hole.y - TIP_H - 12
@@ -300,11 +306,14 @@ export function CoachMarks() {
         막을 눌러도 아래 화면이 눌리지 않게 이 층이 손가락을 받습니다.
       */}
       <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+        {/* 짚을 곳을 아직 못 쟀으면 구멍 없는 막만 깔립니다. */}
         <Svg width={winW} height={winH}>
           <Defs>
             <Mask id="coachHole">
               <Rect x={0} y={0} width={winW} height={winH} fill="#fff" />
-              <AnimatedRect x={ax} y={ay} width={aw} height={ah} rx={ar} ry={ar} fill="#000" />
+              {hole ? (
+                <AnimatedRect x={ax} y={ay} width={aw} height={ah} rx={ar} ry={ar} fill="#000" />
+              ) : null}
             </Mask>
           </Defs>
           <Rect
@@ -324,6 +333,7 @@ export function CoachMarks() {
         style={[
           styles.ring,
           { left: ax, top: ay, width: aw, height: ah, borderRadius: ar },
+          !hole && styles.hidden,
         ]}
       />
 
@@ -342,7 +352,13 @@ export function CoachMarks() {
         ]}
         pointerEvents="box-none"
       >
-        <View style={styles.tip}>
+        <View
+          style={styles.tip}
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            setTipH((cur0) => (Math.abs(cur0 - h) > 1 ? h : cur0));
+          }}
+        >
           <View style={styles.tipHead}>
             <Text style={styles.count}>
               {step + 1}/{STEPS.length}
@@ -390,8 +406,7 @@ export function CoachMarks() {
 
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 },
-  /* 아직 짚을 곳을 못 쟀을 때 깔아 두는 막. 구멍 뚫린 막과 같은 색입니다. */
-  scrimFlat: { backgroundColor: 'rgba(15,18,25,0.62)' },
+  hidden: { opacity: 0 },
 
   ring: {
     position: 'absolute',
