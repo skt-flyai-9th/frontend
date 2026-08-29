@@ -63,108 +63,50 @@ function splitText(raw?: string | null): { title: string; desc: string } {
   return { title: head.trim(), desc: rest.join('—').trim() };
 }
 
-function Page({
+/** 카드 한 장 — 번호 · 제목 · 설명. 영상은 이 밖에 **하나만** 있습니다(TaskPager 주석). */
+function Card({
   task,
   scene,
   index,
-  total,
   width,
-  videoUrl,
-  active,
 }: {
   task: ShootTask;
   scene?: StoryboardScene;
   index: number;
-  total: number;
   width: number;
-  videoUrl?: string | null;
-  /** 지금 보이는 장인지. 보이는 장만 9.1 을 부르고 영상을 돌립니다. */
-  active: boolean;
 }) {
-  const { data: guide } = useTaskGuide(active ? task.id : undefined);
-  const ref = guide?.referenceVideo;
-  const from = clock(ref?.startMs);
-  const to = clock(ref?.endMs);
-
   /*
     제목은 컷(8.1)이, 설명은 장면(7.2)이 갖고 있습니다. 컷 제목이 서버에서
     9자로 잘려 오는 경우가 있어(2026-08-28 확인) 장면 쪽이 더 길면 그쪽을 씁니다.
   */
   const sc = splitText(scene?.sceneDescription);
   const tk = splitText(task.taskTitle);
-  // 둘 다 있으면 **덜 잘린 쪽**을 제목으로 씁니다.
   const title = sc.title.length > tk.title.length ? sc.title : tk.title;
   /*
     설명은 네 갈래입니다.
       ① 장면이 "제목 — 설명" 이면 줄표 뒤가 설명입니다 (안무)
-      ② 줄표가 없고 장면 글이 제목과 다르면 그 글이 설명입니다 (정보형 — 장면 설명이
-         컷 제목보다 길게 옵니다)
+      ② 줄표가 없고 장면 글이 제목과 다르면 그 글이 설명입니다 (정보형)
       ③ 그래도 없으면 **대사**를 씁니다. 정보형에서 `scene_dialogue` 는 사장님이
-         실제로 할 말이라(예: "난곡에서 30년 한 칼국수집입니다") 촬영 직전에 가장
-         필요한 글입니다. 안무에서는 늘 비어 있어 자연히 넘어갑니다.
-      ④ 다 없으면 설명 줄을 그리지 않습니다. 같은 말을 두 번 쓰지 않습니다.
+         실제로 할 말이라 촬영 직전에 가장 필요한 글입니다.
+      ④ 다 없으면 설명 줄을 그리지 않습니다.
   */
   const desc =
     sc.desc || (sc.title && sc.title !== title ? sc.title : '') || (scene?.sceneDialogue ?? '');
 
   return (
-    <View style={{ width }}>
-      <View style={styles.stage}>
-        {videoUrl ? (
-          <GuidePlayer
-            url={videoUrl}
-            /*
-              ⚠️ `portrait` 를 쓰면 9:16(폭 393 → 높이 698)이 되어 **화면을 다 먹습니다.**
-                 그러면 아래 컷 설명과 점이 화면 밖으로 밀립니다(첫 캡처에서 확인).
-                 시안은 영상이 화면의 약 3분의 2고, 그 아래 카드가 보입니다.
-                 `fullBleed` 만 쓰면 **3:4 검은 판**에 영상이 16:9 로 가운데 놓입니다 —
-                 시안 그림과 같은 비율입니다.
-            */
-            fullBleed
-            width={width}
-            autoPlay={active}
-            loopStart={ref?.startMs != null ? ref.startMs / 1000 : null}
-            loopEnd={ref?.endMs != null ? ref.endMs / 1000 : null}
-          />
-        ) : (
-          <View style={styles.stageEmpty}>
-            <Text style={styles.stageEmptyText}>참고 영상이 준비되지 않았습니다</Text>
-          </View>
-        )}
-
-        {/* 시안: 좌상단 `TASK 1 / 4` */}
-        <View style={[styles.badge, styles.badgeLeft]} pointerEvents="none">
-          <Text style={styles.badgeText}>
-            TASK {index + 1} / {total}
-          </Text>
-        </View>
-
-        {/* 시안: 우상단 `↻ 0:00 – 0:04 구간 반복`. 구간이 없으면 띄우지 않습니다. */}
-        {from && to ? (
-          <View style={[styles.badge, styles.badgeRight]} pointerEvents="none">
-            <RotateCw size={12} strokeWidth={2.2} color={color.paper} />
-            <Text style={styles.badgeText}>
-              {from} – {to} 구간 반복
-            </Text>
-          </View>
-        ) : null}
+    <View style={[styles.body, { width }]}>
+      <View style={styles.titleRow}>
+        <Text style={styles.num}>{String(index + 1).padStart(2, '0')}</Text>
+        <Text style={styles.title} numberOfLines={2}>
+          {title || `컷 ${index + 1}`}
+        </Text>
       </View>
-
-      {/* 시안: 영상 아래 흰 카드 — 번호 + 제목, ✨ + 설명 */}
-      <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.num}>{String(index + 1).padStart(2, '0')}</Text>
-          <Text style={styles.title} numberOfLines={2}>
-            {title || `컷 ${index + 1}`}
-          </Text>
+      {desc ? (
+        <View style={styles.descRow}>
+          <Sparkles size={13} strokeWidth={2} color={color.brand[600]} />
+          <Text style={styles.desc}>{desc}</Text>
         </View>
-        {desc ? (
-          <View style={styles.descRow}>
-            <Sparkles size={13} strokeWidth={2} color={color.brand[600]} />
-            <Text style={styles.desc}>{desc}</Text>
-          </View>
-        ) : null}
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -182,7 +124,6 @@ export function TaskPager({
 }) {
   const width = Dimensions.get('window').width;
   const [page, setPage] = useState(0);
-  const listRef = useRef<FlatList<ShootTask>>(null);
 
   /** 컷 ↔ 장면 짝. 컷이 `sceneId` 로 장면을 가리킵니다. */
   const sceneOf = useMemo(() => {
@@ -191,10 +132,33 @@ export function TaskPager({
     return map;
   }, [scenes]);
 
+  /** 지금 보고 있는 컷의 구간(9.1). 넘길 때마다 이것만 바뀝니다. */
+  const current = tasks[page];
+  const { data: guide } = useTaskGuide(current?.id);
+  const ref = guide?.referenceVideo;
+
+  /*
+    🔴 **아직 안 온 구간 때문에 전체 영상이 재생되지 않게 합니다.**
+
+    컷을 넘기면 그 컷의 9.1 을 새로 부릅니다. 응답이 오기 전까지는 `ref` 가
+    비어 있는데, 그대로 넘기면 플레이어가 구간을 **풀어 버려**(`__clearLoop`)
+    영상 전체가 돌아갑니다. 그래서 **새 값이 올 때까지 직전 구간을 붙들고**
+    있습니다 — 잠깐 옆 구간이 도는 편이 통째로 도는 것보다 낫습니다.
+  */
+  const held = useRef<{ start: number; end: number } | null>(null);
+  if (ref?.startMs != null && ref?.endMs != null) {
+    held.current = { start: ref.startMs / 1000, end: ref.endMs / 1000 };
+  }
+  const loop = ref?.startMs != null && ref?.endMs != null
+    ? { start: ref.startMs / 1000, end: ref.endMs / 1000 }
+    : held.current;
+
+  const from = clock(ref?.startMs);
+  const to = clock(ref?.endMs);
+
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const next = Math.round(e.nativeEvent.contentOffset.x / width);
-      // 같은 값이면 state 를 건드리지 않습니다 — 넘기는 동안 매 프레임 다시 그려집니다.
       setPage((p) => (p === next ? p : next));
     },
     [width]
@@ -209,8 +173,63 @@ export function TaskPager({
 
   return (
     <View>
+      {/*
+        🔴 **영상은 화면에 하나뿐입니다** (2026-08-29 실기기 버그 수정).
+
+        처음에는 카드마다 플레이어를 하나씩 두고 `autoPlay={active}` 로 껐다 켰습니다.
+        그런데 **첫 카드만 구간 반복이 되고 넘긴 뒤에는 전체 영상이 재생**됐습니다.
+
+        원인 — `autoPlay` 가 `GuidePlayer` 의 `frameHtml` 의존성에 들어 있어
+        값이 바뀌면 **iframe 이 다시 뜹니다.** 다시 뜨면 주입해 둔 `__setLoop` 이
+        사라지는데, `phase` 는 이미 `'ready'` 라 값이 안 바뀌어 **구간을 다시 걸어
+        주는 사람이 없었습니다.**
+
+        어차피 컷들이 **같은 영상**을 봅니다. 그래서 플레이어는 하나만 두고 넘길 때마다
+        **구간만 갈아끼웁니다** — 그게 `GuidePlayer` 가 원래 설계된 방식이고
+        (주소는 그대로, `__setLoop` 만 다시 부름) iframe 이 다시 뜰 일이 없습니다.
+        덤으로 영상이 세 개 동시에 돌던 것도 없어집니다.
+      */}
+      <View style={styles.stage}>
+        {videoUrl ? (
+          <GuidePlayer
+            url={videoUrl}
+            /*
+              ⚠️ `portrait`(9:16) 를 쓰면 폭 393 에 높이 698 이라 화면을 다 먹어
+                 아래 카드와 점이 밀려납니다. `fullBleed` 는 3:4 검은 판에 영상을
+                 가운데 놓습니다 — 시안 비율입니다.
+            */
+            fullBleed
+            width={width}
+            autoPlay
+            loopStart={loop?.start ?? null}
+            loopEnd={loop?.end ?? null}
+          />
+        ) : (
+          <View style={styles.stageEmpty}>
+            <Text style={styles.stageEmptyText}>참고 영상이 준비되지 않았습니다</Text>
+          </View>
+        )}
+
+        {/* 시안: 좌상단 `TASK 1 / 4` */}
+        <View style={[styles.badge, styles.badgeLeft]} pointerEvents="none">
+          <Text style={styles.badgeText}>
+            TASK {page + 1} / {tasks.length}
+          </Text>
+        </View>
+
+        {/* 시안: 우상단 `↻ 0:00 – 0:04 구간 반복`. 구간이 없으면 띄우지 않습니다. */}
+        {from && to ? (
+          <View style={[styles.badge, styles.badgeRight]} pointerEvents="none">
+            <RotateCw size={12} strokeWidth={2.2} color={color.paper} />
+            <Text style={styles.badgeText}>
+              {from} – {to} 구간 반복
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* 카드만 옆으로 넘어갑니다. 영상은 위에 그대로 있습니다. */}
       <FlatList
-        ref={listRef}
         data={tasks}
         keyExtractor={(t) => String(t.id)}
         horizontal
@@ -218,27 +237,20 @@ export function TaskPager({
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        // 화면 밖 장은 그리지 않습니다 — 컷이 23개면 영상 23개가 한꺼번에 뜹니다.
-        initialNumToRender={1}
-        maxToRenderPerBatch={2}
-        windowSize={3}
         getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
         renderItem={({ item, index }) => (
-          <Page
+          <Card
             task={item}
             scene={item.sceneId != null ? sceneOf.get(Number(item.sceneId)) : undefined}
             index={index}
-            total={tasks.length}
             width={width}
-            videoUrl={videoUrl}
-            active={index === page}
           />
         )}
       />
 
       {/*
         시안: 점 줄. 지금 장만 길쭉한 알약이고 나머지는 원입니다.
-        컷이 많으면(정보형 23개) 점이 화면을 넘치므로 **가로로 밀리게** 둡니다.
+        컷이 많으면(정보형 23개) 점이 화면을 넘치므로 줄바꿈으로 둡니다.
       */}
       <View style={styles.dots}>
         {tasks.map((t, i) => (
