@@ -58,13 +58,24 @@ interface CoachApi {
    *    오버레이)만 다시 그려집니다 — 화면 전체는 그대로입니다.
    */
   activeName: CoachName | null;
+  /**
+   * **다음 단계**가 짚을 곳. 미리 재 두기 위한 것입니다.
+   *
+   * 예전에는 버튼을 누른 **뒤에야** 그 자리를 재기 시작했습니다. 재는 일은
+   * 비동기라(measureInWindow) 값이 돌아올 때까지 구멍이 가만히 있다가 뒤늦게
+   * 출발합니다 — 사장님이 "누르고 부드럽게 안 움직인다" 고 하신 그 지연입니다
+   * (2026-08-29). 다음 자리를 미리 재 두면 누른 그 프레임에 바로 출발합니다.
+   *
+   * 탭이 바뀌는 단계는 아직 그 화면이 없어 미리 못 잽니다 — 그건 어쩔 수 없습니다.
+   */
+  nextName: CoachName | null;
   /** 마지막으로 잰 위치. **state 가 아니라 ref 입니다** (머리말 참고). */
   rectsRef: React.MutableRefObject<Partial<Record<CoachName, CoachRect>>>;
   report: (name: CoachName, rect: CoachRect) => void;
   /** 값이 바뀌면 알려 달라는 신청. 오버레이 하나만 신청합니다. */
   subscribe: (fn: () => void) => () => void;
   /** 지금 재고 있는지. 튜토리얼이 떠 있을 때만 켭니다 — 평소에는 아무것도 안 합니다. */
-  setActive: (name: CoachName | null) => void;
+  setActive: (name: CoachName | null, next?: CoachName | null) => void;
 }
 
 const Ctx = createContext<CoachApi | null>(null);
@@ -72,8 +83,12 @@ const Ctx = createContext<CoachApi | null>(null);
 export function CoachProvider({ children }: { children: React.ReactNode }) {
   const rectsRef = useRef<Partial<Record<CoachName, CoachRect>>>({});
   const subs = useRef(new Set<() => void>());
-  /** 지금 짚는 곳 — 이것만 state 입니다(위 `activeName` 주석). */
-  const [activeName, setActiveName] = useState<CoachName | null>(null);
+  /** 지금·다음 짚는 곳 — 이것만 state 입니다(위 `activeName` 주석). 한 번에 바꿔 두 번 안 그립니다. */
+  const [names, setNames] = useState<{ active: CoachName | null; next: CoachName | null }>({
+    active: null,
+    next: null,
+  });
+  const { active: activeName, next: nextName } = names;
 
   const report = useCallback((name: CoachName, rect: CoachRect) => {
     const old = rectsRef.current[name];
@@ -96,8 +111,8 @@ export function CoachProvider({ children }: { children: React.ReactNode }) {
     return () => subs.current.delete(fn);
   }, []);
 
-  const setActive = useCallback((name: CoachName | null) => {
-    setActiveName((cur) => (cur === name ? cur : name));
+  const setActive = useCallback((name: CoachName | null, next: CoachName | null = null) => {
+    setNames((cur) => (cur.active === name && cur.next === next ? cur : { active: name, next }));
   }, []);
 
   /*
@@ -105,8 +120,8 @@ export function CoachProvider({ children }: { children: React.ReactNode }) {
     않습니다 — 그래서 구멍이 움직여도 화면은 다시 그려지지 않습니다.
   */
   const value = useMemo(
-    () => ({ rectsRef, activeName, report, subscribe, setActive }),
-    [activeName, report, subscribe, setActive]
+    () => ({ rectsRef, activeName, nextName, report, subscribe, setActive }),
+    [activeName, nextName, report, subscribe, setActive]
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -139,7 +154,8 @@ export function CoachTarget({
 } & ViewProps) {
   const coach = useCoach();
   const ref = useRef<View>(null);
-  const mine = enabled && coach?.activeName === name;
+  /* 지금 짚는 곳이거나 **다음에 짚을 곳**이면 잽니다(미리 재 두기 — `nextName` 주석). */
+  const mine = enabled && (coach?.activeName === name || coach?.nextName === name);
 
   const measure = useCallback(() => {
     if (!ref.current) return;

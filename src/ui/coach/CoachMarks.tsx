@@ -44,20 +44,28 @@ import {
   Text,
   View,
 } from 'react-native';
-import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** 구멍이 미끄러지려면 SVG 사각형의 값도 애니메이션을 받아야 합니다. */
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
+/** 막 색. 시안은 흐림을 함께 쓰지만 RN 에는 그 조합이 없습니다(머리말 참고). */
+const SCRIM = 'rgba(15,18,25,0.62)';
 
 /**
- * 막 + 구멍. **일부러 따로 떼어 `memo` 로 감쌌습니다.**
+ * 막 + 구멍.
  *
- * 화면 전체를 덮은 SVG 는 다시 그리는 값이 비쌉니다. 오버레이 본체는 위치를 다시
- * 잴 때마다 그려지는데, 그때 이 막까지 같이 그려지면 **튜토리얼이 도는 내내
- * 화면이 끕니다**(사장님 지적, 2026-08-29). 받는 값이 전부 고정된 것들
- * (화면 크기 · `Animated.Value` 그릇)이라 여기는 **처음 한 번만** 그려지고,
- * 구멍이 움직이는 건 그릇 안 숫자가 바뀌는 것으로 처리됩니다.
+ * 🔴 **마스크를 걷어내고 네모 여덟 개로 만들었습니다** (2026-08-29, 세 번째 랙 지적).
+ *
+ *    `react-native-svg` 의 `Mask` 는 안드로이드에서 **화면 크기의 비트맵을 따로 떠서**
+ *    그립니다. 구멍이 미끄러지는 280ms 동안 그걸 **매 프레임 다시 그렸습니다** —
+ *    1080×2400 짜리를 초당 예순 번입니다. 앞서 재는 횟수와 영상을 줄였는데도 남던
+ *    끊김이 이것이었습니다.
+ *
+ *    대신 구멍 **바깥**을 네모로 채웁니다. 위·아래·왼·오른 네 장이면 네모난 구멍이
+ *    되고, 예전에 사장님이 "각지다" 고 하신 그 모양입니다. 여기에 **모서리 조각 네
+ *    개**를 더합니다 — 한 귀퉁이만 둥글린 정사각형이라, 둥근 구멍과 네모 사이의
+ *    빈 곳에 정확히 들어맞습니다. 전부 평범한 View 라 비트맵을 뜨지 않습니다.
+ *
+ *    ⚠️ 조각끼리 **겹치면 안 됩니다.** 반투명이라 겹친 곳만 두 배로 진해집니다.
+ *       네 장은 구멍 변에서 끊고, 모서리 조각은 그 사이에만 놓습니다.
  */
 const Scrim = React.memo(function Scrim({
   winW,
@@ -78,27 +86,41 @@ const Scrim = React.memo(function Scrim({
   ar: Animated.Value;
   hasHole: boolean;
 }) {
+  /* 구멍의 오른쪽·아래 변, 그리고 모서리 조각이 놓일 자리. 값에서 파생시킵니다. */
+  const right = Animated.add(ax, aw);
+  const bottom = Animated.add(ay, ah);
+  const cornerX = Animated.subtract(right, ar);
+  const cornerY = Animated.subtract(bottom, ar);
+
+  if (!hasHole) {
+    return (
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM }]} pointerEvents="auto" />
+    );
+  }
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-      <Svg width={winW} height={winH}>
-        <Defs>
-          {/* 흰 곳은 남기고 검은 곳(구멍)은 지웁니다 — `Mask` 의 규칙입니다. */}
-          <Mask id="coachHole">
-            <Rect x={0} y={0} width={winW} height={winH} fill="#fff" />
-            {hasHole ? (
-              <AnimatedRect x={ax} y={ay} width={aw} height={ah} rx={ar} ry={ar} fill="#000" />
-            ) : null}
-          </Mask>
-        </Defs>
-        <Rect
-          x={0}
-          y={0}
-          width={winW}
-          height={winH}
-          fill="rgba(15,18,25,0.62)"
-          mask="url(#coachHole)"
-        />
-      </Svg>
+      {/* 구멍 안을 눌러도 아래 화면이 안 눌리게 받아 둡니다(색 없는 판). */}
+      <View style={StyleSheet.absoluteFill} />
+
+      <Animated.View style={[styles.piece, { left: 0, right: 0, top: 0, height: ay }]} />
+      <Animated.View style={[styles.piece, { left: 0, right: 0, top: bottom, bottom: 0 }]} />
+      <Animated.View style={[styles.piece, { left: 0, top: ay, width: ax, height: ah }]} />
+      <Animated.View style={[styles.piece, { left: right, right: 0, top: ay, height: ah }]} />
+
+      {/* 모서리 — 구멍 쪽 귀퉁이만 둥글립니다. 둥근 구멍의 바깥 여백이 정확히 이 모양입니다. */}
+      <Animated.View
+        style={[styles.piece, { left: ax, top: ay, width: ar, height: ar, borderBottomRightRadius: ar }]}
+      />
+      <Animated.View
+        style={[styles.piece, { left: cornerX, top: ay, width: ar, height: ar, borderBottomLeftRadius: ar }]}
+      />
+      <Animated.View
+        style={[styles.piece, { left: ax, top: cornerY, width: ar, height: ar, borderTopRightRadius: ar }]}
+      />
+      <Animated.View
+        style={[styles.piece, { left: cornerX, top: cornerY, width: ar, height: ar, borderTopLeftRadius: ar }]}
+      />
     </View>
   );
 });
@@ -213,8 +235,8 @@ export function CoachMarks() {
     (`CoachContext` 머리말: 일곱 개가 다 보고해서 앱이 버벅였습니다).
   */
   useEffect(() => {
-    coach?.setActive(cur ? cur.name : null);
-  }, [coach, cur?.name]);
+    coach?.setActive(cur ? cur.name : null, running ? (STEPS[step + 1]?.name ?? null) : null);
+  }, [coach, cur?.name, running, step]);
 
   /** 위치가 바뀌면 **이 컴포넌트만** 다시 그립니다. */
   const [, redraw] = useState(0);
@@ -242,9 +264,18 @@ export function CoachMarks() {
 
   const rect = cur ? coach?.rectsRef.current[cur.name] : undefined;
 
+  /**
+   * 직전 구멍. 다음 자리를 아직 못 쟀을 때 **그 자리를 그대로 붙들어 둡니다.**
+   *
+   * 안 그러면 구멍이 한 번 사라졌다가 새 자리에 나타납니다 — 미끄러지는 게 아니라
+   * 깜빡이는 것으로 보입니다(1→2 단계, 2026-08-29 사장님 지적).
+   */
+  const held = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+
   /** 구멍 = 짚을 곳 + 여백. 화면 밖으로 나가지 않게 잘라 둡니다. */
   const hole = useMemo(() => {
-    if (!cur || !rect) return null;
+    if (!cur) return null;
+    if (!rect) return held.current;
     const x = Math.max(0, rect.x - cur.pad);
     const y = Math.max(0, rect.y - cur.pad);
     /*
@@ -258,6 +289,10 @@ export function CoachMarks() {
       h: Math.max(0, Math.min(winH - y, rect.h + cur.pad * 2)),
     };
   }, [cur, rect, winW, winH]);
+
+  useEffect(() => {
+    held.current = hole;
+  }, [hole]);
 
   /*
     구멍이 다음 자리로 **미끄러져 갑니다** (시안 transition .28s).
@@ -442,6 +477,8 @@ export function CoachMarks() {
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 },
   hidden: { opacity: 0 },
+  /* 막 조각. 겹치지 않게 놓습니다 — 겹치면 그 자리만 두 배로 진해집니다. */
+  piece: { position: 'absolute', backgroundColor: SCRIM },
 
   ring: {
     position: 'absolute',
