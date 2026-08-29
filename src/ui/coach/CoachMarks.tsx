@@ -60,9 +60,20 @@ const SCRIM = 'rgba(15,18,25,0.62)';
  *    끊김이 이것이었습니다.
  *
  *    대신 구멍 **바깥**을 네모로 채웁니다. 위·아래·왼·오른 네 장이면 네모난 구멍이
- *    되고, 예전에 사장님이 "각지다" 고 하신 그 모양입니다. 여기에 **모서리 조각 네
- *    개**를 더합니다 — 한 귀퉁이만 둥글린 정사각형이라, 둥근 구멍과 네모 사이의
- *    빈 곳에 정확히 들어맞습니다. 전부 평범한 View 라 비트맵을 뜨지 않습니다.
+ *    되고, 예전에 사장님이 "각지다" 고 하신 그 모양입니다. 남는 건 네 귀퉁이의
+ *    작은 조각 — 네모난 모서리와 둥근 호 사이의 **초승달 모양** 입니다.
+ *
+ * 🔴 **그 조각은 둥근 네모로는 못 만듭니다** (2026-08-29 사장님 지적: "안쪽으로
+ *    파먹은 모양"). borderRadius 는 귀퉁이를 **깎아내는** 것이라 언제나 볼록한
+ *    모양만 남습니다. 우리가 칠해야 할 건 그 깎여 나간 쪽, 즉 **오목한** 조각입니다.
+ *    처음에 borderBottomRightRadius 같은 걸로 만들었더니 정확히 **반대**가 칠해져,
+ *    부채꼴이 칠해지고 초승달이 뚫렸습니다. 3단계는 반지름이 구멍의 딱 절반이라
+ *    우연히 원처럼 보였고, 1단계에서 파먹은 모양이 드러났습니다.
+ *
+ *    ⭕ **두꺼운 테두리로 만듭니다.** 4R×4R 짜리에 모서리 2R·테두리 두께 R 을 주면
+ *       **안쪽 반지름 R, 바깥 반지름 2R 짜리 고리**가 됩니다. 안쪽 구멍을 구멍의
+ *       모서리 호에 정확히 겹쳐 놓고, R×R 짜리 상자로 잘라내면 초승달만 남습니다
+ *       (귀퉁이에서 가장 먼 점까지가 1.41R 이라 고리 두께 안에 다 들어옵니다).
  *
  *    ⚠️ 조각끼리 **겹치면 안 됩니다.** 반투명이라 겹친 곳만 두 배로 진해집니다.
  *       네 장은 구멍 변에서 끊고, 모서리 조각은 그 사이에만 놓습니다.
@@ -91,6 +102,11 @@ const Scrim = React.memo(function Scrim({
   const bottom = Animated.add(ay, ah);
   const cornerX = Animated.subtract(right, ar);
   const cornerY = Animated.subtract(bottom, ar);
+  /* 고리(위 머리말) — 바깥 4R, 모서리 2R, 두께 R. 안쪽 구멍이 반지름 R 이 됩니다. */
+  const ringSize = Animated.multiply(ar, 4);
+  const ringRadius = Animated.multiply(ar, 2);
+  const negR = Animated.multiply(ar, -1);
+  const neg2R = Animated.multiply(ar, -2);
 
   if (!hasHole) {
     return (
@@ -108,19 +124,31 @@ const Scrim = React.memo(function Scrim({
       <Animated.View style={[styles.piece, { left: 0, top: ay, width: ax, height: ah }]} />
       <Animated.View style={[styles.piece, { left: right, right: 0, top: ay, height: ah }]} />
 
-      {/* 모서리 — 구멍 쪽 귀퉁이만 둥글립니다. 둥근 구멍의 바깥 여백이 정확히 이 모양입니다. */}
-      <Animated.View
-        style={[styles.piece, { left: ax, top: ay, width: ar, height: ar, borderBottomRightRadius: ar }]}
-      />
-      <Animated.View
-        style={[styles.piece, { left: cornerX, top: ay, width: ar, height: ar, borderBottomLeftRadius: ar }]}
-      />
-      <Animated.View
-        style={[styles.piece, { left: ax, top: cornerY, width: ar, height: ar, borderTopRightRadius: ar }]}
-      />
-      <Animated.View
-        style={[styles.piece, { left: cornerX, top: cornerY, width: ar, height: ar, borderTopLeftRadius: ar }]}
-      />
+      {/*
+        모서리 네 곳. 각각 R×R 로 잘라낸 상자 안에 고리를 하나씩 넣고, 고리의 **안쪽
+        구멍**을 구멍의 모서리 호에 겹쳐 둡니다. 남는 초승달만 칠해집니다.
+        고리 자리 = 안쪽 구멍의 중심이 상자의 **구멍 쪽 귀퉁이**에 오도록 밀어 넣은 값.
+      */}
+      <Animated.View style={[styles.clip, { left: ax, top: ay, width: ar, height: ar }]}>
+        <Animated.View
+          style={[styles.ringPiece, { left: negR, top: negR, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar }]}
+        />
+      </Animated.View>
+      <Animated.View style={[styles.clip, { left: cornerX, top: ay, width: ar, height: ar }]}>
+        <Animated.View
+          style={[styles.ringPiece, { left: neg2R, top: negR, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar }]}
+        />
+      </Animated.View>
+      <Animated.View style={[styles.clip, { left: ax, top: cornerY, width: ar, height: ar }]}>
+        <Animated.View
+          style={[styles.ringPiece, { left: negR, top: neg2R, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar }]}
+        />
+      </Animated.View>
+      <Animated.View style={[styles.clip, { left: cornerX, top: cornerY, width: ar, height: ar }]}>
+        <Animated.View
+          style={[styles.ringPiece, { left: neg2R, top: neg2R, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar }]}
+        />
+      </Animated.View>
     </View>
   );
 });
@@ -479,6 +507,10 @@ const styles = StyleSheet.create({
   hidden: { opacity: 0 },
   /* 막 조각. 겹치지 않게 놓습니다 — 겹치면 그 자리만 두 배로 진해집니다. */
   piece: { position: 'absolute', backgroundColor: SCRIM },
+  /* 모서리 조각을 R×R 로 잘라내는 상자. 잘라내지 않으면 고리가 구멍 안으로 삐져나옵니다. */
+  clip: { position: 'absolute', overflow: 'hidden' },
+  /* 안쪽이 뚫린 고리. 색은 테두리에만 있습니다 — 가운데는 비어 있어야 구멍이 뚫립니다. */
+  ringPiece: { position: 'absolute', borderColor: SCRIM, backgroundColor: 'transparent' },
 
   ring: {
     position: 'absolute',

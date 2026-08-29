@@ -20,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  * 한 번 보면(건너뛰기·완료) 다시 안 뜨기 때문에, 고친 걸 확인하려면 이 값을
  * 올려야 합니다 — 2026-08-29 에 그 이유로 v1 → v2 로 올렸습니다.
  */
-export const COACH_VERSION = 'v6';
+export const COACH_VERSION = 'v7';
 
 interface AppState {
   /** 로그인 후 등록·선택한 가게 */
