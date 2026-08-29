@@ -49,11 +49,10 @@ export function clock(totalSec: number): string {
 /**
  * 촬영에 걸리는 시간을 사람이 읽는 말로 (2026-08-26).
  *
- * ⚠️ **지금은 부르는 곳이 없습니다.** 5.1·5.2 의 `expected_duration_sec` 가 촬영
- *    시간이 아니라 참고 영상 길이라는 게 2026-08-29 에 드러나(아래 `formatHashtags`
- *    머리말) 카드에서 뺐습니다. 7.1·7.2 의 `shooting_summary` 값이나, 5.1 이 촬영
- *    시간을 주게 되면 그때 이 함수를 그대로 쓰면 됩니다 — 그래서 지웠다 다시
- *    만들지 않고 남겨 둡니다.
+ * ⚠️ **이름과 달리 지금 넣는 값은 참고 영상 길이입니다.** 5.1·5.2 의
+ *    `expected_duration_sec` 가 촬영 시간이 아니라는 게 2026-08-29 에 드러났습니다
+ *    (아래 `formatHashtags` 머리말). 초를 사람 말로 바꾸는 일만 하므로 두 값 어디에나
+ *    쓸 수 있고, 5.1 이 촬영 시간을 주기 시작하면 그대로 다시 쓰면 됩니다.
  *
  * 값의 폭이 큽니다 — 13초짜리도 있고 1800초=30분짜리도 옵니다. 초로만 쓰면
  * 읽기 어렵습니다.
@@ -84,7 +83,7 @@ export function shootTime(totalSec?: number | null): string | null {
  * 값이 없는 항목은 **줄에서 빠집니다.** `#난이도null` 같은 걸 쓰지 않습니다.
  *
  * ─────────────────────────────────────────────────────────────
- * 🔴 촬영 시간 태그를 뺐습니다 (2026-08-29, 사장님 지적)
+ * 🔴 시간 태그는 **영상 길이**입니다 — `#촬영…` 이 아닙니다 (2026-08-29)
  * ─────────────────────────────────────────────────────────────
  * `#촬영13초` 로 쓰던 값(`expected_duration_sec`)은 **찍는 데 걸리는 시간이 아니라
  * 참고 영상의 길이**입니다. 2026-08-26 에 BE 가 "촬영 시간" 이라고 확인해 줘서 그
@@ -108,18 +107,24 @@ export function shootTime(totalSec?: number | null): string | null {
  * `ShootingSummary` 를 참조하는 경로가 이 둘뿐인 것을 확인). 홈 피드에서 카드마다
  * 프로젝트를 만들 수는 없습니다 — 고르지도 않은 포맷으로 빈 프로젝트가 쌓입니다.
  *
- * 카드에서 미리 알 방법이 없으므로 **줄에서 뺐습니다.** 영상 길이를 "촬영" 이라고
- * 적으면 사장님이 13초짜리 촬영으로 알고 준비합니다. 5.1 이 촬영 시간을 주면
- * 아래 한 줄만 되살리면 됩니다 — `shootTime()` 은 남겨 뒀습니다.
- * BE_전달사항.md §2-6 에 요청해 뒀습니다.
+ * 카드에서 촬영 시간을 미리 알 방법이 없으므로, **값은 그대로 쓰되 라벨을 사실대로**
+ * 답니다 — `#영상13초`. 사장님 지시입니다(2026-08-29): 촬영 시간이 목록에 들어오면
+ * 그때 `#촬영…` 으로 바꾼다.
+ *
+ * ⚠️ **`#촬영…` 으로 되돌리지 마세요.** 영상 길이를 "촬영" 이라고 적으면 사장님이
+ *    13초짜리 촬영으로 알고 준비합니다 — 실제로는 90초입니다. 라벨을 바꾸는 건
+ *    5.1 이 촬영 시간을 주기 시작한 뒤입니다. BE_전달사항.md §2-8 참고.
  */
 export function formatHashtags(format?: {
+  expectedDurationSec?: number | null;
   shootingDifficulty?: string | null;
   requiresFace?: boolean | null;
 }): string[] {
   if (!format) return [];
+  // 참고 영상의 길이입니다. 촬영 시간이 아닙니다 — 위 머리말 참고.
+  const len = shootTime(format.expectedDurationSec);
   return [
-    // 5.1 이 촬영 시간을 주면 여기에: shootTime(...) 으로 `#촬영5분`
+    len ? `#영상${len}` : null,
     format.shootingDifficulty ? `#난이도${format.shootingDifficulty}` : null,
     typeof format.requiresFace === 'boolean'
       ? format.requiresFace
