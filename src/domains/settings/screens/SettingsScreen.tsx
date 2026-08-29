@@ -29,6 +29,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Compass,
   Crown,
   FileText,
   LogOut,
@@ -65,6 +66,7 @@ export default function SettingsScreen() {
   const logout = useLogout();
   const withdraw = useWithdraw();
   const reset = useAppState((s) => s.reset);
+  const replayCoach = useAppState((s) => s.replayCoach);
 
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -89,6 +91,24 @@ export default function SettingsScreen() {
    */
   const items: { icon: typeof Bell; label: string; go: () => void }[] = [
     { icon: CircleHelp, label: '자주 묻는 질문', go: () => nav.navigate('Faq') },
+    /*
+     * '앱 사용법 다시 보기' — 시안에 없는 항목입니다 (2026-08-30 사장님 지시).
+     *
+     * 튜토리얼은 한 번 보면 다시 안 뜹니다. 그동안은 다시 보시려면 저희가 판 번호를
+     * 올려 OTA 를 올려야 했는데("맨날 판번호 올리기 귀찮네"), 사장님이 직접 여시게
+     * 했습니다. 본 표시를 지우고 홈으로 보내면 홈에서 저절로 뜹니다.
+     *
+     * ⚠️ 홈으로 **보내야** 합니다. 튜토리얼 1단계가 홈 탭을 짚기 때문에, 설정 화면에
+     *    남아 있으면 짚을 곳이 화면에 없습니다.
+     */
+    {
+      icon: Compass,
+      label: '앱 사용법 다시 보기',
+      go: () => {
+        replayCoach();
+        nav.reset({ index: 0, routes: [{ name: 'Main', params: { screen: 'HomeFeed' } }] });
+      },
+    },
     /*
      * '알림' 은 **길을 닫아 뒀습니다** (2026-08-26, 사장님 지시).
      * 시안 6차에서 notifications 화면이 빠졌습니다. 화면과 라우트는 남겨 두고

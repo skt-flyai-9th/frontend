@@ -77,6 +77,13 @@ interface AppState {
   setTutorialSeen: (v: boolean) => void;
   /** 지금 판을 봤다고 표시합니다(코치마크). */
   setCoachSeen: () => void;
+  /**
+   * 튜토리얼을 **다시 보게** 합니다 — 설정의 "앱 사용법 다시 보기".
+   *
+   * 본 표시를 지우면 `CoachMarks` 의 조건이 다시 참이 되어 홈에서 뜹니다.
+   * 판 번호를 올리지 않고 보는 길입니다(2026-08-30 사장님 요청).
+   */
+  replayCoach: () => void;
   setMarketingAgreed: (v: boolean) => void;
   toggleGuide: () => void;
   setGuideOpacity: (v: number) => void;
@@ -101,6 +108,7 @@ export const useAppState = create<AppState>()(
       setSignedIn: (signedIn) => set({ signedIn }),
       setTutorialSeen: (tutorialSeen) => set({ tutorialSeen }),
       setCoachSeen: () => set({ coachSeen: COACH_VERSION }),
+      replayCoach: () => set({ coachSeen: null }),
       setMarketingAgreed: (marketingAgreed) => set({ marketingAgreed }),
       toggleGuide: () => set((s) => ({ guideVisible: !s.guideVisible })),
       setGuideOpacity: (guideOpacity) => set({ guideOpacity }),
