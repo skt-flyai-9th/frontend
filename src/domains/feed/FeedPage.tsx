@@ -29,7 +29,7 @@ import { Heart } from 'lucide-react-native';
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
 import { SlateEditGlyph } from '../../ui/SlateEditGlyph';
-import { CoachTarget } from '../../ui/coach/CoachContext';
+import { CoachTarget, useCoach } from '../../ui/coach/CoachContext';
 import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
 import { formatHashtags } from '../../lib/format';
@@ -54,6 +54,15 @@ export function FeedPage({
   onCreate: (f: VideoFormat) => void;
 }) {
   const fav = !!format.isFavorite;
+
+  /*
+    🔴 **튜토리얼이 도는 동안 영상을 세웁니다** (2026-08-29 사장님 지적: 랙).
+
+    코치마크는 화면을 덮습니다. 그 밑에서 유튜브가 계속 디코딩하는데, 홈은 탭을
+    옮겨도 살아 있어서 **일곱 단계 내내** 돕니다. 안 보이는 영상에 그 값을 쓸
+    이유가 없습니다. 끝나면 이어서 다시 틉니다 — 다시 받지 않습니다.
+  */
+  const coachRunning = useCoach()?.activeName != null;
 
   // 세 태그의 규칙은 lib/format.ts 한 곳에 있습니다 (홈·관심목록·AI 추천 카드 공용)
   const tags = formatHashtags(format);
@@ -85,7 +94,13 @@ export function FeedPage({
            * 폭을 꽉 채우면 9:16 높이가 무대보다 큽니다 — 넘치는 만큼 위아래가
            * 잘리게 두는 것이 시안입니다(`overflow-hidden` + 세로 가운데).
            */
-          <GuidePlayer url={representativeVideoUrl(format)} width={width} portrait autoPlay />
+          <GuidePlayer
+            url={representativeVideoUrl(format)}
+            width={width}
+            portrait
+            autoPlay
+            paused={coachRunning}
+          />
         ) : (
           <VideoThumbnail
             url={representativeVideoUrl(format)}
