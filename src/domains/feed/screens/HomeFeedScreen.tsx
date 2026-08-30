@@ -47,7 +47,14 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
-import { barSlack, showsAppBar, showsShelf, showsTabs, useChrome } from '../../../ui/ChromeContext';
+import {
+  barSlack,
+  bottomInsetFor,
+  showsAppBar,
+  showsShelf,
+  showsTabs,
+  useChrome,
+} from '../../../ui/ChromeContext';
 import { useCoach } from '../../../ui/coach/CoachContext';
 import { useVideoFormats, useToggleFavorite } from '../../../api/queries/project';
 import { color, radius, sizing, space, text } from '../../../design/theme';
@@ -246,7 +253,12 @@ export default function HomeFeedScreen() {
       insets.top -
       (showsAppBar(chrome.mode) ? sizing.appBarHeight + appSlack : 0) -
       (showsTabs(chrome.mode) ? sizing.tabRowHeight + tabSlack : 0) -
-      insets.bottom
+      /*
+        🔴 **탭바가 쓰는 값과 같아야 합니다.** 탭바는 접혀 있어도 아래 안전영역만큼은
+           자리를 차지합니다(`bottomInsetFor`). 여기서 `insets.bottom` 을 그대로 빼면
+           그 차이만큼 한 장이 화면보다 커져 **아래에 다음 영상이 삐져나옵니다.**
+      */
+      bottomInsetFor(insets.bottom)
   );
 
   /*
@@ -260,20 +272,46 @@ export default function HomeFeedScreen() {
        `active` 라 나머지는 썸네일입니다(FeedPage 머리말 ①). 약관은 안전합니다.
   */
   const listRef = useRef<FlatList<VideoFormat>>(null);
+  /** 보정하는 동안은 방향 판정을 쉽니다 (보정도 장 번호를 흔들 수 있습니다). */
+  const correcting = useRef(false);
+
   useEffect(() => {
-    const offset = index * pageHeight;
-    listRef.current?.scrollToOffset({ offset, animated: false });
     /*
-      🔴 **내가 옮긴 것을 손짓으로 오인하면 안 됩니다** (2026-08-31).
+      🔴 **맨 아래에서만 깨지던 것** (2026-08-31 지적: "제일 하단이야, 중간은 괜찮아").
 
-      이 보정도 스크롤 이벤트를 냅니다. 그걸 방향 판정이 그대로 먹으면
-      `모드 바뀜 → 높이 바뀜 → 보정 → 또 모드 바뀜` 으로 **고리가 돕니다.**
-      실제로 그렇게 나왔습니다 — 위로 밀었는데 앱바(720)로 갔다가 그 보정이
-      아래 방향으로 읽혀 탭바(715)로 튕기고 거기서 굳었습니다.
+      모드가 바뀌면 한 장의 높이가 달라져 목록 전체 길이도 달라집니다. 그런데
+      `scrollToOffset` 은 **그 순간의 길이** 기준으로 잘립니다(clamp). 목록 중간에서는
+      아래로 남은 여유가 많아 티가 안 나는데, **맨 끝 장에는 여유가 0** 이라
+      옮기려던 자리에 못 가고 잘린 채로 섭니다. 그래서 화면에 바로 위 영상의
+      꼬리와 지금 장의 머리가 같이 보여 "깨진 영상" 이 됩니다.
 
-      기준점을 보정한 자리로 미리 옮겨 두면 다음 이벤트의 차이가 0 이 되어
-      판정이 안 걸립니다. 예약된 판정도 함께 취소합니다.
+      고침 둘.
+        ① `scrollToOffset`(절대 좌표) 대신 **`scrollToIndex`**(몇 번째 장) 를 씁니다.
+           목록이 자기 최신 길이로 자리를 다시 계산합니다.
+        ② 렌더가 끝난 **다음 프레임**에 부릅니다. 같은 프레임에 부르면 목록은 아직
+           옛 길이를 들고 있어 또 잘립니다. 두 프레임에 걸쳐 두 번 겁니다.
     */
+    correcting.current = true;
+    let raf2 = 0;
+    const put = () => {
+      try {
+        listRef.current?.scrollToIndex({ index, animated: false });
+      } catch {
+        /* 아직 그려지지 않은 장이면 조용히 넘깁니다 — onScrollToIndexFailed 가 받습니다 */
+      }
+    };
+    const raf1 = requestAnimationFrame(() => {
+      put();
+      raf2 = requestAnimationFrame(() => {
+        put();
+        correcting.current = false;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      correcting.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageHeight]);
 
@@ -281,7 +319,7 @@ export default function HomeFeedScreen() {
   useEffect(() => {
     const step = index - prevIndex.current;
     prevIndex.current = index;
-    if (step === 0) return;
+    if (step === 0 || correcting.current) return;
     flash(step > 0 ? 'appbar' : 'tabs');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
@@ -351,6 +389,19 @@ export default function HomeFeedScreen() {
               offset: pageHeight * i,
               index: i,
             })}
+            /*
+              한 장의 높이가 막 바뀐 순간에는 목록이 아직 그 장을 안 그렸을 수 있습니다.
+              그때 조용히 다시 겁니다 — 안 그러면 맨 끝에서 어긋난 채로 섭니다.
+            */
+            onScrollToIndexFailed={({ index: i }) => {
+              requestAnimationFrame(() => {
+                try {
+                  listRef.current?.scrollToOffset({ offset: i * pageHeight, animated: false });
+                } catch {
+                  /* 여기서도 실패하면 다음 스크롤이 자연히 맞춰 줍니다 */
+                }
+              });
+            }}
             /*
              * 어느 장을 보고 있는지 판정. 60% 이상 보이면 그 장으로 봅니다 —
              * 손가락을 떼는 순간이 아니라 화면 점유로 재므로, 천천히 넘겨도 정확합니다.

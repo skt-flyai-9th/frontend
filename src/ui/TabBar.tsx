@@ -32,7 +32,7 @@ import { CommonActions } from '@react-navigation/native';
 
 import theme, { color, motion, radius, sizing, space } from '../design/theme';
 import { TabGlyph, type TabGlyphName } from './TabGlyph';
-import { barSlack, showsTabs, useChrome } from './ChromeContext';
+import { barSlack, bottomInsetFor, showsTabs, useChrome } from './ChromeContext';
 
 /** 라우트 이름 → 시안 글리프·라벨. 라우트가 늘면 여기만 고칩니다. */
 const TAB_META: Record<
@@ -100,7 +100,8 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
    * 높이를 고정하지 않고 안전영역만큼 늘린 뒤 그만큼 아래 여백을 줍니다.
    * insets.bottom 은 제스처 기기에서 20~34, 버튼 방식이면 0 이라 최소 8 은 확보합니다.
    */
-  const bottomInset = Math.max(insets.bottom, space[2]);
+  /* 홈이 한 장의 높이를 셀 때와 **같은 값**을 써야 합니다 — ChromeContext */
+  const bottomInset = bottomInsetFor(insets.bottom);
   /* 지금 탭바를 그릴 차례인지 — 홈은 바를 한 번에 하나만 띄웁니다(ui/ChromeContext.tsx) */
   const mode = useChrome().mode;
   const hidden = !showsTabs(mode);

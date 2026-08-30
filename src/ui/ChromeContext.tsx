@@ -41,7 +41,7 @@
  *
  * 자세한 근거는 CLAUDE.md §8-1.
  */
-import { sizing } from '../design/theme';
+import { sizing, space } from '../design/theme';
 import React, {
   createContext,
   useCallback,
@@ -148,6 +148,18 @@ const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLocked: () => {
  */
 export const videoHeightFor = (winW: number) => Math.round((winW * 16) / 9);
 
+/**
+ * 🔴 **아래 안전영역은 이 값 하나로 통일합니다** (2026-08-31, "하단에서 영상이 깨진다").
+ *
+ * 탭바는 `Math.max(insets.bottom, 8)` 을 쓰는데 홈은 `insets.bottom` 을 그대로
+ * 빼고 있었습니다. 폰의 `insets.bottom` 이 8 보다 작으면(버튼 내비 기기에서 0 인
+ * 경우가 있습니다) **그 차이만큼 한 장이 화면보다 커져서**, 아래쪽에 다음 영상이
+ * 삐져나오고 선반이 밀려 잘립니다. 페이징 간격도 같이 어긋납니다.
+ *
+ * 393×852(안전영역 34)에서는 두 값이 같아 **웹 캡처로는 절대 안 잡힙니다.**
+ */
+export const bottomInsetFor = (insetBottom: number) => Math.max(insetBottom, space[2]);
+
 export function barSlack(
   mode: ChromeMode,
   which: 'appbar' | 'tabs',
@@ -157,7 +169,7 @@ export function barSlack(
   insetBottom: number
 ): number {
   if (mode !== which) return 0; // 혼자 있을 때만 먹습니다
-  const room = winH - insetTop - insetBottom - videoHeightFor(winW);
+  const room = winH - insetTop - bottomInsetFor(insetBottom) - videoHeightFor(winW);
   const own = which === 'appbar' ? sizing.appBarHeight : sizing.tabRowHeight;
   return Math.max(0, room - own);
 }
