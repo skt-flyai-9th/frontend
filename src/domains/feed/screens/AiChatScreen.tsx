@@ -190,7 +190,7 @@ function Thinking() {
 /**
  * 추천 카드 한 장. 시안 6차 `RecoCard` (`js/screens-chat.jsx`).
  *
- * 원문 구성: 제목 · AI 한줄요약 · 해시태그 3개 · 숏츠 임베딩 · 바로 촬영하기.
+ * 원문 구성: 제목 · 해시태그 3개 · 숏츠 임베딩 · 바로 촬영하기.
  * 카드 안 여백은 `gap-3` 로 통일, 버튼은 `mt-auto` 로 바닥에 붙습니다.
  *
  * 추천 응답의 원본 영상 URL을 즉시 임베드하고, 포맷 상세는 해시태그를 보강하는 데
@@ -218,7 +218,6 @@ function RecCard({
       <Text style={styles.cardTitle} numberOfLines={2}>
         {rec.title}
       </Text>
-      {rec.concept ? <Text style={styles.cardConcept}>{rec.concept}</Text> : null}
 
       {/* 시안: 12 semibold leading-relaxed · brand — 앞의 세 개만 씁니다 */}
       {tags.length > 0 ? (
@@ -716,8 +715,6 @@ const styles = StyleSheet.create({
   },
   // 시안: 15 bold leading-snug(1.375)
   cardTitle: { ...theme.text.body, fontWeight: '700', lineHeight: 20.6, color: color.ink[900] },
-  // 시안: 13 leading-relaxed(1.625) · ink-3
-  cardConcept: { ...theme.text.caption, lineHeight: 21, color: color.ink[700] },
   // 시안: 12 semibold leading-relaxed(1.625 → 19.5) · brand
   cardTags: {
     ...theme.text.label,
