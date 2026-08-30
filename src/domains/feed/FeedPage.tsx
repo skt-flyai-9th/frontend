@@ -128,11 +128,35 @@ export function FeedPage({
   const playerWidth = Math.min(width, Math.floor((stageHeight * 9) / 16));
   /* 그라디언트 id 는 카드마다 달라야 합니다 — 같으면 서로 덮어씁니다. */
   const gradientId = `feedShelf-${format.id}`;
+  const sideId = `feedSide-${format.id}`;
 
   return (
     <View style={[styles.page, { height, width }]}>
       {/* 코치마크 2단계가 짚는 곳 — 시안 data-coach="video" */}
       <CoachTarget name="video" enabled={active} style={[styles.stage, { height: stageHeight }]}>
+        {/*
+          🔴 **영상 옆 세로 띠를 아래 선반으로 이어 줍니다** (2026-08-30 지시).
+
+          영상을 안 자르려고 폭을 줄였더니(393 → 373) 좌우에 10pt 씩 띠가 생깁니다.
+          그 자리가 검정 그대로면 선반과 뚝 끊겨 보입니다. 위는 영상과 같은 검정,
+          아래로 갈수록 **선반 맨 윗색과 같은 색**이 되게 해서 이어 붙입니다.
+
+          ⚠️ 맨 아래 색은 선반 그라데이션의 **첫 스탑과 같아야** 합니다(`#d8e0ea`).
+             다르면 두 그림 사이에 선이 하나 생깁니다.
+        */}
+        <Svg width={width} height={stageHeight} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id={sideId} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#000000" />
+              <Stop offset="0.55" stopColor="#000000" />
+              <Stop offset="0.78" stopColor="#2b3038" />
+              <Stop offset="0.93" stopColor="#8d97a5" />
+              <Stop offset="1" stopColor="#d8e0ea" />
+            </LinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={width} height={stageHeight} fill={`url(#${sideId})`} />
+        </Svg>
+
         {active ? (
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
