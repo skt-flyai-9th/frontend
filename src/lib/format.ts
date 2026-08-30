@@ -119,7 +119,13 @@ export function formatHashtags(format?: {
   // 🔴 촬영 시간입니다. `referenceDurationSec`(영상 길이)를 넣지 마세요 — 위 머리말.
   const shoot = shootTime(format.estimatedShootingSec);
   return [
-    shoot ? `#촬영${shoot}` : null,
+    /*
+      해시태그 안의 **띄어쓰기는 지웁니다.** `shootTime(90)` 은 사람이 읽기 좋게
+      "1분 30초" 로 주는데, 그대로 붙이면 `#촬영1분 30초` 가 되어 태그가 두 동강 난
+      것처럼 보입니다(2026-08-30 실데이터로 확인). 시안도 같은 처리를 합니다 —
+      `hashtags = reel.feasibility.map(t => "#" + t.label.replace(/\s+/g, ""))`.
+    */
+    shoot ? `#촬영${shoot.replace(/\s+/g, '')}` : null,
     format.shootingDifficulty ? `#난이도${format.shootingDifficulty}` : null,
     typeof format.requiresFace === 'boolean'
       ? format.requiresFace
