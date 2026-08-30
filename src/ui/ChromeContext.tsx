@@ -41,6 +41,7 @@
  *
  * 자세한 근거는 CLAUDE.md §8-1.
  */
+import { sizing } from '../design/theme';
 import React, {
   createContext,
   useCallback,
@@ -115,6 +116,39 @@ export function useChrome(): ChromeApi {
 }
 
 const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLocked: () => {} };
+
+/**
+ * 🔴 **혼자 있는 바는 남는 세로를 먹습니다** (2026-08-31 지적: "하얀 줄").
+ *
+ * 영상은 폭이 393 으로 정해져 있어 아무리 자리가 넓어도 **699 를 넘지 않습니다.**
+ * 그런데 탭바만 있을 때 쓸 수 있는 세로는 715, 앱바만 있을 때는 720 이라
+ * 8~21pt 가 남습니다. 그 남는 자리가 영상과 바 사이에 **흰 틈**으로 보입니다
+ * (바탕이 흰색이라 검은 줄은 아니지만, 탭바 위 실선 때문에 줄처럼 읽힙니다).
+ *
+ * 그래서 **혼자 있는 바가 그만큼 더 자랍니다.** 자라는 자리는 바의 바깥쪽입니다 —
+ * 탭바는 아래로(홈 인디케이터 쪽), 앱바는 위로(상태바 쪽). 둘 다 흰색이라
+ * 티가 안 나고, **바의 안쪽 모서리가 영상에 딱 닿습니다.**
+ *
+ *   탭바만 : 49 + 16 = 65   →  영상 699 + 바 65 = 764  틈 0
+ *   앱바만 : 44 + 21 = 65   →  영상 699 + 바 65 = 764  틈 0
+ *   선반만 : 56 +  9 = 65   →  (선반은 예전부터 이렇게 먹고 있었습니다)
+ *
+ * 셋이 같이 나올 때(튜토리얼)는 이미 예산을 넘겨 남는 게 없으므로 0 입니다.
+ */
+export function barSlack(
+  mode: ChromeMode,
+  which: 'appbar' | 'tabs',
+  winW: number,
+  winH: number,
+  insetTop: number,
+  insetBottom: number
+): number {
+  if (mode !== which) return 0; // 혼자 있을 때만 먹습니다
+  const videoH = Math.ceil((winW * 16) / 9);
+  const room = winH - insetTop - insetBottom - videoH;
+  const own = which === 'appbar' ? sizing.appBarHeight : sizing.tabRowHeight;
+  return Math.max(0, room - own);
+}
 
 /** 이 모드에서 탭바를 그리나 */
 export const showsTabs = (m: ChromeMode) => m === 'tabs' || m === 'all';

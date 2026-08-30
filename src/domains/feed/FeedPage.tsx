@@ -196,7 +196,16 @@ export function FeedPage({
     바를 접은 쪽이 **기본 상태**라, 보는 시간의 대부분은 폭이 꽉 찹니다.
     옆 여백은 바를 부른 잠깐 동안만 생깁니다.
   */
-  const playerWidth = Math.min(width, Math.floor((stageHeight * 9) / 16));
+  /*
+    🔴 **플레이어는 줄이고, 썸네일은 채웁니다** (2026-08-31).
+
+    약관이 지키라는 건 **임베드 플레이어**입니다. 그래서 플레이어일 때만 무대에
+    맞춰 폭을 줄이고(자르지 않고), 썸네일일 때는 **우리 그림이라 잘라도 되므로**
+    폭을 꽉 채웁니다. 튜토리얼 중(무대 615)에도 옆에 흰 띠가 안 생깁니다.
+  */
+  const playerWidth = showPlayer
+    ? Math.min(width, Math.floor((stageHeight * 9) / 16))
+    : width;
 
   return (
     <View style={[styles.page, { height, width }]}>

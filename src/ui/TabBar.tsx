@@ -32,7 +32,7 @@ import { CommonActions } from '@react-navigation/native';
 
 import theme, { color, motion, radius, sizing, space } from '../design/theme';
 import { TabGlyph, type TabGlyphName } from './TabGlyph';
-import { showsTabs, useChrome } from './ChromeContext';
+import { barSlack, showsTabs, useChrome } from './ChromeContext';
 
 /** 라우트 이름 → 시안 글리프·라벨. 라우트가 늘면 여기만 고칩니다. */
 const TAB_META: Record<
@@ -93,7 +93,7 @@ export interface RealsTabBarProps {
 
 export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidth }: RealsTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: winH } = useWindowDimensions();
 
   /**
    * 탭바가 기기 제스처 바 위에 겹치면 터치가 씹힙니다.
@@ -102,7 +102,13 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
    */
   const bottomInset = Math.max(insets.bottom, space[2]);
   /* 지금 탭바를 그릴 차례인지 — 홈은 바를 한 번에 하나만 띄웁니다(ui/ChromeContext.tsx) */
-  const hidden = !showsTabs(useChrome().mode);
+  const mode = useChrome().mode;
+  const hidden = !showsTabs(mode);
+  /*
+    혼자 있을 때 남는 세로(16pt)를 **아래쪽으로** 먹습니다. 그래야 바의 윗면이
+    영상에 딱 닿아 흰 틈이 안 생깁니다 — 근거는 `barSlack` 주석.
+  */
+  const slack = barSlack(mode, 'tabs', width, winH, insets.top, insets.bottom);
   const tabWidth = width / state.routes.length;
   const capsuleW = sizing.tabCapsuleWidth;
 
@@ -166,8 +172,8 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
       style={[
         styles.wrap,
         {
-          height: (hidden ? 0 : sizing.tabRowHeight) + bottomInset,
-          paddingBottom: bottomInset,
+          height: (hidden ? 0 : sizing.tabRowHeight) + bottomInset + slack,
+          paddingBottom: bottomInset + slack,
           borderTopWidth: hidden ? 0 : theme.border.hairline,
         },
       ]}

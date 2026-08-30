@@ -47,7 +47,7 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
-import { showsAppBar, showsShelf, useChrome } from '../../../ui/ChromeContext';
+import { barSlack, showsAppBar, showsShelf, showsTabs, useChrome } from '../../../ui/ChromeContext';
 import { useCoach } from '../../../ui/coach/CoachContext';
 import { useVideoFormats, useToggleFavorite } from '../../../api/queries/project';
 import { color, radius, sizing, space, text } from '../../../design/theme';
@@ -116,58 +116,63 @@ export default function HomeFeedScreen() {
       멈춰서 보고 있으면          선반    촬영 버튼이 늘 손에 있습니다
       위로 밀면 (다음 영상)       앱바    앱바는 **위**에 있습니다
       아래로 당기면 (이전 영상)   탭바    탭바는 **아래**에 있습니다
+      다른 탭에서 홈으로 오면     탭바    방금 탭을 쓰던 참이니까요 (사장님 지시)
 
-    ⚠️ 예전에는 "넘기면 탭바 · 맨 위에서 당기면 앱바" 였습니다(2026-08-31 오전).
-       그러면 **앱바를 맨 첫 영상에서만** 부를 수 있고, 방향과 바 위치도 어긋납니다.
-       방향으로 가르면 피드 어디서든 둘 다 부를 수 있고 외우기도 쉽습니다
-       (사장님 지적).
+    🔴 **방향은 스크롤 변화량이 아니라 "몇 번째 영상인가" 로 봅니다** (2026-08-31).
 
-    ⚠️ **모드는 목록이 서 있을 때만 바꿉니다.** 끄는 도중에 바꾸면 한 장의 높이가
-       손가락 밑에서 변해 페이징이 어긋납니다. 그래서 넘김이 **끝난 뒤**
-       (`onMomentumScrollEnd`) 와, 맨 위에서 더 당길 때(오프셋 0 이라 높이가 바뀌어도
-       자리가 안 틀어짐)에만 겁니다.
+       처음에는 마지막 스크롤의 부호(`dy > 0`)로 판정했는데 **실제 폰에서 위아래가
+       정확히 반대로 돌았습니다.** 페이징은 손을 뗀 뒤 스냅 지점으로 되돌아가며
+       멈추는데, 그 **마지막 되돌아오는 움직임의 부호가 손짓과 반대**입니다.
+       위로 밀어 다음 장으로 갔는데 마지막 몇 프레임이 아래로 움직여 탭바가 떴습니다.
+
+       영상 번호는 그런 흔들림이 없습니다. 번호가 오르면 다음 장(위로 민 것),
+       내리면 이전 장(아래로 당긴 것)입니다. 뒤집힐 여지가 없습니다.
+
+    ⚠️ **모드는 번호가 확정된 뒤에만 바뀝니다.** 끄는 도중에 바꾸면 한 장의 높이가
+       손가락 밑에서 변해 페이징이 어긋납니다. `onViewableItemsChanged` 는 60% 이상
+       보일 때 한 번만 울리므로 그 조건을 자연히 만족합니다.
   */
   const chrome = useChrome();
   const focused = useIsFocused();
   const coachRunning = useCoach()?.activeName != null;
   const back = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /*
-    ⚠️ **`onMomentumScrollEnd` 하나에 걸면 웹에서 확인이 안 됩니다.**
-       react-native-web 의 ScrollView 는 `onScroll` 만 부르고
-       `onMomentumScrollEnd`·`onScrollBeginDrag`·`onScrollEndDrag` 는 **발화하지
-       않습니다** (`node_modules/react-native-web/dist/exports/ScrollView/ScrollViewBase.js`
-       의 `handleScroll`/`handleScrollEnd` — onScroll 만 부릅니다).
-       그래서 방향과 멈춤을 **`onScroll` 만으로** 판정합니다. 기기·웹 어느 쪽에서나
-       똑같이 돕니다. 끌기 여부는 네이티브에만 오는 두 이벤트로 **잠그기만** 합니다.
-  */
-  /** 직전 스크롤 위치 */
-  const lastY = useRef(0);
-  /** 마지막으로 움직인 방향이 가리키는 바 */
-  const dirBar = useRef<'tabs' | 'appbar'>('tabs');
-  /** 스크롤이 멎었는지 재는 시계 */
-  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** 손가락이 아직 닿아 있는지 (네이티브에만 옵니다. 웹은 늘 false) */
-  const dragging = useRef(false);
+  /** 직전에 보고 있던 장. 번호가 오르면 다음 장(위로 밈), 내리면 이전 장(아래로 당김). */
+  const prevIndex = useRef(0);
 
-  /** 잠깐 다른 바를 보여 줬다가 선반으로 돌아옵니다. */
+  /**
+   * 잠깐 다른 바를 보여 줬다가 선반으로 돌아옵니다.
+   * 1.6초로 뒀다가 **3초로 늘렸습니다** (2026-08-31 지적: "좀 짧은 것 같다").
+   */
+  const BACK_TO_SHELF_MS = 3000;
   const flash = (m: 'tabs' | 'appbar') => {
     if (back.current) clearTimeout(back.current);
     chrome.setMode(m);
-    back.current = setTimeout(() => chrome.setMode('shelf'), 1600);
+    back.current = setTimeout(() => chrome.setMode('shelf'), BACK_TO_SHELF_MS);
   };
 
-  // 홈에 있는 동안만 바를 갈아 끼웁니다. 나가면 원래대로 돌려놓습니다.
+  /*
+    🔴 **홈을 벗어나면 `tabs` 로 둡니다 — `all` 이 아니라** (2026-08-31 지적:
+       "위 아래가 중복돼서 보일 때가 있다").
+
+       탭은 가로 트랙이라 옆 탭으로 미는 **동안 홈이 아직 화면에 남아 있습니다.**
+       그때 `all` 로 바꾸면 홈에 앱바와 탭바가 **같이** 그려져 위아래가 겹쳐 보입니다.
+       다른 탭 화면들은 자기 헤더를 따로 그리므로 홈의 앱바는 필요 없고, 탭바만
+       있으면 됩니다.
+
+    🔴 **다른 탭에서 홈으로 오면 탭바를 먼저 띄웁니다** (사장님 지시).
+       방금 탭을 쓰던 참이라 탭바가 그대로 이어지는 게 자연스럽습니다.
+       3초 뒤 선반으로 돌아옵니다.
+  */
   useEffect(() => {
     if (!focused) {
       if (back.current) clearTimeout(back.current);
-      chrome.setMode('all');
+      chrome.setMode('tabs');
       return;
     }
-    chrome.setMode('shelf');
+    flash('tabs');
     return () => {
       if (back.current) clearTimeout(back.current);
-      if (settle.current) clearTimeout(settle.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused]);
@@ -200,9 +205,16 @@ export default function HomeFeedScreen() {
        `position: absolute` 로 영상 **위에 띄우면 약관 위반**입니다 —
        근거는 `ui/ChromeContext.tsx` 머리말과 CLAUDE.md §8-1.
   */
+  /* 혼자 있는 바가 남는 세로를 먹습니다 — 근거는 ChromeContext 의 `barSlack` 주석 */
+  const appSlack = barSlack(chrome.mode, 'appbar', width, height, insets.top, insets.bottom);
+  const tabSlack = barSlack(chrome.mode, 'tabs', width, height, insets.top, insets.bottom);
+
   const header = !showsAppBar(chrome.mode) ? (
     <View style={{ height: 0, overflow: 'hidden' }} />
   ) : (
+    /* 남는 21pt 를 앱바 **위쪽**(상태바 쪽)에 둡니다. 둘 다 흰색이라 티가 안 나고,
+       앱바 아랫면이 영상에 딱 닿아 흰 틈이 안 생깁니다. */
+    <View style={{ paddingTop: appSlack, backgroundColor: color.paper }}>
     <AppBar
       home={{
         /*
@@ -215,6 +227,7 @@ export default function HomeFeedScreen() {
         onMenu: () => nav.navigate('Settings'),
       }}
     />
+    </View>
   );
 
   /*
@@ -231,8 +244,8 @@ export default function HomeFeedScreen() {
     320,
     height -
       insets.top -
-      (showsAppBar(chrome.mode) ? sizing.appBarHeight : 0) -
-      (chrome.mode === 'tabs' || chrome.mode === 'all' ? sizing.tabRowHeight : 0) -
+      (showsAppBar(chrome.mode) ? sizing.appBarHeight + appSlack : 0) -
+      (showsTabs(chrome.mode) ? sizing.tabRowHeight + tabSlack : 0) -
       insets.bottom
   );
 
@@ -261,10 +274,17 @@ export default function HomeFeedScreen() {
       기준점을 보정한 자리로 미리 옮겨 두면 다음 이벤트의 차이가 0 이 되어
       판정이 안 걸립니다. 예약된 판정도 함께 취소합니다.
     */
-    lastY.current = offset;
-    if (settle.current) clearTimeout(settle.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageHeight]);
+
+  // 장이 바뀌면 그 방향에 있는 바를 잠깐 띄웁니다.
+  useEffect(() => {
+    const step = index - prevIndex.current;
+    prevIndex.current = index;
+    if (step === 0) return;
+    flash(step > 0 ? 'appbar' : 'tabs');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
 
   // 첫 로딩은 스피너 대신 스켈레톤으로 — 무엇이 올지 미리 보입니다.
   if (formats.isLoading && !formats.data) {
@@ -312,31 +332,13 @@ export default function HomeFeedScreen() {
               방향은 **끌기 시작한 자리와 끝난 자리를 비교**해서 봅니다. 넘김이 끝난
               뒤에만 바꾸므로 페이징이 어긋나지 않습니다.
             */
-            /* 손가락이 닿아 있는 동안에는 안 바꿉니다 — 웹에서는 안 오는 이벤트라 잠금만 합니다. */
-            onScrollBeginDrag={() => {
-              dragging.current = true;
-            }}
-            onScrollEndDrag={() => {
-              dragging.current = false;
-            }}
-            scrollEventThrottle={16}
+            /*
+              첫 영상에서 더 당기면 장 번호가 안 바뀌어 위 효과가 안 돕니다.
+              방향은 아래이니 탭바를 띄웁니다.
+            */
+            scrollEventThrottle={32}
             onScroll={(e) => {
-              const y = e.nativeEvent.contentOffset.y;
-              // 첫 영상에서 더 당기면 목록은 안 움직입니다. 방향은 아래이니 탭바입니다.
-              if (y < -12) {
-                flash('tabs');
-                return;
-              }
-              const dy = y - lastY.current;
-              lastY.current = y;
-              if (Math.abs(dy) < 2) return;
-              // 값이 커진다 = 위로 밀었다 = 다음 영상 → 앱바(위)
-              dirBar.current = dy > 0 ? 'appbar' : 'tabs';
-              if (settle.current) clearTimeout(settle.current);
-              // 120ms 동안 더 안 움직이면 멎은 것으로 봅니다.
-              settle.current = setTimeout(() => {
-                if (!dragging.current) flash(dirBar.current);
-              }, 120);
+              if (e.nativeEvent.contentOffset.y < -12) flash('tabs');
             }}
             // 한 장씩 딱 멈춥니다 — 화면에 플레이어가 하나만 보이게 하는 핵심입니다.
             pagingEnabled
