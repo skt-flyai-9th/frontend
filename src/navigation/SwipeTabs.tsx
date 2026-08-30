@@ -52,6 +52,7 @@ import {
 } from '@react-navigation/native';
 
 import { RealsTabBar } from '../ui/TabBar';
+import { ChromeProvider } from '../ui/ChromeContext';
 
 /**
  * 안쪽 가로 스크롤이 탭 넘김을 잠시 멈추게 하는 통로 (2026-08-26).
@@ -208,6 +209,12 @@ function SwipeTabNavigator({
 
   return (
     <NavigationContent>
+      {/*
+        🔴 트랙과 탭바를 **같은 Provider 안**에 둡니다 (2026-08-30).
+           홈이 "치워" 라고 하면 탭바가 그걸 읽고 아이콘 줄을 접습니다. 왜 접어야
+           하는지(영상 잘림 산수)는 `ui/ChromeContext.tsx` 머리말에 있습니다.
+      */}
+      <ChromeProvider>
       <View style={styles.fill}>
         <Animated.ScrollView
           ref={scrollRef as never}
@@ -260,6 +267,7 @@ function SwipeTabNavigator({
           pageWidth={width}
         />
       </View>
+      </ChromeProvider>
     </NavigationContent>
   );
 }

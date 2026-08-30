@@ -88,13 +88,31 @@ export function FeedPage({
   const fav = !!format.isFavorite;
 
   /*
-    🔴 **튜토리얼이 도는 동안 영상을 세웁니다** (2026-08-29 사장님 지적: 랙).
-
-    코치마크는 화면을 덮습니다. 그 밑에서 유튜브가 계속 디코딩하는데, 홈은 탭을
-    옮겨도 살아 있어서 **일곱 단계 내내** 돕니다. 안 보이는 영상에 그 값을 쓸
-    이유가 없습니다. 끝나면 이어서 다시 틉니다 — 다시 받지 않습니다.
+    코치마크가 도는지. 원래는 랙 때문에 **세우기만** 했는데(2026-08-29 지적),
+    약관 재검토에서 세우는 걸로는 모자라다는 게 드러나 아래에서 아예 걷어냅니다.
   */
   const coachRunning = useCoach()?.activeName != null;
+
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **튜토리얼이 도는 동안엔 플레이어를 걷어냅니다** (2026-08-30, 약관 재검토)
+    ─────────────────────────────────────────────────────────────
+    예전에는 세워 두기만 했습니다(`paused`). 그런데 코치마크는 **화면 전체에 막을
+    덮고** 2단계에서 영상 자리에 구멍을 냅니다. 세워 뒀어도 임베드 플레이어는
+    그대로 살아 있으니, 그 막은 **플레이어 앞을 가리는 것**입니다.
+
+      "You must not display overlays, frames, or other visual elements in front of
+       any part of a YouTube embedded player, including player controls."
+         — Required Minimum Functionality · Overlays and frames
+
+    막을 안 덮을 수는 없습니다(그게 튜토리얼입니다). 그래서 **덮는 동안 플레이어를
+    없앱니다** — 이웃 장과 똑같이 썸네일로 바꿉니다. 가릴 플레이어가 없으면 위반할
+    것도 없습니다. 끝나면 다시 붙습니다(그때 한 번 다시 불러옵니다 — 튜토리얼은
+    드물게 도는 일이라 그만한 값은 치를 만합니다).
+
+    덤 — 디코딩이 완전히 멈추므로 예전에 지적하신 **랙에도 더 좋습니다.**
+  */
+  const showPlayer = active && !coachRunning;
 
   // 세 태그의 규칙은 lib/format.ts 한 곳에 있습니다 (홈·관심목록·AI 추천 카드 공용)
   const tags = formatHashtags(format);
@@ -121,52 +139,94 @@ export function FeedPage({
     덤 — 띠가 줄어든 만큼 영상이 커져 **잘리는 양도 줄어듭니다**
     (실측 393×852: 무대 575 → 615, 잘림 124 → 84 · 17.7% → 12.0%).
   */
-  const shelfHeight = 56;
-  const stageHeight = Math.max(200, height - shelfHeight);
   /*
-    🔴 **영상이 폭을 꽉 채웁니다 — 위아래가 잘립니다** (2026-08-30 디자인 요청:
-       "영상 잘려도 되니까 검은 테두리(패딩) 다 빼 달라").
+    🔴 **자리가 남으면 띠가 가져갑니다** (2026-08-30, 앱바·탭바 치우기와 한 쌍).
 
-    한동안은 무대 높이에 맞춰 폭을 줄여(393 → 373) **한 군데도 안 자르고** 보여
-    줬습니다. 그때 좌우에 10pt 씩 검은 띠가 생기는데, 디자인 쪽에서 그 띠를 빼는
-    쪽을 택했습니다.
+    앱바와 탭바가 치워지면 이 장이 671 → 764 로 커집니다. 그런데 영상은 폭이
+    정해져 있어 아무리 커져도 **699** 를 넘지 않습니다. 남는 65 를 무대에 그냥
+    주면 영상 위아래에 `mediaBlack` 이 드러나 **검은 띠**가 생깁니다 — 지난번
+    검은 줄과 같은 사고입니다.
 
-    ⚠️ **잘리는 양은 적지 않습니다** (2026-08-30 실측, 393×852 기준).
-         무대 575 · 폭을 채운 9:16 높이 699 → **124pt(17.7%)가 잘리고,
-         위아래 각각 62pt** 입니다. 그 62pt 안에 유튜브 **자체 조작부**가 들어갑니다.
-       약관은 "임베드 플레이어의 어느 부분도 가리지 말라" 고 하고, 개발자 정책은
-       "플레이어의 어느 부분이나 기능도 막지 말라"(III.I.6) 고 합니다. 덮는 게
-       아니라 잘라내는 것이라 문구에 딱 들어맞지는 않지만, **결과는 같습니다.**
-       사장님 판단으로 넣은 것이고, 되돌릴 때는 이 자리만 `Math.ceil(...)` 로
-       바꾸면 됩니다.
+    그래서 무대는 "영상이 딱 들어갈 만큼" 에서 멈추고, 남는 건 띠가 먹습니다.
+      바 있음 (height 671) → 무대 615, 띠 56   ← 84pt 잘림
+      바 없음 (height 764) → 무대 699, 띠 65   ← **안 잘림**
   */
-  const playerWidth = width;
+  const SHELF_MIN = 56;
+  /** 폭을 꽉 채운 9:16 높이. 무대가 이보다 커질 이유가 없습니다. */
+  const videoHeight = Math.ceil((width * 16) / 9);
+  const stageHeight = Math.max(200, Math.min(height - SHELF_MIN, videoHeight));
+  const shelfHeight = Math.max(SHELF_MIN, height - stageHeight);
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **영상을 자르지 않습니다** (2026-08-30, 약관 재검토 결과)
+    ─────────────────────────────────────────────────────────────
+    한동안 폭을 꽉 채우고 넘치는 높이를 잘라 냈습니다(무대 615 · 영상 699 →
+    위아래 42pt 씩 84pt 잘림). 디자인 요청("검은 테두리 빼 달라")을 따른 것인데,
+    **유튜브 약관에 걸립니다.** 원문 두 곳입니다.
+
+      "Similarly, you must not use overlays, frames or other visual elements to
+       obscure any part of an embedded player, including player controls."
+         — Required Minimum Functionality · Overlays and frames
+
+      "If the player displays controls, it must be large enough to fully display
+       the controls without shrinking the viewport below the minimum size."
+         — Required Minimum Functionality · Embedded YouTube Player size
+
+      "modify, build upon, or block any portion or functionality of a YouTube player"
+         — Developer Policies III.I.6
+
+    자르는 건 "덮는 것" 이 아니라고 볼 여지가 있지만, **III.I.6 의 "block any
+    portion" 에는 그대로 걸립니다.** 게다가 잘려 나가는 아래 42pt 가 하필
+    **쇼츠 자체 조작부**(재생·음소거·진행바)가 있는 자리입니다 — 위 두 번째
+    문장이 정확히 그걸 금지합니다.
+
+    그래서 **무대에 다 안 들어가면 폭을 줄여 맞춥니다.** 어느 순간에도 플레이어의
+    어느 부분도 가려지지 않습니다.
+
+      바 접힘 (무대 699) → 폭 393. 딱 맞습니다. **옆 여백 0**
+      바 열림 (무대 615) → 폭 345. 옆에 24pt 씩 남습니다
+
+    바를 접은 쪽이 **기본 상태**라, 보는 시간의 대부분은 폭이 꽉 찹니다.
+    옆 여백은 바를 부른 잠깐 동안만 생깁니다.
+  */
+  const playerWidth = Math.min(width, Math.floor((stageHeight * 9) / 16));
 
   return (
     <View style={[styles.page, { height, width }]}>
       {/* 코치마크 2단계가 짚는 곳 — 시안 data-coach="video" */}
       <CoachTarget name="video" enabled={active} style={[styles.stage, { height: stageHeight }]}>
-        {active ? (
+        {showPlayer ? (
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
            * 화면에 자동재생 플레이어가 언제나 하나만 남습니다.
-           *
-           * 폭을 꽉 채우면 9:16 높이가 무대보다 큽니다 — 넘치는 만큼 위아래가
-           * 잘리게 두는 것이 시안입니다(`overflow-hidden` + 세로 가운데).
            */
           <GuidePlayer
             url={representativeVideoUrl(format)}
             width={playerWidth}
             portrait
+            /*
+              🔴 **모서리를 각지게 둡니다** (2026-08-30).
+
+              `GuidePlayer` 는 기본이 `radius.md` 둥근 모서리입니다. 지금까지는
+              영상(699)이 무대(615)보다 커서 위아래 모서리가 **잘려 나가 안 보였습니다.**
+              바를 치워 무대가 699 로 딱 맞자 네 모서리가 드러나고, 그 뒤의
+              `mediaBlack` 이 검은 조각으로 비쳤습니다(실제로 그렇게 나왔습니다).
+              화면 끝까지 붙는 자리이므로 둥글릴 이유가 없습니다.
+            */
+            fullBleed
             autoPlay
-            paused={coachRunning}
           />
         ) : (
+          /*
+            이웃 장과 튜토리얼 중에 보이는 그림. **플레이어와 같은 폭**을 씁니다 —
+            썸네일만 화면 폭(393)을 쓰면 넘기는 동안 이웃 장만 잘려서
+            지금 장과 크기가 어긋나 보입니다.
+          */
           <VideoThumbnail
             url={representativeVideoUrl(format)}
             platform={format.sourcePlatform}
             aspectRatio={9 / 16}
-            style={{ width }}
+            style={{ width: playerWidth }}
           />
         )}
       </CoachTarget>

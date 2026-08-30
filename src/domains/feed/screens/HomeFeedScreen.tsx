@@ -28,7 +28,7 @@
  *   구분    카드 사이는 여백이 아니라 surface 색 8px 띠입니다.
  *   당겨서 새로고침 · 로딩은 스피너가 아니라 스켈레톤
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,7 @@ import {
   type ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
@@ -47,6 +47,8 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
+import { useChrome } from '../../../ui/ChromeContext';
+import { useCoach } from '../../../ui/coach/CoachContext';
 import { useVideoFormats, useToggleFavorite } from '../../../api/queries/project';
 import { color, radius, sizing, space, text } from '../../../design/theme';
 import type { RootStackParamList } from '../../../navigation/types';
@@ -97,6 +99,58 @@ export default function HomeFeedScreen() {
   const [index, setIndex] = useState(0);
 
   /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **보는 동안은 앱바·탭바를 치웁니다** (2026-08-30 사장님 지시)
+    ─────────────────────────────────────────────────────────────
+    이유와 산수는 `ui/ChromeContext.tsx` 머리말에 다 적어 뒀습니다. 요지만:
+    영상이 안 잘리려면 앱바 44 · 선반 56 · 탭바 49 중 **하나만** 남길 수 있고,
+    촬영 버튼이 든 선반을 남겼습니다. 남는 둘이 치워지면 무대가 615 → 699 로
+    커져 **잘림이 0** 이 됩니다.
+
+    켜고 끄는 시점:
+      · 손가락을 대면(스크롤 시작) 나타납니다 — 탭을 옮기려는 참일 테니까요.
+      · 멈추고 잠깐 지나면 다시 치워집니다.
+      · 홈을 벗어나면 즉시 되돌립니다 — 다른 탭에서 탭바가 없으면 안 됩니다.
+      · 튜토리얼이 도는 동안은 잠급니다(코치마크가 탭바 아이콘을 짚습니다).
+  */
+  const chrome = useChrome();
+  const focused = useIsFocused();
+  const coachRunning = useCoach()?.activeName != null;
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showChrome = () => {
+    if (settle.current) clearTimeout(settle.current);
+    chrome.setHidden(false);
+  };
+  /** 멈춘 뒤 잠깐 두었다가 치웁니다 — 손을 떼자마자 사라지면 화들짝합니다. */
+  const hideChromeSoon = () => {
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => chrome.setHidden(true), 900);
+  };
+
+  // 홈에 있는 동안만 치웁니다. 나가면 바로 되돌리고 예약도 취소합니다.
+  const feedReady = formats.data !== undefined;
+  useEffect(() => {
+    if (!focused) {
+      if (settle.current) clearTimeout(settle.current);
+      chrome.setHidden(false);
+      return;
+    }
+    // 자료가 오기 전에 치우면 빈 화면에서 바만 사라져 고장 난 것처럼 보입니다.
+    if (feedReady) hideChromeSoon();
+    return () => {
+      if (settle.current) clearTimeout(settle.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, feedReady]);
+
+  // 튜토리얼이 도는 동안은 무조건 보입니다.
+  useEffect(() => {
+    chrome.setLocked(coachRunning);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachRunning]);
+
+  /*
    * ⚠️ 이 둘은 **ref 로 고정해야 합니다.** FlatList 는 `viewabilityConfig` 와
    *    `onViewableItemsChanged` 가 렌더마다 새 객체로 바뀌면 예외를 냅니다
    *    ("Changing onViewableItemsChanged on the fly is not supported").
@@ -113,7 +167,14 @@ export default function HomeFeedScreen() {
   const onCreate = (f: VideoFormat) =>
     nav.navigate('Create', { screen: 'PurposeSelect', params: { formatId: f.id } });
 
-  const header = (
+  /*
+    🔴 **접을 때 자리까지 비웁니다.** `height: 0` 이라 아래가 그만큼 올라옵니다.
+       `position: absolute` 로 영상 **위에 띄우면 약관 위반**입니다 —
+       근거는 `ui/ChromeContext.tsx` 머리말과 CLAUDE.md §8-1.
+  */
+  const header = chrome.hidden ? (
+    <View style={{ height: 0, overflow: 'hidden' }} />
+  ) : (
     <AppBar
       home={{
         /*
@@ -133,10 +194,35 @@ export default function HomeFeedScreen() {
    * 이 값이 정확해야 `pagingEnabled` 가 딱 한 장씩 멈춥니다 — 어긋나면 두 장이
    * 걸친 상태로 서고, 그러면 자동재생 플레이어가 화면에 둘 보이게 됩니다.
    */
+  /*
+    치워진 바는 빼지 않습니다 — 그만큼 한 장이 커집니다.
+      바 있음 852 − 54 − 44 − 49 − 34 = 671
+      바 없음 852 − 54 −  0 −  0 − 34 = 764   ← 영상 699 + 띠 65
+  */
   const pageHeight = Math.max(
     320,
-    height - insets.top - sizing.appBarHeight - sizing.tabRowHeight - insets.bottom
+    height -
+      insets.top -
+      (chrome.hidden ? 0 : sizing.appBarHeight) -
+      (chrome.hidden ? 0 : sizing.tabRowHeight) -
+      insets.bottom
   );
+
+  /*
+    🔴 **한 장의 높이가 바뀌면 스크롤 위치를 같이 옮겨야 합니다.**
+
+    `snapToInterval` 과 `getItemLayout` 이 이 값을 씁니다. 바뀐 값으로 다시
+    계산되는데 스크롤 오프셋은 옛 값(index × 671)에 머물러 있으면, 목록이
+    **두 장에 걸친 채로** 섭니다. 같은 장이 계속 맨 위에 오도록 밀어 줍니다.
+
+    ✅ 걸쳐 있어도 자동재생 플레이어는 여전히 하나입니다 — 보고 있는 장만
+       `active` 라 나머지는 썸네일입니다(FeedPage 머리말 ①). 약관은 안전합니다.
+  */
+  const listRef = useRef<FlatList<VideoFormat>>(null);
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: index * pageHeight, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageHeight]);
 
   // 첫 로딩은 스피너 대신 스켈레톤으로 — 무엇이 올지 미리 보입니다.
   if (formats.isLoading && !formats.data) {
@@ -173,9 +259,14 @@ export default function HomeFeedScreen() {
           />
         ) : (
           <FlatList
+            ref={listRef}
             data={formats.data ?? []}
             keyExtractor={(f) => String(f.id)}
             showsVerticalScrollIndicator={false}
+            // 손가락을 대면 바가 돌아오고, 멈추고 잠깐 지나면 다시 치워집니다.
+            onScrollBeginDrag={showChrome}
+            onScrollEndDrag={hideChromeSoon}
+            onMomentumScrollEnd={hideChromeSoon}
             // 한 장씩 딱 멈춥니다 — 화면에 플레이어가 하나만 보이게 하는 핵심입니다.
             pagingEnabled
             snapToInterval={pageHeight}
