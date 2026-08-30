@@ -39,12 +39,25 @@
  * 쇼츠 조작을 가리지 않는다고 적었는데, 약관이 막는 건 **눈으로 가리는 것**입니다.
  * 게다가 쇼츠의 자체 조작부(재생·음소거·진행바)가 바로 그 하단에 있습니다.
  *
- * 그래서 정보는 **영상 아래 띄**에 둡니다. 릴스 같은 그림을 원하시면 영상이
- * 유튜브 임베드가 아닌 자리(우리가 만든 영상 등)에서만 가능합니다.
+ * 그래서 정보는 **영상 아래 띄**에 둡니다.
+ *
+ * ✅ **다만 시안의 그림은 띄 안에서 그대로 살렸습니다** (2026-08-30 사장님 지시:
+ *    "유튜브 자리 안 겹치게만 해서 주고, 디자인은 얘가 바꾸자고 한 대로").
+ *
+ *    · 흰 스크림 · 어두운 글자 · 바닥판 없는 아이콘 · 아바타 테두리 — 전부 시안대로
+ *    · 다른 것은 **놓이는 자리 하나**입니다. 영상 위가 아니라 영상 **아래**입니다.
+ *
+ * ⚠️ **그라디언트를 투명으로 보내면 검은 띄가 생깁니다.** 시안은 영상 위에서
+ *    사라지므로 투명해지는 게 곳 영상입니다. 우리 띄는 영상 **밖**이라 투명해지면
+ *    그 뒤의 카드 검정이 드러나, 영상과 띄 사이에 검은 띄가 끯깁니다(실제로 그렇게
+ *    나왔습니다). 그래서 **불투명한 밝은 선반**으로 두고, 그라디언트는 흰색에서
+ *    열은 회색으로만 올라갑니다 — 깊이는 남기고 검은 띄는 안 생깁니다.
+ *    아래 탭바도 흰색이라 밝은 선반이 오히려 매끄럽게 이어집니다.
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
@@ -99,8 +112,10 @@ export function FeedPage({
     예전에는 영상을 안 자르고 폭을 줄여 좌우에 검은 여백을 뒀습니다. 시안은
     **폭을 꽉 채우고 위아래를 자릅니다** — 쇼츠는 원래 그렇게 봅니다.
   */
-  const infoHeight = 96;
-  const stageHeight = Math.max(200, height - infoHeight);
+  const shelfHeight = 96;
+  const stageHeight = Math.max(200, height - shelfHeight);
+  /* 그라디언트 id 는 카드마다 달라야 합니다 — 같으면 서로 덮어씁니다. */
+  const gradientId = `feedShelf-${format.id}`;
 
   return (
     <View style={[styles.page, { height, width }]}>
@@ -140,8 +155,25 @@ export function FeedPage({
         시안은 왼쪽 묶음과 오른쪽 버튼이 **같은 줄**을 나눠 씁니다 — 그래서 96 에
         들어갑니다(사장님이 "구성 배치가 중요하다" 고 짚으신 부분).
       */}
-      <View style={[styles.info, { height: infoHeight }]}>
-        <View style={styles.infoRow}>
+      <View style={[styles.shelf, { height: shelfHeight }]}>
+        {/*
+          시안의 네 스탑을 **불투명한 색**으로 옮겼습니다(머리말 ⚠️).
+          아래는 순백, 위로 갈수록 열은 회색 — 깊이는 남기고 검은 띄는 안 생깁니다.
+          `offset` 은 아래(0)에서 위(1) 입니다.
+        */}
+        <Svg width={width} height={shelfHeight} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
+              <Stop offset="0" stopColor="#ffffff" />
+              <Stop offset="0.4" stopColor="#fbfcfe" />
+              <Stop offset="0.75" stopColor="#f2f5f9" />
+              <Stop offset="1" stopColor="#e9eef4" />
+            </LinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={width} height={shelfHeight} fill={`url(#${gradientId})`} />
+        </Svg>
+
+        <View style={[styles.infoRow, { height: shelfHeight }]}>
           <View style={styles.left}>
             {/*
               시안은 채널 프로필 사진을 놓습니다. 5.1 에 avatar 필드가 없어
@@ -182,7 +214,7 @@ export function FeedPage({
               <Heart
                 size={20}
                 strokeWidth={2}
-                color={fav ? color.danger[500] : color.paper}
+                color={fav ? color.danger[500] : color.ink[700]}
                 fill={fav ? color.danger[500] : 'transparent'}
               />
             </Pressable>
@@ -202,7 +234,7 @@ export function FeedPage({
                 onPress={() => onCreate(format)}
                 style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
               >
-                <SlateEditGlyph size={24} color={color.paper} strokeWidth={1.7} />
+                <SlateEditGlyph size={24} color={color.ink[700]} strokeWidth={1.7} />
               </Pressable>
             </CoachTarget>
           </View>
@@ -223,22 +255,27 @@ const styles = StyleSheet.create({
     backgroundColor: color.mediaBlack,
   },
 
-  /* 시안: 높이 96 · 위쪽 white/10 실선 · px-4 · 세로 가운데 */
-  info: {
-    justifyContent: 'center',
+  /*
+    아래 띄. **바탕은 카드 색 그대로** 두고 그 위에 흰 그라디언트만 얹습니다 —
+    그래야 위쪽에서 영상 쪽 검정으로 자연스럽게 넘어갑니다. 예전의 흰 실선(white/10)은
+    뻐습니다 — 번지는 구간이 그 역할을 대신합니다.
+  */
+  shelf: { justifyContent: 'flex-end', backgroundColor: color.paper },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
     paddingHorizontal: space[4],
-    borderTopWidth: theme.border.hairline,
-    borderTopColor: 'rgba(255,255,255,0.10)',
-    backgroundColor: color.ink[900],
   },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   left: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* 시안 h-9 w-9(36). 사진이 없어 옅은 원만 둡니다. */
   avatar: {
     width: 36,
     height: 36,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(15,23,42,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(15,23,42,0.15)',
   },
   texts: { flex: 1, minWidth: 0, gap: 2 },
   /* 시안: 14.5 semibold leading-snug 흰색 */
@@ -248,11 +285,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
-    color: color.paper,
+    color: color.ink[900],
   },
   /* 시안: 12 medium white/55 */
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  tags: { ...theme.text.label, lineHeight: 17, color: 'rgba(255,255,255,0.55)' },
+  tags: { ...theme.text.label, lineHeight: 17, color: 'rgba(51,65,85,0.75)' },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   /* 코치마크 이름표 상자 — 버튼 크기를 그대로 물려받습니다. */
@@ -264,6 +301,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15,23,42,0.45)',
   },
 });
