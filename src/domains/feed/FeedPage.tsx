@@ -70,6 +70,7 @@ import type { VideoFormat } from '../../api/schema/types';
 
 export function FeedPage({
   format,
+  showShelf = true,
   height,
   width,
   active,
@@ -77,6 +78,11 @@ export function FeedPage({
   onCreate,
 }: {
   format: VideoFormat;
+  /**
+   * 아래 정보 띠를 그릴지. 홈은 **바를 한 번에 하나만** 띄우므로, 탭바나 앱바가
+   * 나와 있는 동안에는 선반이 빠집니다 (`ui/ChromeContext.tsx`).
+   */
+  showShelf?: boolean;
   /** 이 한 장이 차지할 높이 (탭바·안전영역을 뺀 값) */
   height: number;
   width: number;
@@ -154,8 +160,9 @@ export function FeedPage({
   const SHELF_MIN = 56;
   /** 폭을 꽉 채운 9:16 높이. 무대가 이보다 커질 이유가 없습니다. */
   const videoHeight = Math.ceil((width * 16) / 9);
-  const stageHeight = Math.max(200, Math.min(height - SHELF_MIN, videoHeight));
-  const shelfHeight = Math.max(SHELF_MIN, height - stageHeight);
+  const shelfRoom = showShelf ? SHELF_MIN : 0;
+  const stageHeight = Math.max(200, Math.min(height - shelfRoom, videoHeight));
+  const shelfHeight = showShelf ? Math.max(SHELF_MIN, height - stageHeight) : 0;
   /*
     ─────────────────────────────────────────────────────────────
     🔴 **영상을 자르지 않습니다** (2026-08-30, 약관 재검토 결과)
@@ -240,6 +247,7 @@ export function FeedPage({
         시안은 왼쪽 묶음과 오른쪽 버튼이 **같은 줄**을 나눠 씁니다 — 그래서 96 에
         들어갑니다(사장님이 "구성 배치가 중요하다" 고 짚으신 부분).
       */}
+      {!showShelf ? null : (
       <View style={[styles.shelf, { height: shelfHeight }]}>
         <View style={[styles.infoRow, { height: shelfHeight }]}>
           <View style={styles.left}>
@@ -308,19 +316,30 @@ export function FeedPage({
           </View>
         </View>
       </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  /* 시안 `bg-ink` — 카드 전체가 어둡습니다. 쇼츠를 보는 화면이라 밝은 판이 눈을 찌릅니다. */
-  page: { backgroundColor: color.ink[900] },
-  /* 영상은 폭을 꽉 채우고 넘치는 높이를 잘라냅니다(시안 overflow-hidden). */
+  /*
+    🔴 **바탕을 흰색으로 둡니다** (2026-08-31).
+
+    바를 하나만 띄우다 보니 모드마다 세로가 8~21pt 씩 남습니다(무대 715·720 에
+    영상은 699). 예전처럼 바탕이 검으면 그 남는 자리가 **검은 띠**로 드러납니다 —
+    탭바 위에 검은 줄이 그어진 모습이 실제로 나왔습니다.
+
+    영상에 닿는 것은 어느 방향이든 흰색입니다 — 위는 상태바 자리나 앱바, 아래는
+    선반이나 탭바나 홈 인디케이터. 바탕을 같은 흰색으로 두면 **남는 자리가 그냥
+    사라져 보입니다.** 옆 여백(튜토리얼 모드의 24pt)도 같은 이유로 흰색이 낫습니다 —
+    디자인 쪽에서 뺴 달라던 게 검은 테두리였습니다.
+  */
+  page: { backgroundColor: color.paper },
   stage: {
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: color.mediaBlack,
+    backgroundColor: color.paper,
   },
 
   /*

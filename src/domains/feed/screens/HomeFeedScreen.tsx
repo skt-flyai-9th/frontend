@@ -47,7 +47,7 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
-import { useChrome } from '../../../ui/ChromeContext';
+import { showsAppBar, showsShelf, useChrome } from '../../../ui/ChromeContext';
 import { useCoach } from '../../../ui/coach/CoachContext';
 import { useVideoFormats, useToggleFavorite } from '../../../api/queries/project';
 import { color, radius, sizing, space, text } from '../../../design/theme';
@@ -100,51 +100,79 @@ export default function HomeFeedScreen() {
 
   /*
     ─────────────────────────────────────────────────────────────
-    🔴 **보는 동안은 앱바·탭바를 치웁니다** (2026-08-30 사장님 지시)
+    🔴 **바는 한 번에 하나만** (2026-08-31, 사장님 안)
     ─────────────────────────────────────────────────────────────
-    이유와 산수는 `ui/ChromeContext.tsx` 머리말에 다 적어 뒀습니다. 요지만:
-    영상이 안 잘리려면 앱바 44 · 선반 56 · 탭바 49 중 **하나만** 남길 수 있고,
-    촬영 버튼이 든 선반을 남겼습니다. 남는 둘이 치워지면 무대가 615 → 699 로
-    커져 **잘림이 0** 이 됩니다.
+    영상이 폭을 꽉 채우면서 안 잘리려면 무대가 699 여야 하는데, 바에 줄 수 있는
+    예산은 65 뿐입니다. 앱바 44 · 선반 56 · 탭바 49 는 **하나씩이면** 다 들어가고
+    둘만 겹쳐도 넘칩니다. 산수는 `ui/ChromeContext.tsx` 머리말.
 
-    켜고 끄는 시점:
-      · 손가락을 대면(스크롤 시작) 나타납니다 — 탭을 옮기려는 참일 테니까요.
-      · 멈추고 잠깐 지나면 다시 치워집니다.
-      · 홈을 벗어나면 즉시 되돌립니다 — 다른 탭에서 탭바가 없으면 안 됩니다.
-      · 튜토리얼이 도는 동안은 잠급니다(코치마크가 탭바 아이콘을 짚습니다).
+    어느 모드에서든 영상은 **393×699 · 잘림 0 · 옆 여백 0** 입니다.
+
+    무엇으로 바꾸나 — **새 손짓을 만들지 않았습니다.** 이미 있는 손짓에 얹습니다.
+    영상 위에는 터치 판을 못 놓기 때문입니다(약관: 쇼츠 자체 조작을 막게 됩니다).
+
+    규칙은 한 줄입니다 — **손짓 방향 = 바가 있는 쪽.**
+
+      멈춰서 보고 있으면          선반    촬영 버튼이 늘 손에 있습니다
+      위로 밀면 (다음 영상)       앱바    앱바는 **위**에 있습니다
+      아래로 당기면 (이전 영상)   탭바    탭바는 **아래**에 있습니다
+
+    ⚠️ 예전에는 "넘기면 탭바 · 맨 위에서 당기면 앱바" 였습니다(2026-08-31 오전).
+       그러면 **앱바를 맨 첫 영상에서만** 부를 수 있고, 방향과 바 위치도 어긋납니다.
+       방향으로 가르면 피드 어디서든 둘 다 부를 수 있고 외우기도 쉽습니다
+       (사장님 지적).
+
+    ⚠️ **모드는 목록이 서 있을 때만 바꿉니다.** 끄는 도중에 바꾸면 한 장의 높이가
+       손가락 밑에서 변해 페이징이 어긋납니다. 그래서 넘김이 **끝난 뒤**
+       (`onMomentumScrollEnd`) 와, 맨 위에서 더 당길 때(오프셋 0 이라 높이가 바뀌어도
+       자리가 안 틀어짐)에만 겁니다.
   */
   const chrome = useChrome();
   const focused = useIsFocused();
   const coachRunning = useCoach()?.activeName != null;
+  const back = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /*
+    ⚠️ **`onMomentumScrollEnd` 하나에 걸면 웹에서 확인이 안 됩니다.**
+       react-native-web 의 ScrollView 는 `onScroll` 만 부르고
+       `onMomentumScrollEnd`·`onScrollBeginDrag`·`onScrollEndDrag` 는 **발화하지
+       않습니다** (`node_modules/react-native-web/dist/exports/ScrollView/ScrollViewBase.js`
+       의 `handleScroll`/`handleScrollEnd` — onScroll 만 부릅니다).
+       그래서 방향과 멈춤을 **`onScroll` 만으로** 판정합니다. 기기·웹 어느 쪽에서나
+       똑같이 돕니다. 끌기 여부는 네이티브에만 오는 두 이벤트로 **잠그기만** 합니다.
+  */
+  /** 직전 스크롤 위치 */
+  const lastY = useRef(0);
+  /** 마지막으로 움직인 방향이 가리키는 바 */
+  const dirBar = useRef<'tabs' | 'appbar'>('tabs');
+  /** 스크롤이 멎었는지 재는 시계 */
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 손가락이 아직 닿아 있는지 (네이티브에만 옵니다. 웹은 늘 false) */
+  const dragging = useRef(false);
 
-  const showChrome = () => {
-    if (settle.current) clearTimeout(settle.current);
-    chrome.setHidden(false);
-  };
-  /** 멈춘 뒤 잠깐 두었다가 치웁니다 — 손을 떼자마자 사라지면 화들짝합니다. */
-  const hideChromeSoon = () => {
-    if (settle.current) clearTimeout(settle.current);
-    settle.current = setTimeout(() => chrome.setHidden(true), 900);
+  /** 잠깐 다른 바를 보여 줬다가 선반으로 돌아옵니다. */
+  const flash = (m: 'tabs' | 'appbar') => {
+    if (back.current) clearTimeout(back.current);
+    chrome.setMode(m);
+    back.current = setTimeout(() => chrome.setMode('shelf'), 1600);
   };
 
-  // 홈에 있는 동안만 치웁니다. 나가면 바로 되돌리고 예약도 취소합니다.
-  const feedReady = formats.data !== undefined;
+  // 홈에 있는 동안만 바를 갈아 끼웁니다. 나가면 원래대로 돌려놓습니다.
   useEffect(() => {
     if (!focused) {
-      if (settle.current) clearTimeout(settle.current);
-      chrome.setHidden(false);
+      if (back.current) clearTimeout(back.current);
+      chrome.setMode('all');
       return;
     }
-    // 자료가 오기 전에 치우면 빈 화면에서 바만 사라져 고장 난 것처럼 보입니다.
-    if (feedReady) hideChromeSoon();
+    chrome.setMode('shelf');
     return () => {
+      if (back.current) clearTimeout(back.current);
       if (settle.current) clearTimeout(settle.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focused, feedReady]);
+  }, [focused]);
 
-  // 튜토리얼이 도는 동안은 무조건 보입니다.
+  // 튜토리얼이 도는 동안은 셋 다 보입니다 — 코치마크가 탭바와 선반을 같이 짚습니다.
   useEffect(() => {
     chrome.setLocked(coachRunning);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,7 +200,7 @@ export default function HomeFeedScreen() {
        `position: absolute` 로 영상 **위에 띄우면 약관 위반**입니다 —
        근거는 `ui/ChromeContext.tsx` 머리말과 CLAUDE.md §8-1.
   */
-  const header = chrome.hidden ? (
+  const header = !showsAppBar(chrome.mode) ? (
     <View style={{ height: 0, overflow: 'hidden' }} />
   ) : (
     <AppBar
@@ -203,8 +231,8 @@ export default function HomeFeedScreen() {
     320,
     height -
       insets.top -
-      (chrome.hidden ? 0 : sizing.appBarHeight) -
-      (chrome.hidden ? 0 : sizing.tabRowHeight) -
+      (showsAppBar(chrome.mode) ? sizing.appBarHeight : 0) -
+      (chrome.mode === 'tabs' || chrome.mode === 'all' ? sizing.tabRowHeight : 0) -
       insets.bottom
   );
 
@@ -220,7 +248,21 @@ export default function HomeFeedScreen() {
   */
   const listRef = useRef<FlatList<VideoFormat>>(null);
   useEffect(() => {
-    listRef.current?.scrollToOffset({ offset: index * pageHeight, animated: false });
+    const offset = index * pageHeight;
+    listRef.current?.scrollToOffset({ offset, animated: false });
+    /*
+      🔴 **내가 옮긴 것을 손짓으로 오인하면 안 됩니다** (2026-08-31).
+
+      이 보정도 스크롤 이벤트를 냅니다. 그걸 방향 판정이 그대로 먹으면
+      `모드 바뀜 → 높이 바뀜 → 보정 → 또 모드 바뀜` 으로 **고리가 돕니다.**
+      실제로 그렇게 나왔습니다 — 위로 밀었는데 앱바(720)로 갔다가 그 보정이
+      아래 방향으로 읽혀 탭바(715)로 튕기고 거기서 굳었습니다.
+
+      기준점을 보정한 자리로 미리 옮겨 두면 다음 이벤트의 차이가 0 이 되어
+      판정이 안 걸립니다. 예약된 판정도 함께 취소합니다.
+    */
+    lastY.current = offset;
+    if (settle.current) clearTimeout(settle.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageHeight]);
 
@@ -263,10 +305,39 @@ export default function HomeFeedScreen() {
             data={formats.data ?? []}
             keyExtractor={(f) => String(f.id)}
             showsVerticalScrollIndicator={false}
-            // 손가락을 대면 바가 돌아오고, 멈추고 잠깐 지나면 다시 치워집니다.
-            onScrollBeginDrag={showChrome}
-            onScrollEndDrag={hideChromeSoon}
-            onMomentumScrollEnd={hideChromeSoon}
+            /*
+              **손짓 방향 = 바가 있는 쪽** (위 주석).
+                위로 밀어 다음 영상   → 앱바(위)
+                아래로 당겨 이전 영상 → 탭바(아래)
+              방향은 **끌기 시작한 자리와 끝난 자리를 비교**해서 봅니다. 넘김이 끝난
+              뒤에만 바꾸므로 페이징이 어긋나지 않습니다.
+            */
+            /* 손가락이 닿아 있는 동안에는 안 바꿉니다 — 웹에서는 안 오는 이벤트라 잠금만 합니다. */
+            onScrollBeginDrag={() => {
+              dragging.current = true;
+            }}
+            onScrollEndDrag={() => {
+              dragging.current = false;
+            }}
+            scrollEventThrottle={16}
+            onScroll={(e) => {
+              const y = e.nativeEvent.contentOffset.y;
+              // 첫 영상에서 더 당기면 목록은 안 움직입니다. 방향은 아래이니 탭바입니다.
+              if (y < -12) {
+                flash('tabs');
+                return;
+              }
+              const dy = y - lastY.current;
+              lastY.current = y;
+              if (Math.abs(dy) < 2) return;
+              // 값이 커진다 = 위로 밀었다 = 다음 영상 → 앱바(위)
+              dirBar.current = dy > 0 ? 'appbar' : 'tabs';
+              if (settle.current) clearTimeout(settle.current);
+              // 120ms 동안 더 안 움직이면 멎은 것으로 봅니다.
+              settle.current = setTimeout(() => {
+                if (!dragging.current) flash(dirBar.current);
+              }, 120);
+            }}
             // 한 장씩 딱 멈춥니다 — 화면에 플레이어가 하나만 보이게 하는 핵심입니다.
             pagingEnabled
             snapToInterval={pageHeight}
@@ -295,6 +366,7 @@ export default function HomeFeedScreen() {
             renderItem={({ item, index: i }) => (
               <FeedPage
                 format={item}
+                showShelf={showsShelf(chrome.mode)}
                 height={pageHeight}
                 width={width}
                 active={i === index}
