@@ -21,12 +21,30 @@
  *
  * ⚠️ 시안(V4·6차)의 홈은 카드 격자입니다. **일부러 다르게 만든 화면**입니다 —
  *    디자인 기조(색·모서리·타이포·간격 토큰)는 그대로 두고 배치만 바꿨습니다.
+ *
+ * ───────────────────────────────────────────────────────────
+ * 🔴 **영상 위에 스크림·글자를 얹는 시안은 넣으면 안 됩니다** (2026-08-30)
+ * ───────────────────────────────────────────────────────────
+ * `홈화면UI.html` 시안이 릴스처럼 **영상 하단 38% 위에** 흰 스크림과 제목·태그·
+ * 하트·촬영 버튼을 얹는 구조로 왔고, 한 번 그대로 넣었다가 되돌렸습니다
+ * (사장님 지적). 유튜브 약관이 정면으로 금지합니다.
+ *
+ *   "You must not display overlays, frames, or other visual elements in front of
+ *    any part of a YouTube embedded player, including player controls."
+ *   "You must not use overlays, frames or other visual elements to obscure any
+ *    part of an embedded player, including player controls."
+ *      — YouTube API Services · Required Minimum Functionality · Overlays and frames
+ *
+ * **"터치를 안 막으면 된다" 가 아닙니다.** 시안 주석은 `pointer-events: none` 이라
+ * 쇼츠 조작을 가리지 않는다고 적었는데, 약관이 막는 건 **눈으로 가리는 것**입니다.
+ * 게다가 쇼츠의 자체 조작부(재생·음소거·진행바)가 바로 그 하단에 있습니다.
+ *
+ * 그래서 정보는 **영상 아래 띄**에 둡니다. 릴스 같은 그림을 원하시면 영상이
+ * 유튜브 임베드가 아닌 자리(우리가 만든 영상 등)에서만 가능합니다.
  */
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
-import { BlurView } from 'expo-blur';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
@@ -37,36 +55,6 @@ import { pressTap } from '../../ui/press';
 import { formatHashtags } from '../../lib/format';
 import theme, { color, radius, space } from '../../design/theme';
 import type { VideoFormat } from '../../api/schema/types';
-
-/**
- * 점진 블러를 흉내 내는 띠들. 아래로 갈수록 겹쳐서 진해집니다.
- *
- * 시안은 `backdrop-filter: blur(12px)` 에 `mask-image` 를 씌워 위로 갈수록 블러가
- * 사라지게 합니다. RN 에는 마스크가 없어, **바닥에 붙은 길이가 다른 띠 네 장**을
- * 겹칩니다 — 아래쪽일수록 더 많이 겹쳐 자연히 진해집니다. `at` 은 스크림 높이 대비
- * 그 띠의 길이입니다.
- */
-const BLUR_BANDS = [
-  { at: 1, intensity: 8 },
-  { at: 0.72, intensity: 8 },
-  { at: 0.46, intensity: 10 },
-  { at: 0.24, intensity: 12 },
-] as const;
-
-/**
- * 🔴 **안드로이드에서는 스크림 블러를 끕니다.**
- *
- * 두 가지 이유입니다.
- *   ① 흐릴 대상이 **재생 중인 유튜브 WebView** 입니다. 안드로이드 블러(Dimezis)는
- *      뷰 계층을 그려서 흐리는데 WebView 는 그 방식으로 잡히지 않습니다 — 켜도 안
- *      보일 가능성이 큽니다.
- *   ② 그런데 **비용은 그대로 듭니다.** 영상은 매 프레임 바뀌므로, 잡힌다면 그건
- *      초당 예순 번 흐리는 것입니다. 코치마크에서 같은 이유로 한참 고생했습니다.
- *
- * 흰 그라디언트가 시안 그림의 대부분을 만들기 때문에, 블러가 없어도 의도한 모습이
- * 나옵니다. 기기에서 켜 보고 싶으면 이 값만 `true` 로 두면 됩니다.
- */
-const SCRIM_BLUR_ON = Platform.OS !== 'android';
 
 export function FeedPage({
   format,
@@ -96,12 +84,6 @@ export function FeedPage({
   */
   const coachRunning = useCoach()?.activeName != null;
 
-  /*
-    그라디언트 id 는 **카드마다 달라야** 합니다. 피드는 여러 장이 동시에 붙어 있어서
-    같은 id 를 쓰면 서로 덮어씁니다(SVG 는 문서 전체에서 id 를 찾습니다).
-  */
-  const gradientId = `feedScrim-${format.id}`;
-
   // 세 태그의 규칙은 lib/format.ts 한 곳에 있습니다 (홈·관심목록·AI 추천 카드 공용)
   const tags = formatHashtags(format);
 
@@ -117,26 +99,20 @@ export function FeedPage({
     예전에는 영상을 안 자르고 폭을 줄여 좌우에 검은 여백을 뒀습니다. 시안은
     **폭을 꽉 채우고 위아래를 자릅니다** — 쇼츠는 원래 그렇게 봅니다.
   */
-  /*
-    🔴 **메타 패널을 없앴습니다** (2026-08-30 시안 `홈화면UI.html`).
-
-    예전에는 영상 아래에 불투명한 띠(96)를 붙였습니다. 새 시안은 릴스처럼 **영상이
-    화면을 다 쓰고**, 아래쪽에 흰 스크림을 얹은 뒤 그 위에 글자를 놓습니다.
-
-    스크림 = 하단 38%. 흰색 네 스탑 그라디언트(0.92 → 0.62 → 0.18 → 투명)에
-    블러 12 를 겹치고, 위로 갈수록 블러가 사라지게 마스크를 씌운 것이 원문입니다.
-    글자·아이콘은 어두운 톤으로 뒤집습니다.
-  */
-  const scrimHeight = Math.round(height * 0.38);
+  const infoHeight = 96;
+  const stageHeight = Math.max(200, height - infoHeight);
 
   return (
     <View style={[styles.page, { height, width }]}>
       {/* 코치마크 2단계가 짚는 곳 — 시안 data-coach="video" */}
-      <CoachTarget name="video" enabled={active} style={[styles.stage, { height, width }]}>
+      <CoachTarget name="video" enabled={active} style={[styles.stage, { height: stageHeight }]}>
         {active ? (
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
            * 화면에 자동재생 플레이어가 언제나 하나만 남습니다.
+           *
+           * 폭을 꽉 채우면 9:16 높이가 무대보다 큽니다 — 넘치는 만큼 위아래가
+           * 잘리게 두는 것이 시안입니다(`overflow-hidden` + 세로 가운데).
            */
           <GuidePlayer
             url={representativeVideoUrl(format)}
@@ -153,49 +129,24 @@ export function FeedPage({
             style={{ width }}
           />
         )}
+      </CoachTarget>
 
-        {/*
-          스크림 — 시안 원문의 두 겹을 그대로 옮긴 것입니다.
-            ① 점진 블러 (아래로 갈수록 진해짐)
-            ② 흰색 네 스탑 그라디언트
+      {/*
+        시안 메타 패널 — **한 줄**입니다.
+          왼쪽  아바타 36 + [제목 14.5 semibold] / [해시태그 12] 세로 2단
+          오른쪽 하트 40 · 촬영 40
 
-          ⚠️ `pointerEvents="none"` 입니다. 시안 주석대로 **쇼츠 자체 터치 조작을
-             가리면 안 됩니다**(유튜브 약관 · 영상 위에 아무것도 얹지 않기).
-        */}
-        <View pointerEvents="none" style={[styles.scrim, { height: scrimHeight, width }]}>
-          {SCRIM_BLUR_ON
-            ? BLUR_BANDS.map((band) => (
-                <BlurView
-                  key={band.at}
-                  intensity={band.intensity}
-                  tint="light"
-                  style={[styles.band, { height: Math.round(scrimHeight * band.at) }]}
-                />
-              ))
-            : null}
-          <Svg width={width} height={scrimHeight} style={StyleSheet.absoluteFill}>
-            <Defs>
-              {/* y1=1 이 아래쪽입니다 — 시안 `to top` 과 같은 방향. */}
-              <LinearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
-                <Stop offset="0" stopColor="#ffffff" stopOpacity={0.92} />
-                <Stop offset="0.4" stopColor="#ffffff" stopOpacity={0.62} />
-                <Stop offset="0.75" stopColor="#ffffff" stopOpacity={0.18} />
-                <Stop offset="1" stopColor="#ffffff" stopOpacity={0} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={width} height={scrimHeight} fill={`url(#${gradientId})`} />
-          </Svg>
-        </View>
-
-        {/*
-          하단 오버레이 — 좌: 채널·제목·태그 / 우: 하트·촬영.
-          **버튼만** 터치를 받습니다(`box-none`). 시안과 같습니다.
-        */}
-        <View pointerEvents="box-none" style={styles.overlay}>
+        예전에는 제목이 한 행을 통째로 쓰고 그 아래 태그+버튼이 또 한 행이었습니다.
+        시안은 왼쪽 묶음과 오른쪽 버튼이 **같은 줄**을 나눠 씁니다 — 그래서 96 에
+        들어갑니다(사장님이 "구성 배치가 중요하다" 고 짚으신 부분).
+      */}
+      <View style={[styles.info, { height: infoHeight }]}>
+        <View style={styles.infoRow}>
           <View style={styles.left}>
             {/*
               시안은 채널 프로필 사진을 놓습니다. 5.1 에 avatar 필드가 없어
               **자리만** 둡니다 — 없는 사진을 지어내지 않습니다(CLAUDE.md §2).
+              값이 생기면 여기에 <Image> 를 넣으면 됩니다.
             */}
             <View style={styles.avatar} />
             <View style={styles.texts}>
@@ -204,13 +155,13 @@ export function FeedPage({
               </Text>
               {tags.length > 0 ? (
                 /*
-                  🔴 태그를 **한 덩어리 글자에서 줄로** 바꿨습니다 (2026-08-30 지적:
-                     "태그들이 너무 붙어 있다"). 시안은 `hashtags.join(" ")` 라 사이가
-                     띄어쓰기 한 칸(≈3.5pt)뿐입니다. 사이를 8pt 로 벌립니다.
+                  태그를 **한 덩어리 글자에서 줄로** 바꿨습니다 (2026-08-30 지적:
+                  "태그들이 너무 붙어 있다"). 시안은 `hashtags.join(" ")` 라 사이가
+                  띄어쓰기 한 칸(≈3.5pt)뿐입니다. 사이를 8pt 로 벌립니다.
                 */
                 <View style={styles.tagRow}>
                   {tags.map((t) => (
-                    <Text key={t} style={styles.tag} numberOfLines={1}>
+                    <Text key={t} style={styles.tags} numberOfLines={1}>
                       {t}
                     </Text>
                   ))}
@@ -231,11 +182,17 @@ export function FeedPage({
               <Heart
                 size={20}
                 strokeWidth={2}
-                color={fav ? color.danger[500] : color.ink[700]}
+                color={fav ? color.danger[500] : color.paper}
                 fill={fav ? color.danger[500] : 'transparent'}
               />
             </Pressable>
 
+            {/*
+              🔴 **촬영 아이콘이 바뀌었습니다** (2026-08-29 시안).
+                 재생 삼각형 → **슬레이트 + 연필**(`SlateEditGlyph`).
+                 삼각형은 "영상을 튼다" 로 읽혀서, 누르면 촬영 준비로 간다는 게
+                 안 보였습니다.
+            */}
             {/* 코치마크 3단계가 짚는 곳 — 시안 data-coach="make" */}
             <CoachTarget name="make" enabled={active} style={styles.roundWrap}>
               <Pressable
@@ -245,12 +202,12 @@ export function FeedPage({
                 onPress={() => onCreate(format)}
                 style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
               >
-                <SlateEditGlyph size={24} color={color.ink[700]} strokeWidth={1.7} />
+                <SlateEditGlyph size={24} color={color.paper} strokeWidth={1.7} />
               </Pressable>
             </CoachTarget>
           </View>
         </View>
-      </CoachTarget>
+      </View>
     </View>
   );
 }
@@ -266,33 +223,22 @@ const styles = StyleSheet.create({
     backgroundColor: color.mediaBlack,
   },
 
-  /* 스크림 — 카드 아래에 붙습니다. 높이는 화면의 38%(시안). */
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  /* 블러 띠는 전부 바닥에 붙고 길이만 다릅니다(BLUR_BANDS 주석). */
-  band: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-
-  /* 시안: 좌우 16 · 아래 20 · 좌우 묶음을 끝에 맞춰 벌림 */
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: space[3],
+  /* 시안: 높이 96 · 위쪽 white/10 실선 · px-4 · 세로 가운데 */
+  info: {
+    justifyContent: 'center',
     paddingHorizontal: space[4],
-    paddingBottom: space[5],
+    borderTopWidth: theme.border.hairline,
+    borderTopColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: color.ink[900],
   },
-
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   left: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  /* 시안 h-9 w-9(36) + ring-1 ring-ink/15. 사진이 없어 옅은 원만 둡니다. */
+  /* 시안 h-9 w-9(36). 사진이 없어 옅은 원만 둡니다. */
   avatar: {
     width: 36,
     height: 36,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(15,23,42,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(15,23,42,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   texts: { flex: 1, minWidth: 0, gap: 2 },
   /* 시안: 14.5 semibold leading-snug 흰색 */
@@ -302,25 +248,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
-    /* 시안 `text-ink` — 흰 스크림 위라 글자를 뒤집습니다. */
-    color: color.ink[900],
+    color: color.paper,
   },
-  /* 시안 `text-ink-3/75` = #334155 의 75% */
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: 2 },
-  tag: { ...theme.text.label, lineHeight: 17, color: 'rgba(51,65,85,0.75)' },
+  /* 시안: 12 medium white/55 */
+  tagRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  tags: { ...theme.text.label, lineHeight: 17, color: 'rgba(255,255,255,0.55)' },
 
   actions: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
   /* 코치마크 이름표 상자 — 버튼 크기를 그대로 물려받습니다. */
   roundWrap: { width: 40, height: 40 },
-  /*
-    시안: 40 원형. **바닥판을 뺐습니다** — 새 시안은 흰 스크림 위에 아이콘만 놓습니다
-    (원문 `className` 에 배경이 없습니다). 어두운 아이콘이라 그대로 읽힙니다.
-  */
+  /* 시안: 40 원형. 어두운 바닥이라 유리질 배경을 깔아 아이콘이 뜹니다. */
   roundBtn: {
     width: 40,
     height: 40,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.45)',
   },
 });
