@@ -21,7 +21,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   CAMERA_IS_PLACEHOLDER,
   CameraPreview,
@@ -34,6 +33,7 @@ import { Button } from '../../../ui/Button';
 import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
+import { TakePreview } from '../components/TakePreview';
 import { pressTap } from '../../../ui/press';
 import theme, { color, elevation, radius, sizing, space, text } from '../../../design/theme';
 import { JobProgress } from '../../../ui/Feedback';
@@ -172,24 +172,6 @@ function ClipCell({
  *    `textureView` 는 일반 뷰처럼 그려져 모서리와 잘림을 따릅니다.
  *    대신 조금 무거우므로 **이 한 장에만** 씁니다.
  */
-function TakePreview({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.muted = true;
-  });
-
-  return (
-    <View style={styles.preview}>
-      <VideoView
-        player={player}
-        style={styles.previewFill}
-        contentFit="cover"
-        nativeControls={false}
-        surfaceType="textureView"
-      />
-    </View>
-  );
-}
-
 function ClipStrip({
   tasks,
   taskId,
@@ -876,19 +858,6 @@ const styles = StyleSheet.create({
     촬영본 미리보기 — 시안: mx-auto · w-150 · rounded-2xl · 테두리 hairline · 그림자
     손잡이(grip)는 뺐습니다. 시안은 그 자리에 미리보기가 옵니다.
   */
-  preview: {
-    alignSelf: 'center',
-    width: 150,
-    aspectRatio: 9 / 16,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    backgroundColor: color.ink[100],
-    ...elevation('card'),
-  },
-  // 모서리를 영상 자신에게도 겁니다 (부모 클리핑만 믿지 않습니다)
-  previewFill: { width: '100%', height: '100%', borderRadius: radius.lg },
 
   // 시안: 제목 15 semibold 가운데 · 부제 mt-1 13 slate 가운데
   sheetTitle: { ...text.bodyStrong, lineHeight: 22.5, textAlign: 'center' },

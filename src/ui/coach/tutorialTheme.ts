@@ -63,10 +63,10 @@ export const BLUR_WHILE_MOVING =
 export const TUTORIAL = {
   /** 전체 배경 — 딤 + 블러 */
   backdrop: {
-    /** 요청서 rgba(0,0,0,0.45~0.55). 가운데 값으로 둡니다. */
-    dim: 'rgba(0, 0, 0, 0.5)',
-    /** 요청서 blur(14px) */
-    blurIntensity: 40,
+    /** 시안 최최종 원문 `rgba(15,18,25,0.3)`. 카드가 흰색이 되어 막을 옅게 둡니다. */
+    dim: 'rgba(15, 18, 25, 0.3)',
+    /** 시안 최최종 원문 blur(5px) */
+    blurIntensity: 22,
     tint: 'dark' as const,
     /**
      * 구멍 모서리를 메우는 조각에 쓰는 색.
@@ -75,7 +75,7 @@ export const TUTORIAL = {
      * 입힐 수가 없습니다 — 테두리는 블러 위에 그려집니다. 폭이 6~26pt 짜리 초승달이라
      * 눈에 안 띄지만, 블러가 tint 로 살짝 어둡게 만드는 만큼만 더 진하게 둡니다.
      */
-    cornerFill: 'rgba(0, 0, 0, 0.56)',
+    cornerFill: 'rgba(15, 18, 25, 0.34)',
   },
 
   /** 스포트라이트 테두리 — 시안 원문 값입니다(요청서에는 없음) */
@@ -87,16 +87,35 @@ export const TUTORIAL = {
     glowRadius: 15,
   },
 
-  /** 툴팁 카드 */
+  /**
+   * 카드 그림자 — 흰 카드가 밝은 막 위에 떠 보이게 합니다.
+   * 시안 최최종 `boxShadow: 0 12px 32px rgba(15,23,42,0.22)`.
+   */
+  cardShadow: {
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+
+  /**
+   * 툴팁 카드.
+   *
+   * 🔴 **2026-08-30 에 흰 카드로 뒤집었습니다** (지시 ⑧: "저희 앱 컬러가 파랑이라
+   *    해당 캡쳐본들처럼 설명창 UI 수정이 필요합니다"). 하루 전 요청서는 어두운
+   *    유리였는데, 새 시안(`최최종.html`)이 흰 카드 + 파란 버튼으로 바뀌었습니다.
+   *    값은 시안 원문 그대로입니다.
+   */
   card: {
-    /** 요청서 rgba(40, 44, 52, 0.72) */
-    bg: 'rgba(40, 44, 52, 0.72)',
-    /** 요청서 blur(20px) */
-    blurIntensity: 55,
-    tint: 'dark' as const,
-    /** 요청서 1px solid rgba(255, 255, 255, 0.12) */
+    /** 시안 최최종 `background: "#ffffff"` */
+    bg: '#ffffff',
+    /** 흰 카드라 블러는 안 씁니다 — 불투명입니다. */
+    blurIntensity: 0,
+    tint: 'light' as const,
+    /** 시안 최최종 `border: 1px solid rgba(15,23,42,0.08)` */
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(15, 23, 42, 0.08)',
     /** 요청서 border-radius: 20px */
     radius: 20,
     /** 요청서 padding: 20px ~ 24px — 상하좌우 균일 */
@@ -119,14 +138,16 @@ export const TUTORIAL = {
     overlap: 1,
   },
 
-  /** 글자 */
+  /** 글자 — 시안 최최종 원문 값 (지시 ⑧: 제목 16px · 설명 13.5px) */
   text: {
-    /** 단계 표시 `3/7` · 건너뛰기 */
-    sub: 'rgba(255, 255, 255, 0.7)',
+    /** 단계 표시 `3/7` */
+    count: '#94a3b8',
+    /** 건너뛰기 */
+    sub: '#64748b',
     /** 제목 */
-    title: 'rgba(255, 255, 255, 0.95)',
-    /** 본문 — 요청서 "텍스트 대비 확보" */
-    body: 'rgba(255, 255, 255, 0.78)',
+    title: '#0f172a',
+    /** 본문 */
+    body: '#475569',
     /** 본문 줄간격(요청서 "줄간격 확보") */
     bodyLineHeight: 22,
     titleLineHeight: 22,
@@ -140,13 +161,14 @@ export const TUTORIAL = {
     /** 시안 비율 1 : 1.4 — "다음" 이 더 넓습니다(요청서에는 없어 시안을 따릅니다) */
     primaryFlex: 1.4,
     secondaryFlex: 1,
-    /** 이전 — 반투명 다크 + 미세 보더 */
-    secondaryBg: 'rgba(255, 255, 255, 0.08)',
-    secondaryBorder: 'rgba(255, 255, 255, 0.08)',
-    secondaryText: 'rgba(255, 255, 255, 0.85)',
-    secondaryTextDim: 'rgba(255, 255, 255, 0.35)',
-    /** 다음·완료 — 솔리드 화이트 + 다크 텍스트 */
-    primaryBg: '#ffffff',
+    /** 이전 — 옅은 회색 판 (시안 최최종) */
+    secondaryBg: '#F1F5F9',
+    secondaryBorder: 'rgba(15, 23, 42, 0.06)',
+    secondaryText: '#334155',
+    secondaryTextDim: '#cbd5e1',
+    /** 다음·완료 — **브랜드 파랑** (지시 ⑧: "저희 앱 컬러가 파랑이라") */
+    primaryBg: '#2563eb',
+    primaryText: '#ffffff',
   },
 
   /** 움직임 — 시안 transition .28s cubic-bezier(.22,1,.36,1) */

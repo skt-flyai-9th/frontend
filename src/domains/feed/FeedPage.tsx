@@ -114,6 +114,18 @@ export function FeedPage({
   */
   const shelfHeight = 96;
   const stageHeight = Math.max(200, height - shelfHeight);
+  /*
+    🔴 **영상을 자르지 않고 통째로 보여 줍니다** (2026-08-30 지시 ②: "유튜브 임베딩
+       영상 윗부분 글자 잘림").
+
+    예전에는 폭을 꽉 채우고(393) 9:16 높이 698 이 무대(663)를 넘는 만큼 위아래를
+    잘랐습니다. 그 잘리는 위쪽에 **채널 이름과 제목**이 있어서 안 보였습니다.
+
+    이제 무대 높이에 맞춰 폭을 줄입니다 — 663 × 9/16 = 373. 좌우에 10pt 씩 남지만
+    **영상은 한 군데도 안 잘립니다.** 자르는 것도 약관상 위험합니다(§8-1: 플레이어의
+    어느 부분도 가리지 않기 — 잘라내는 것도 결국 안 보이게 하는 것입니다).
+  */
+  const playerWidth = Math.min(width, Math.floor((stageHeight * 9) / 16));
   /* 그라디언트 id 는 카드마다 달라야 합니다 — 같으면 서로 덮어씁니다. */
   const gradientId = `feedShelf-${format.id}`;
 
@@ -131,7 +143,7 @@ export function FeedPage({
            */
           <GuidePlayer
             url={representativeVideoUrl(format)}
-            width={width}
+            width={playerWidth}
             portrait
             autoPlay
             paused={coachRunning}

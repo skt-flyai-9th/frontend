@@ -25,7 +25,7 @@
  */
 import React from 'react';
 import { View, Text, Image, Linking, Pressable, StyleSheet } from 'react-native';
-import { ChevronRight, Menu, PencilLine } from 'lucide-react-native';
+import { ChevronRight, Menu, PencilLine, UserRound } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -149,7 +149,11 @@ function snsLink(
   const handle = v.replace(/^@/, '');
 
   if (platform === 'INSTAGRAM') {
-    return { label: `@${handle}`, url: `https://www.instagram.com/${handle}/` };
+    /*
+      `@` 없이 아이디만 찍습니다 — 2026-08-30 지시 ⑦ 의 예시가 `yeoljeong_coffee`
+      입니다. 주소에는 원래 `@` 가 없으니 그대로 씁니다.
+    */
+    return { label: handle, url: `https://www.instagram.com/${handle}/` };
   }
 
   // 유튜브 채널 id 는 UC 로 시작하는 24글자입니다.
@@ -273,10 +277,21 @@ export default function MyPageScreen() {
           {store?.logoUrl ? (
             <Image source={{ uri: store.logoUrl }} style={styles.logo} />
           ) : (
+            /*
+              🔴 **가게 이름 첫 글자 대신 사람 그림**입니다 (2026-08-30 지시 ⑥:
+                 "기본 프로필 UI 수정 예시 참고해주세요").
+
+              예전에는 "오" 처럼 **한 글자**만 크게 떠 있어서, 로고를 아직 안 올린
+              가게에서는 그게 무엇인지 알 수 없었습니다. 시안 최최종이 기본 프로필
+              그림(`profile-default.svg`)을 새로 넣은 것도 같은 이유입니다.
+            */
             <View style={[styles.logo, styles.logoEmpty]}>
-              <Text style={[text.heading, { color: color.ink[400] }]}>
-                {(store?.name ?? '가게').slice(0, 1)}
-              </Text>
+              <UserRound
+                size={46}
+                strokeWidth={0}
+                fill={color.ink[300]}
+                color={color.ink[300]}
+              />
             </View>
           )}
         </View>

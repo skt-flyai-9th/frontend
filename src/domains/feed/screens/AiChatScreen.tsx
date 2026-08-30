@@ -15,10 +15,10 @@
  *    칩**입니다 — 누르면 그때 아래 입력창이 올라오고 키보드가 함께 뜹니다
  *    (2026-08-26 사장님 지시).
  *
- *    ⚠️ 시안 6차 원문은 `const composerOpen = true` 로 입력창을 항상 열어 둡니다.
- *       실기기에서 써 보니 "빈 칸이 늘 떠 있으면 뭘 적으라는 건지 모르겠다" 는
- *       판단이 나와 **시안과 다르게** 닫아 두기로 했습니다. 되돌리려면
- *       `showInput` 을 `!!sessionId` 로 되돌리면 됩니다.
+ *    ⚠️ **입력창은 늘 열어 둡니다** (2026-08-30 지시 ③④). 한동안 "직접 입력" 을
+ *       눌러야만 열리게 두었는데(2026-08-26 판단), 실기기에서 두 가지가 걸렸습니다 —
+ *       창이 아예 안 뜨는 것으로 보이고, 눌러서 열면 그 자리에 **빈 여백**이 남았습니다.
+ *       시안 6차 원문(`composerOpen = true`)으로 되돌립니다.
  *
  * ③ 기다리는 동안은 화면 바깥 스피너가 아니라 **말풍선 안에서** 점이 움직입니다.
  *
@@ -470,7 +470,8 @@ export default function AiChatScreen() {
   const choices = options.filter((o) => !isFreeInputOption(o));
 
   const openEnded = !!sessionId && !pending && options.length === 0 && !hasRecs;
-  const showInput = !!sessionId && (freeInput || hasRecs || openEnded || hasError);
+  /* 입력창은 대화가 열려 있으면 **늘** 보입니다 (머리말 ②의 ⚠️). */
+  const showInput = !!sessionId;
 
   return (
     <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
@@ -525,14 +526,27 @@ export default function AiChatScreen() {
           {pending && <Thinking />}
 
           {hasError && (
+            /* 2026-08-30 지시 ⑬ — 아이콘 없이, 문구는 "중단되었습니다" 로. */
             <Banner
               tone="warn"
-              title="AI 추천을 이어가지 못했습니다"
+              showIcon={false}
+              title="AI 숏폼 추천 대화가 중단되었습니다"
               description="잠시 후 다시 시도하거나 오른쪽 위에서 새 대화를 시작해 주세요."
             />
           )}
 
-          {!pending && choices.length > 0 && (
+          {/*
+            선택지와 "직접 입력" 을 **한 줄 묶음**에 넣습니다 (2026-08-30 지시 ⑫:
+            "윗줄에 충분한 여백이 있으면 굳이 아랫줄 말고 윗줄에 나란히").
+
+            예전에는 둘을 다른 상자에 담아 "직접 입력" 이 **언제나 새 줄**로 내려갔습니다.
+            한 상자에 담으면 자리가 남을 때 옆에 붙고, 모자랄 때만 다음 줄로 갑니다.
+
+            ⚠️ 조건이 `choices` 가 아니라 **`options`** 인 것은 일부러입니다. 서버가
+               `FREE_INPUT` **하나만** 보내는 차례에는 걸러낸 목록이 비는데, 그때
+               `choices` 로 재면 "직접 입력" 까지 같이 사라져 길이 막힙니다.
+          */}
+          {!pending && options.length > 0 && (
             <View style={styles.options}>
               {choices.map((option) => (
                 <Pressable
@@ -545,28 +559,16 @@ export default function AiChatScreen() {
                   <Text style={styles.optionText}>{option.label}</Text>
                 </Pressable>
               ))}
-            </View>
-          )}
 
-          {/*
-            "직접 입력" 도 **선택지와 같은 칩**입니다 (사장님 지시).
-            누르면 아래 입력창이 올라오고 커서가 들어가 키보드까지 같이 뜹니다.
-            선택지 줄 안에 들어가야 같은 높이로 나란히 서므로 위 블록과 한 몸입니다.
-
-            ⚠️ 조건이 `choices` 가 아니라 **`options`** 인 것은 일부러입니다. 서버가
-               `FREE_INPUT` **하나만** 보내는 차례에는 걸러낸 목록이 비는데, 그때
-               `choices` 로 재면 이 칩까지 같이 사라져 길이 막힙니다.
-          */}
-          {!pending && options.length > 0 && !freeInput && (
-            <View style={styles.options}>
+              {/* 같은 칩이되 색만 물러납니다 — 객관식이 먼저 눈에 들어와야 합니다. */}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="보기에 없는 답을 직접 입력"
                 hitSlop={6}
                 onPress={() => {
                   setFreeInput(true);
-                  // 칸이 그려진 다음에 커서를 넣어야 키보드가 뜹니다.
-                  setTimeout(() => inputRef.current?.focus(), 80);
+                  // 입력창은 늘 떠 있으므로 커서만 넣어 키보드를 올립니다.
+                  inputRef.current?.focus();
                 }}
                 style={({ pressed }) => [styles.option, styles.optionGhost, pressed && { opacity: 0.7 }]}
               >
@@ -603,12 +605,12 @@ export default function AiChatScreen() {
                   accessibilityRole="button"
                   onPress={tryNext}
                   hitSlop={6}
-                  style={({ pressed }) => [styles.freeLink, pressed && { opacity: 0.6 }]}
+                  style={({ pressed }) => [styles.moreBtn, pressed && { opacity: 0.6 }]}
                 >
-                  <Text style={styles.freeLinkText}>다른 추천 보기</Text>
+                  <Text style={styles.moreBtnText}>다른 추천 보기</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.freeLinkText}>현재 조건의 추천을 모두 확인했어요</Text>
+                <Text style={styles.moreDone}>현재 조건의 추천을 모두 확인했어요</Text>
               )}
             </>
           )}
@@ -698,8 +700,29 @@ const styles = StyleSheet.create({
   optionGhost: { borderColor: color.ink[200], backgroundColor: color.surface },
 
   // 객관식보다 약하게 보여야 하는 보조 동선(직접 입력 · 다른 추천)
-  freeLink: { alignSelf: 'flex-start', marginLeft: 40, paddingVertical: space[2] },
-  freeLinkText: { ...theme.text.caption, color: color.ink[500], textDecorationLine: 'underline' },
+  /*
+    "다른 추천 보기" — **밑줄 글자에서 테두리 칩으로** (2026-08-30 지시 ⑤).
+    밑줄만 있으면 눌러도 되는 자리인지 안 보였습니다. 카드 아래 가운데에 둡니다.
+  */
+  moreBtn: {
+    alignSelf: 'center',
+    marginTop: space[3],
+    height: 38,
+    paddingHorizontal: space[5],
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color.ink[200],
+    backgroundColor: color.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreBtnText: {
+    ...theme.text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[700],
+  },
+  moreDone: { ...theme.text.caption, alignSelf: 'center', marginTop: space[3], color: color.ink[500] },
 
   // ── 추천 카드 (시안 image (1).png) ──────────────────
   cardStrip: { marginHorizontal: -space[5] },

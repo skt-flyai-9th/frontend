@@ -88,6 +88,15 @@ export interface TutorialStep {
   pointerPosition?: PointerPosition;
   /** 짚을 곳 둘레 여백. 화면 밖으로 나가면 양쪽에서 같이 줄입니다. */
   pad?: number;
+  /**
+   * 잰 자리를 **안쪽으로 좁힙니다.** 여백(`pad`)의 반대입니다.
+   *
+   * 탭 버튼이 그렇습니다 — 이름표는 칸 전체(98)에 붙어 있는데, 정작 짚고 싶은 건
+   * 가운데 아이콘입니다. 칸째로 뚫으면 넓고 납작해서 **모서리가 각져 보입니다**
+   * (2026-08-30 지시 ⑧: "포커싱되는 부분 경계 미세한 수정 필수. 둥글게!").
+   * 좁혀서 뚫으면 같은 반지름이라도 훨씬 둥글게 읽힙니다.
+   */
+  inset?: { x?: number; y?: number };
   /** 구멍 모서리. `999` 면 완전한 원입니다. */
   radius?: number;
   /** 이 단계로 넘어갈 때 호스트에게 알릴 값 — 탭 이동 등에 씁니다. */
@@ -321,16 +330,26 @@ export function TutorialOverlay({
   const hole = useMemo(() => {
     if (!cur) return null;
     if (!rect) return held.current;
+    /* 먼저 안쪽으로 좁히고(`inset`), 그 다음 바깥으로 여백을 줍니다(`pad`). */
+    const ix = Math.min(cur.inset?.x ?? 0, rect.w / 2 - 8);
+    const iy = Math.min(cur.inset?.y ?? 0, rect.h / 2 - 8);
+    const box = {
+      x: rect.x + Math.max(0, ix),
+      y: rect.y + Math.max(0, iy),
+      w: rect.w - Math.max(0, ix) * 2,
+      h: rect.h - Math.max(0, iy) * 2,
+    };
+
     const pad = cur.pad ?? 0;
-    const padX = Math.max(0, Math.min(pad, rect.x, winW - (rect.x + rect.w)));
-    const padY = Math.max(0, Math.min(pad, rect.y, winH - (rect.y + rect.h)));
-    const x = Math.max(0, rect.x - padX);
-    const y = Math.max(0, rect.y - padY);
+    const padX = Math.max(0, Math.min(pad, box.x, winW - (box.x + box.w)));
+    const padY = Math.max(0, Math.min(pad, box.y, winH - (box.y + box.h)));
+    const x = Math.max(0, box.x - padX);
+    const y = Math.max(0, box.y - padY);
     return {
       x,
       y,
-      w: Math.max(0, Math.min(winW - x, rect.w + padX * 2)),
-      h: Math.max(0, Math.min(winH - y, rect.h + padY * 2)),
+      w: Math.max(0, Math.min(winW - x, box.w + padX * 2)),
+      h: Math.max(0, Math.min(winH - y, box.h + padY * 2)),
     };
   }, [cur, rect, winW, winH]);
 
@@ -496,16 +515,11 @@ export function TutorialOverlay({
             setTipH((v) => (Math.abs(v - h) > 1 ? h : v));
           }}
         >
-          {/* 유리 — 블러 위에 반투명 색을 덮습니다 */}
-          <BlurView
-            intensity={TUTORIAL.card.blurIntensity}
-            tint={TUTORIAL.card.tint}
-            blurMethod={ANDROID_BLUR_METHOD}
-            blurTarget={blurTargetRef}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={[StyleSheet.absoluteFill, styles.tipTint]} />
-
+          {/*
+            카드는 **불투명 흰색**입니다 (2026-08-30 지시 ⑧). 어두운 유리였을 때는
+            블러를 깔았는데, 흰 판에는 뒤가 비칠 일이 없어 뺐습니다 — 블러 한 겹이
+            통째로 사라지니 그만큼 가볍기도 합니다.
+          */}
           <View style={styles.tipHead}>
             <Text style={styles.count}>
               {shown}/{total}
@@ -611,10 +625,10 @@ const styles = StyleSheet.create({
     borderRadius: TUTORIAL.card.radius,
     borderWidth: TUTORIAL.card.borderWidth,
     borderColor: TUTORIAL.card.borderColor,
+    backgroundColor: TUTORIAL.card.bg,
     padding: TUTORIAL.card.padding,
-    overflow: 'hidden',
+    ...TUTORIAL.cardShadow,
   },
-  tipTint: { backgroundColor: TUTORIAL.card.bg },
 
   pointerClip: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   pointerBody: {
@@ -622,6 +636,7 @@ const styles = StyleSheet.create({
     backgroundColor: TUTORIAL.card.bg,
     transform: [{ rotate: '45deg' }],
   },
+  /* 흰 카드에는 테두리 선이 거의 안 보여, 다이아몬드는 면만 씁니다(시안 최최종). */
   /* 돌린 뒤 바깥을 향하는 두 변에만 테두리를 둡니다 */
   pointerBorderUp: {
     borderTopWidth: TUTORIAL.card.borderWidth,
@@ -639,7 +654,7 @@ const styles = StyleSheet.create({
     ...theme.text.label,
     fontFamily: theme.text.heading.fontFamily,
     fontWeight: theme.text.heading.fontWeight,
-    color: TUTORIAL.text.sub,
+    color: TUTORIAL.text.count,
   },
   skip: {
     ...theme.text.label,
@@ -692,6 +707,6 @@ const styles = StyleSheet.create({
     ...theme.text.bodySmall,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
-    color: color.ink[900],
+    color: TUTORIAL.button.primaryText,
   },
 });

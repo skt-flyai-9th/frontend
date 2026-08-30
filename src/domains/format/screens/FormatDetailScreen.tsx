@@ -21,7 +21,7 @@
  *    그때는 컷 자리에 안내를 두고, 버튼이 목적 선택부터 시작하게 보냅니다.
  */
 import React, { useEffect, useRef } from 'react';
-import { Camera } from 'lucide-react-native';
+
 import { StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -161,7 +161,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
             시작하므로 아이콘을 달지 않습니다.
           */}
           <Button
-            icon={projectId ? Camera : undefined}
+            /* 아이콘 없이 글자만 (2026-08-30 지시 ⑩: "촬영시작 버튼 앞에 이모티콘 삭제"). */
             label={
               !projectId
                 ? '이 방식으로 만들기'

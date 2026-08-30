@@ -34,7 +34,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
 import { LineChart } from '../../../ui/LineChart';
-import { Donut, DonutLegend, type DonutSeg } from '../../../ui/Donut';
+import { Donut, type DonutSeg } from '../../../ui/Donut';
+import { AgeBars } from '../../../ui/AgeBars';
 import { LoadGate } from '../../../ui/LoadGate';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
@@ -81,7 +82,8 @@ const MIX_LABELS = {
     ['20s', '20대'],
     ['30s', '30대'],
     ['40s', '40대'],
-    ['50sPlus', '50대 이상'],
+    /* 시안은 `50 +` 입니다 — 막대 왼쪽 이름칸이 좁아 '50대 이상' 은 잘립니다. */
+    ['50sPlus', '50+'],
     ['60s', '60대'],
   ],
   gender: [
@@ -89,6 +91,13 @@ const MIX_LABELS = {
     ['female', '여성'],
   ],
 } as const;
+
+/** 도넛 가운데에 넣을 값 — 가장 큰 칸의 비율(시안 `56%`). */
+function topShare(segs: DonutSeg[]): string {
+  const total = segs.reduce((a, s) => a + s.value, 0) || 1;
+  const top = [...segs].sort((a, b) => b.value - a.value)[0];
+  return `${Math.round((top.value / total) * 100)}%`;
+}
 
 function readMix(data: unknown, kind: 'age' | 'gender'): DonutSeg[] | null {
   if (!data || typeof data !== 'object') return null;
@@ -230,11 +239,9 @@ export default function InsightScreen() {
   /** 한 줄 요약 — 제목을 칩으로 썼으면 여기서는 반복하지 않습니다. */
   const areaSummary = titleIsName ? null : rawTitle;
 
-  /** 소비층 도넛 두 개. 값이 없으면 null 이고 화면은 빈 칸을 그립니다. */
-  const mixes: { label: string; segs: DonutSeg[] | null }[] = [
-    { label: '연령대', segs: readMix(local?.insightData, 'age') },
-    { label: '성별', segs: readMix(local?.insightData, 'gender') },
-  ];
+  /** 방문층 — 성별은 도넛, 연령은 가로 막대. 없으면 null 이고 칸만 그립니다. */
+  const genderSegs = readMix(local?.insightData, 'gender');
+  const ageSegs = readMix(local?.insightData, 'age');
 
   /** 두 플랫폼 모두 0 이면 아직 올린 영상이 없는 것입니다. */
   const noPosts = platforms.length > 0 && platforms.every((p) => p.week.every((d) => d.value === 0));
@@ -266,7 +273,8 @@ export default function InsightScreen() {
         >
           <ChevronLeft size={24} strokeWidth={2} color={color.ink[900]} />
         </Pressable>
-        <Text style={text.heading}>매장 인사이트 분석</Text>
+        {/* 시안 `매장인사이트배열수정.png` — "분석" 을 뺀 짧은 제목입니다. */}
+        <Text style={text.heading}>매장 인사이트</Text>
       </View>
 
       <ScrollView
@@ -278,106 +286,6 @@ export default function InsightScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/*
-          ① 플랫폼 토글 — 시안 `PlatformTabs`.
-             mb-3 · bg #F1F5F9 · p-0.5 · 버튼 h-7 · 11 semibold
-             고른 쪽만 흰 배경 + 브랜드색, 나머지는 회색 글자입니다.
-
-          17.3 이 주는 플랫폼만 그립니다. 한 쪽만 오면 토글이 한 칸이 되고,
-          아예 없으면 줄 자체가 사라집니다 — 없는 플랫폼을 만들지 않습니다.
-        */}
-        {platforms.length > 1 ? (
-          <View style={styles.tabs}>
-            {platforms.map((p) => {
-              // ⚠️ `plat` 이 아니라 **지금 그리는 플랫폼**과 견줍니다. 처음에는 고른 적이
-              //    없어 `plat` 이 null 인데, 화면은 첫 번째 것을 이미 그리고 있습니다.
-              //    null 로 견주면 **아무 탭도 안 켜진 채** 숫자만 나옵니다.
-              const on = p.platform === cur?.platform;
-              return (
-                <Pressable
-                  key={p.platform}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setPlat(p.platform)}
-                  style={({ pressed }) => [
-                    styles.tab,
-                    on && styles.tabOn,
-                    pressTap(pressed, 'icon'),
-                  ]}
-                >
-                  <Text style={[styles.tabText, on && styles.tabTextOn]}>{p.name}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
-
-        {/*
-          ② 조회수·좋아요 2열 — 시안 rounded-2xl · p-3.5 · 아이콘 16 + 12 라벨,
-             값 19 bold tabular · 증감 12 semibold(초록).
-
-          ⚠️ **좋아요에는 증감이 없습니다.** 서버가 주는 증감률은 조회수 것
-             (`views_change_rate`) 하나뿐입니다. 시안에는 `+9%` 가 붙어 있지만
-             지어내지 않습니다 (CLAUDE.md §2).
-        */}
-        <View style={styles.kpiGrid}>
-          <View style={styles.kpiWrap}>
-            {/*
-              시안은 숫자에 `key={"v" + plat}` 를 걸어 **탭을 바꿀 때마다 다시 떠오르게**
-              합니다. key 가 바뀌면 React 가 새로 붙이므로 rise-in 이 다시 돕니다.
-              값이 바뀐 걸 눈으로 알아채라고 두는 장치입니다 — 숫자만 슬쩍 갈리면
-              바뀐 줄 모릅니다.
-            */}
-            <RiseIn key={`v${cur?.platform ?? ''}`} style={styles.kpiCard}>
-              <View style={styles.kpiHead}>
-                <Eye size={16} strokeWidth={2} color={color.ink[500]} />
-                <Text style={styles.kpiLabel}>총 조회수</Text>
-              </View>
-              <View style={styles.kpiValueRow}>
-                <Text style={styles.kpiValue}>{cur?.views ?? '—'}</Text>
-                {cur?.viewsDelta ? <Text style={styles.kpiDelta}>{cur.viewsDelta}</Text> : null}
-              </View>
-            </RiseIn>
-          </View>
-          <View style={styles.kpiWrap}>
-            <RiseIn key={`l${cur?.platform ?? ''}`} delay={50} style={styles.kpiCard}>
-              <View style={styles.kpiHead}>
-                <Heart size={16} strokeWidth={1.75} color={color.ink[500]} />
-                <Text style={styles.kpiLabel}>좋아요 수</Text>
-              </View>
-              <View style={styles.kpiValueRow}>
-                <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
-              </View>
-            </RiseIn>
-          </View>
-        </View>
-
-        {/* 아직 게시한 숏폼이 없으면 0 만 늘어서 고장으로 보입니다. 이유를 밝힙니다. */}
-        {noPosts ? (
-          <Text style={styles.note}>
-            아직 게시한 숏폼이 없어요. 영상을 올리면 조회수와 좋아요가 여기 쌓입니다.
-          </Text>
-        ) : null}
-
-        {/* ③ 주간 조회수 추이 — 시안 mt-3 · p-4 */}
-        <View style={styles.card}>
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>주간 조회수 추이</Text>
-            {cur?.viewsDelta ? <Text style={styles.delta}>{cur.viewsDelta}</Text> : null}
-          </View>
-          {(cur?.week.length ?? 0) >= 2 ? (
-            <LineChart
-              // 플랫폼을 바꾸면 선을 다시 그립니다(시안 key={plat}).
-              key={plat}
-              data={cur!.week.map((d) => ({ label: d.day, value: d.value }))}
-            />
-          ) : (
-            <View style={styles.chartEmpty}>
-              <Text style={styles.chartEmptyText}>주간 집계가 쌓이면 여기에 표시됩니다</Text>
-            </View>
-          )}
-        </View>
-
         {/*
           ④ 지역 상권 분석 — 시안 mt-6.
              제목 16 옆에 **지역 이름 칩**(h-6 · brand-tint · 12 semibold),
@@ -425,41 +333,154 @@ export default function InsightScreen() {
         </View>
 
         {/*
-          ⑤ 소비층 구성 — 시안 mt-6 · 2열 · 도넛 80 + 범례.
+          ② 우리 매장 주요 방문층 — 시안 `매장인사이트배열수정.png`.
 
-          🔴 **자리만 만들어 둡니다** (2026-08-28 사장님 지시).
-             시안은 연령대(10대~50+)와 성별 비율을 도넛 두 개로 보여 주는데,
-             **그 값을 주는 필드를 아직 모릅니다.** 3.5 `insight_data` 안에 올 것으로
-             보이지만 지금 insights 가 빈 배열이라 형태를 확인할 수 없었습니다
-             (실측: store 21·67 둘 다 `{"insights": []}`).
+          🔴 **구성이 바뀌었습니다** (2026-08-30 지시 ⑨-2).
+             예전에는 도넛 두 개(연령·성별)였는데, 다섯 칸짜리 도넛은 조각이 잘게
+             쪼개져 어느 쪽이 큰지 안 읽혔습니다. 이제 **성별은 도넛, 연령은 가로
+             막대**입니다. 도넛 가운데에는 이름 대신 **비율**을 넣습니다.
 
-             비율을 지어내면 사장님이 그 숫자를 보고 영상을 만드십니다. 그래서
-             칸만 두고 왜 비었는지 밝힙니다 — 값이 오면 여기에 도넛을 넣습니다.
+          값이 없으면 칸만 두고 이유를 밝힙니다 — 비율을 지어내면 사장님이 그 숫자를
+          보고 영상을 만드십니다(CLAUDE.md §2).
         */}
-        <Text style={[styles.cardTitle, styles.sectionTitle]}>소비층 구성</Text>
-        <View style={styles.mixGrid}>
-          {mixes.map(({ label, segs }) => (
-            <View key={label} style={styles.mixWrap}>
-              <View style={styles.mixCard}>
-                {segs ? (
-                  <>
-                    {/* 12시부터 시계방향으로 1초에 걸쳐 쓸립니다 (`Donut` 머리말) */}
-                    <Donut segs={segs} size={80} />
-                    <DonutLegend segs={segs} />
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.mixDonut} />
-                    <View style={styles.mixTextWrap}>
-                      <Text style={styles.mixLabel}>{label}</Text>
-                      <Text style={styles.mixEmpty}>집계 준비 중</Text>
-                    </View>
-                  </>
-                )}
-              </View>
+        <Text style={[styles.cardTitle, styles.sectionTitle]}>우리 매장 주요 방문층</Text>
+        {genderSegs || ageSegs ? (
+          <View style={styles.visitorRow}>
+            <View style={styles.genderCard}>
+              {genderSegs ? (
+                <>
+                  <Donut segs={genderSegs} size={80} center={topShare(genderSegs)} />
+                  <View style={styles.genderLegend}>
+                    {genderSegs.map((sg) => (
+                      <View key={sg.label} style={styles.genderLegendRow}>
+                        <View style={[styles.genderDot, { backgroundColor: sg.color }]} />
+                        <Text style={styles.genderLegendText}>{sg.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.mixEmpty}>집계 준비 중</Text>
+              )}
             </View>
-          ))}
+            <View style={styles.ageCard}>
+              {ageSegs ? (
+                <AgeBars segs={ageSegs} />
+              ) : (
+                <Text style={styles.mixEmpty}>집계 준비 중</Text>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.mixCard}>
+            <Text style={styles.mixEmpty}>방문층 집계가 준비되면 여기에 표시됩니다</Text>
+          </View>
+        )}
+
+        {/* ③ 주간 조회수 추이 — 시안 mt-3 · p-4 */}
+        <View style={styles.card}>
+          {/*
+            플랫폼 토글이 **차트 카드 안으로** 들어왔습니다 (2026-08-30 배열 변경).
+            조회수는 플랫폼마다 다른 값이라, 고르는 자리와 보는 자리가 붙어 있어야
+            무엇을 고른 건지 헷갈리지 않습니다.
+          */}
+        {/*
+            ① 플랫폼 토글 — 시안 `PlatformTabs`.
+               mb-3 · bg #F1F5F9 · p-0.5 · 버튼 h-7 · 11 semibold
+               고른 쪽만 흰 배경 + 브랜드색, 나머지는 회색 글자입니다.
+
+            17.3 이 주는 플랫폼만 그립니다. 한 쪽만 오면 토글이 한 칸이 되고,
+            아예 없으면 줄 자체가 사라집니다 — 없는 플랫폼을 만들지 않습니다.
+          */}
+          {platforms.length > 1 ? (
+            <View style={styles.tabs}>
+              {platforms.map((p) => {
+                // ⚠️ `plat` 이 아니라 **지금 그리는 플랫폼**과 견줍니다. 처음에는 고른 적이
+                //    없어 `plat` 이 null 인데, 화면은 첫 번째 것을 이미 그리고 있습니다.
+                //    null 로 견주면 **아무 탭도 안 켜진 채** 숫자만 나옵니다.
+                const on = p.platform === cur?.platform;
+                return (
+                  <Pressable
+                    key={p.platform}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => setPlat(p.platform)}
+                    style={({ pressed }) => [
+                      styles.tab,
+                      on && styles.tabOn,
+                      pressTap(pressed, 'icon'),
+                    ]}
+                  >
+                    <Text style={[styles.tabText, on && styles.tabTextOn]}>{p.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>주간 조회수 추이</Text>
+            {cur?.viewsDelta ? <Text style={styles.delta}>{cur.viewsDelta}</Text> : null}
+          </View>
+          {(cur?.week.length ?? 0) >= 2 ? (
+            <LineChart
+              // 플랫폼을 바꾸면 선을 다시 그립니다(시안 key={plat}).
+              key={plat}
+              data={cur!.week.map((d) => ({ label: d.day, value: d.value }))}
+            />
+          ) : (
+            <View style={styles.chartEmpty}>
+              <Text style={styles.chartEmptyText}>주간 집계가 쌓이면 여기에 표시됩니다</Text>
+            </View>
+          )}
         </View>
+
+        {/*
+          ② 조회수·좋아요 2열 — 시안 rounded-2xl · p-3.5 · 아이콘 16 + 12 라벨,
+             값 19 bold tabular · 증감 12 semibold(초록).
+
+          ⚠️ **좋아요에는 증감이 없습니다.** 서버가 주는 증감률은 조회수 것
+             (`views_change_rate`) 하나뿐입니다. 시안에는 `+9%` 가 붙어 있지만
+             지어내지 않습니다 (CLAUDE.md §2).
+        */}
+        <View style={styles.kpiGrid}>
+          <View style={styles.kpiWrap}>
+            {/*
+              시안은 숫자에 `key={"v" + plat}` 를 걸어 **탭을 바꿀 때마다 다시 떠오르게**
+              합니다. key 가 바뀌면 React 가 새로 붙이므로 rise-in 이 다시 돕니다.
+              값이 바뀐 걸 눈으로 알아채라고 두는 장치입니다 — 숫자만 슬쩍 갈리면
+              바뀐 줄 모릅니다.
+            */}
+            <RiseIn key={`v${cur?.platform ?? ''}`} style={styles.kpiCard}>
+              <View style={styles.kpiHead}>
+                <Eye size={16} strokeWidth={2} color={color.ink[500]} />
+                <Text style={styles.kpiLabel}>총 조회수</Text>
+              </View>
+              <View style={styles.kpiValueRow}>
+                <Text style={styles.kpiValue}>{cur?.views ?? '—'}</Text>
+                {cur?.viewsDelta ? <Text style={styles.kpiDelta}>{cur.viewsDelta}</Text> : null}
+              </View>
+            </RiseIn>
+          </View>
+          <View style={styles.kpiWrap}>
+            <RiseIn key={`l${cur?.platform ?? ''}`} delay={50} style={styles.kpiCard}>
+              <View style={styles.kpiHead}>
+                <Heart size={16} strokeWidth={1.75} color={color.ink[500]} />
+                <Text style={styles.kpiLabel}>좋아요 수</Text>
+              </View>
+              <View style={styles.kpiValueRow}>
+                <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
+              </View>
+            </RiseIn>
+          </View>
+        </View>
+
+        {/* 아직 게시한 숏폼이 없으면 0 만 늘어서 고장으로 보입니다. 이유를 밝힙니다. */}
+        {noPosts ? (
+          <Text style={styles.note}>
+            아직 게시한 숏폼이 없어요. 영상을 올리면 조회수와 좋아요가 여기 쌓입니다.
+          </Text>
+        ) : null}
 
         {/* ⑤ 다음 숏폼 추천 */}
         <Text style={[styles.cardTitle, styles.sectionTitle]}>다음 숏폼 추천</Text>
@@ -667,6 +688,34 @@ const styles = StyleSheet.create({
   },
   /* 도넛이 앉을 자리. 값이 오면 여기에 그립니다 — 지금은 비어 있음을 색으로만 말합니다. */
   mixDonut: { width: 64, height: 64, borderRadius: 32, borderWidth: 12, borderColor: '#F1F5F9' },
+
+  /* 방문층 — 시안 `grid-cols-[152px_1fr] gap-3`. 왼쪽 성별 도넛, 오른쪽 연령 막대. */
+  visitorRow: { flexDirection: 'row', gap: space[3] },
+  genderCard: {
+    width: 152,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.xl,
+    borderWidth: theme.border.hairline,
+    borderColor: color.hairlineSoft,
+    backgroundColor: color.paper,
+  },
+  genderLegend: { gap: 6 },
+  genderLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  genderDot: { width: 6, height: 6, borderRadius: 3 },
+  genderLegendText: { ...theme.text.micro, color: color.ink[500] },
+  ageCard: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: space[4],
+    borderRadius: radius.xl,
+    borderWidth: theme.border.hairline,
+    borderColor: color.hairlineSoft,
+    backgroundColor: color.paper,
+  },
   mixTextWrap: { flex: 1, minWidth: 0, gap: 2 },
   mixLabel: { ...theme.text.label, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[700] },
   mixEmpty: { ...theme.text.micro, color: color.ink[400] },
