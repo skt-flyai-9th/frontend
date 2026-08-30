@@ -57,7 +57,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
@@ -115,55 +114,28 @@ export function FeedPage({
   const shelfHeight = 96;
   const stageHeight = Math.max(200, height - shelfHeight);
   /*
-    🔴 **영상을 자르지 않고 통째로 보여 줍니다** (2026-08-30 지시 ②: "유튜브 임베딩
-       영상 윗부분 글자 잘림").
+    🔴 **영상이 폭을 꽉 채웁니다 — 위아래가 잘립니다** (2026-08-30 디자인 요청:
+       "영상 잘려도 되니까 검은 테두리(패딩) 다 빼 달라").
 
-    예전에는 폭을 꽉 채우고(393) 9:16 높이 698 이 무대(663)를 넘는 만큼 위아래를
-    잘랐습니다. 그 잘리는 위쪽에 **채널 이름과 제목**이 있어서 안 보였습니다.
+    한동안은 무대 높이에 맞춰 폭을 줄여(393 → 373) **한 군데도 안 자르고** 보여
+    줬습니다. 그때 좌우에 10pt 씩 검은 띠가 생기는데, 디자인 쪽에서 그 띠를 빼는
+    쪽을 택했습니다.
 
-    이제 무대 높이에 맞춰 폭을 줄입니다 — 663 × 9/16 = 373. 좌우에 10pt 씩 남지만
-    **영상은 한 군데도 안 잘립니다.** 자르는 것도 약관상 위험합니다(§8-1: 플레이어의
-    어느 부분도 가리지 않기 — 잘라내는 것도 결국 안 보이게 하는 것입니다).
+    ⚠️ **잘리는 양은 적지 않습니다** (2026-08-30 실측, 393×852 기준).
+         무대 575 · 폭을 채운 9:16 높이 699 → **124pt(17.7%)가 잘리고,
+         위아래 각각 62pt** 입니다. 그 62pt 안에 유튜브 **자체 조작부**가 들어갑니다.
+       약관은 "임베드 플레이어의 어느 부분도 가리지 말라" 고 하고, 개발자 정책은
+       "플레이어의 어느 부분이나 기능도 막지 말라"(III.I.6) 고 합니다. 덮는 게
+       아니라 잘라내는 것이라 문구에 딱 들어맞지는 않지만, **결과는 같습니다.**
+       사장님 판단으로 넣은 것이고, 되돌릴 때는 이 자리만 `Math.ceil(...)` 로
+       바꾸면 됩니다.
   */
-  /*
-    ⚠️ **올림입니다.** 내림으로 두면 9:16 로 되돌린 높이가 무대보다 **1~2px 모자라**,
-       가운데 정렬된 영상의 위아래로 무대 바닥(검정)이 실선처럼 비칩니다
-       (2026-08-30 지적: "하단 바랑 영상 사이에 검은 줄". 실측: 무대 99~674 · 영상 100~674).
-       올리면 영상이 무대보다 커져 `overflow: hidden` 이 잘라 냅니다 — 잘리는 양이
-       1px 라 위 ②(글자 잘림)와는 무관합니다.
-  */
-  const playerWidth = Math.min(width, Math.ceil((stageHeight * 9) / 16));
-  /* 그라디언트 id 는 카드마다 달라야 합니다 — 같으면 서로 덮어씁니다. */
-  const gradientId = `feedShelf-${format.id}`;
-  const sideId = `feedSide-${format.id}`;
+  const playerWidth = width;
 
   return (
     <View style={[styles.page, { height, width }]}>
       {/* 코치마크 2단계가 짚는 곳 — 시안 data-coach="video" */}
       <CoachTarget name="video" enabled={active} style={[styles.stage, { height: stageHeight }]}>
-        {/*
-          🔴 **영상 옆 세로 띠를 아래 선반으로 이어 줍니다** (2026-08-30 지시).
-
-          영상을 안 자르려고 폭을 줄였더니(393 → 373) 좌우에 10pt 씩 띠가 생깁니다.
-          그 자리가 검정 그대로면 선반과 뚝 끊겨 보입니다. 위는 영상과 같은 검정,
-          아래로 갈수록 **선반 맨 윗색과 같은 색**이 되게 해서 이어 붙입니다.
-
-          ⚠️ 맨 아래 색은 선반 그라데이션의 **첫 스탑과 같아야** 합니다(`#d8e0ea`).
-             다르면 두 그림 사이에 선이 하나 생깁니다.
-        */}
-        <Svg width={width} height={stageHeight} style={StyleSheet.absoluteFill}>
-          <Defs>
-            <LinearGradient id={sideId} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#000000" />
-              <Stop offset="0.55" stopColor="#000000" />
-              <Stop offset="0.78" stopColor="#2b3038" />
-              <Stop offset="0.93" stopColor="#8d97a5" />
-              <Stop offset="1" stopColor="#d8e0ea" />
-            </LinearGradient>
-          </Defs>
-          <Rect x={0} y={0} width={width} height={stageHeight} fill={`url(#${sideId})`} />
-        </Svg>
-
         {active ? (
           /*
            * 보고 있는 장만 진짜 플레이어입니다. 넘어가면 다시 썸네일로 돌아가
@@ -199,27 +171,6 @@ export function FeedPage({
         들어갑니다(사장님이 "구성 배치가 중요하다" 고 짚으신 부분).
       */}
       <View style={[styles.shelf, { height: shelfHeight }]}>
-        {/*
-          시안의 네 스탑을 **불투명한 색**으로 옮겼습니다(머리말 ⚠️).
-          아래는 순백, 위로 갈수록 열은 회색 — 깊이는 남기고 검은 띄는 안 생깁니다.
-
-          2026-08-30 지시로 **기울기를 더 줘습니다** — "하단 흰 바에만 그라데이션을
-          넣는건 어때". 예전 값(#e9eef4)은 너무 옌아 그라데이션이 있는지 모를
-          정도였습니다. **영상으로는 이어지지 않습니다** — 띄 안에서만 변합니다.
-          `offset` 은 아래(0)에서 위(1) 입니다.
-        */}
-        <Svg width={width} height={shelfHeight} style={StyleSheet.absoluteFill}>
-          <Defs>
-            <LinearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
-              <Stop offset="0" stopColor="#ffffff" />
-              <Stop offset="0.4" stopColor="#f7f9fc" />
-              <Stop offset="0.75" stopColor="#e9eef5" />
-              <Stop offset="1" stopColor="#d8e0ea" />
-            </LinearGradient>
-          </Defs>
-          <Rect x={0} y={0} width={width} height={shelfHeight} fill={`url(#${gradientId})`} />
-        </Svg>
-
         <View style={[styles.infoRow, { height: shelfHeight }]}>
           <View style={styles.left}>
             {/*
@@ -306,6 +257,11 @@ const styles = StyleSheet.create({
     아래 띄. **바탕은 카드 색 그대로** 두고 그 위에 흰 그라디언트만 얹습니다 —
     그래야 위쪽에서 영상 쪽 검정으로 자연스럽게 넘어갑니다. 예전의 흰 실선(white/10)은
     뻐습니다 — 번지는 구간이 그 역할을 대신합니다.
+  */
+  /*
+    아래 띠. **단색 흰색**입니다 (2026-08-30 디자인 요청: "그라데이션이랑 기타 효과
+    다 빼도 된다"). 한동안 흰색→옅은 회색 기울기를 줬는데, 영상이 폭을 꽉 채우면서
+    옆 띠가 사라져 이어 붙일 대상도 없어졌습니다.
   */
   shelf: { justifyContent: 'flex-end', backgroundColor: color.paper },
   infoRow: {
