@@ -29,19 +29,29 @@ export function TakePreview({ uri }: { uri: string }) {
   });
   const [playing, setPlaying] = useState(false);
 
+  /*
+    무엇을 할지는 **플레이어에게 묻습니다.** 우리 쪽 상태만 믿고 뒤집으면, 재생이
+    한 번이라도 어긋났을 때(끝까지 가서 멈춤 등) 버튼이 거짓말을 합니다.
+  */
   const toggle = () => {
-    if (playing) player.pause();
-    else player.play();
-    setPlaying((v) => !v);
+    if (player.playing) {
+      player.pause();
+      setPlaying(false);
+    } else {
+      player.play();
+      setPlaying(true);
+    }
   };
 
+  /*
+    🔴 **누르는 판을 영상 위에 따로 얹습니다** (2026-08-30 지적: "영상이 재생이 안 된다").
+
+    처음에는 `Pressable` 로 `VideoView` 를 **감쌌는데**, 안드로이드에서 `VideoView` 가
+    자기 표면에서 손가락을 먹어 버려 부모까지 올라오지 않습니다 — 눌러도 아무 일도
+    일어나지 않았습니다. 형제로 덮으면 손가락이 확실히 이쪽으로 옵니다.
+  */
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={playing ? '미리보기 멈춤' : '방금 찍은 영상 재생'}
-      onPress={toggle}
-      style={styles.preview}
-    >
+    <View style={styles.preview}>
       <VideoView
         player={player}
         style={styles.previewFill}
@@ -49,14 +59,21 @@ export function TakePreview({ uri }: { uri: string }) {
         nativeControls={false}
         surfaceType="textureView"
       />
-      {!playing ? (
-        <View style={styles.play} pointerEvents="none">
-          <View style={styles.playDot}>
-            <Play size={20} strokeWidth={0} fill={color.paper} color={color.paper} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={playing ? '미리보기 멈춤' : '방금 찍은 영상 재생'}
+        onPress={toggle}
+        style={styles.hit}
+      >
+        {!playing ? (
+          <View style={styles.play}>
+            <View style={styles.playDot}>
+              <Play size={20} strokeWidth={0} fill={color.paper} color={color.paper} />
+            </View>
           </View>
-        </View>
-      ) : null}
-    </Pressable>
+        ) : null}
+      </Pressable>
+    </View>
   );
 }
 
@@ -72,12 +89,11 @@ const styles = StyleSheet.create({
     backgroundColor: color.ink[100],
   },
   previewFill: { width: '100%', height: '100%', borderRadius: radius.lg },
+  /* 손가락을 받는 판. 영상 위를 통째로 덮습니다. */
+  hit: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /* 멈춰 있을 때만 덮는 재생 표시. */
   play: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(15,23,42,0.28)',
