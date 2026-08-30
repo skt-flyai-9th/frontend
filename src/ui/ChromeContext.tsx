@@ -135,6 +135,19 @@ const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLocked: () => {
  *
  * 셋이 같이 나올 때(튜토리얼)는 이미 예산을 넘겨 남는 게 없으므로 0 입니다.
  */
+/**
+ * 🔴 **폭을 꽉 채웠을 때의 영상 높이. 한 곳에서만 계산합니다** (2026-08-31).
+ *
+ * `GuidePlayer` 는 `Math.round(width * 16 / 9)` 로 자기 높이를 정합니다. 무대를
+ * `Math.ceil` 로 잡았더니 **기기 폭이 정수가 아닐 때 1pt 가 어긋났고**, 그 틈이
+ * 영상을 감싸는 **흰 줄**로 보였습니다(사장님 지적). 393 처럼 딱 떨어지는 폭에서는
+ * 두 식이 같은 값이라 웹 캡처로는 안 잡혔습니다 — 실제 안드로이드 폭은
+ * 392.72 · 411.43 같은 소수입니다.
+ *
+ * 그래서 **플레이어와 똑같은 식**을 여기 하나만 두고 무대·바가 전부 이걸 씁니다.
+ */
+export const videoHeightFor = (winW: number) => Math.round((winW * 16) / 9);
+
 export function barSlack(
   mode: ChromeMode,
   which: 'appbar' | 'tabs',
@@ -144,8 +157,7 @@ export function barSlack(
   insetBottom: number
 ): number {
   if (mode !== which) return 0; // 혼자 있을 때만 먹습니다
-  const videoH = Math.ceil((winW * 16) / 9);
-  const room = winH - insetTop - insetBottom - videoH;
+  const room = winH - insetTop - insetBottom - videoHeightFor(winW);
   const own = which === 'appbar' ? sizing.appBarHeight : sizing.tabRowHeight;
   return Math.max(0, room - own);
 }

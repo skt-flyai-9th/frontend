@@ -66,6 +66,7 @@ import { representativeVideoUrl } from '../../api/formatVideo';
 import { pressTap } from '../../ui/press';
 import { formatHashtags } from '../../lib/format';
 import theme, { color, radius, space } from '../../design/theme';
+import { videoHeightFor } from '../../ui/ChromeContext';
 import type { VideoFormat } from '../../api/schema/types';
 
 export function FeedPage({
@@ -158,11 +159,23 @@ export function FeedPage({
       바 없음 (height 764) → 무대 699, 띠 65   ← **안 잘림**
   */
   const SHELF_MIN = 56;
-  /** 폭을 꽉 채운 9:16 높이. 무대가 이보다 커질 이유가 없습니다. */
-  const videoHeight = Math.ceil((width * 16) / 9);
   const shelfRoom = showShelf ? SHELF_MIN : 0;
-  const stageHeight = Math.max(200, Math.min(height - shelfRoom, videoHeight));
-  const shelfHeight = showShelf ? Math.max(SHELF_MIN, height - stageHeight) : 0;
+  /** 무대에 줄 수 있는 최대 높이 */
+  const room = Math.max(200, height - shelfRoom);
+  /** 폭을 꽉 채웠을 때의 영상 높이 (플레이어와 같은 식 — ui/ChromeContext.tsx) */
+  const full = videoHeightFor(width);
+  /**
+   * 영상 폭. 자리가 넉넉하면 **화면 폭 그대로** 씁니다.
+   * ⚠️ 여기서 `Math.floor((room * 9) / 16)` 을 무조건 쓰면 안 됩니다 — 폭이 소수일 때
+   *    다시 곱해 올린 값이 원래 폭보다 작아져 **양옆에 흰 줄**이 남습니다.
+   */
+  const fitWidth = room >= full ? width : Math.floor((room * 9) / 16);
+  /**
+   * 🔴 **무대 높이 = 영상 높이. 같은 식으로 계산합니다.**
+   *    반올림이 어긋나면 그 1pt 가 영상을 감싸는 흰 줄로 보입니다(2026-08-31 지적).
+   */
+  const stageHeight = videoHeightFor(fitWidth);
+  const shelfHeight = Math.max(shelfRoom, height - stageHeight);
   /*
     ─────────────────────────────────────────────────────────────
     🔴 **영상을 자르지 않습니다** (2026-08-30, 약관 재검토 결과)
@@ -203,9 +216,7 @@ export function FeedPage({
     맞춰 폭을 줄이고(자르지 않고), 썸네일일 때는 **우리 그림이라 잘라도 되므로**
     폭을 꽉 채웁니다. 튜토리얼 중(무대 615)에도 옆에 흰 띠가 안 생깁니다.
   */
-  const playerWidth = showPlayer
-    ? Math.min(width, Math.floor((stageHeight * 9) / 16))
-    : width;
+  const playerWidth = showPlayer ? fitWidth : width;
 
   return (
     <View style={[styles.page, { height, width }]}>
