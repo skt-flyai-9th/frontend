@@ -476,6 +476,51 @@ npx eas build:list --platform android --limit 1    # 폰에 깔린 APK 의 Runti
 디자이너에게 되묻습니다. 우리가 만든 영상(내보내기 미리보기 등)은 임베드가
 아니므로 이 제약을 받지 않습니다.
 
+### 🔴 **자르는 것도 안 됩니다** (2026-08-31 추가)
+
+얹지만 않으면 된다고 읽지 마세요. **잘라 내는 것도 걸립니다.**
+
+> "modify, build upon, or **block any portion** or functionality of a YouTube player"
+> — [Developer Policies](https://developers.google.com/youtube/terms/developer-policies) III.I.6
+>
+> "If the player displays controls, it must be **large enough to fully display the
+>  controls** without shrinking the viewport below the minimum size."
+> — Required Minimum Functionality · *Embedded YouTube Player size*
+
+**2026-08-30 에 두 번째로 어겼습니다.** 디자인 요청("검은 테두리 빼 달라")을 따라
+폭을 꽉 채우고 넘치는 높이를 잘랐습니다 — 무대 615 에 영상 699, 위아래 42pt 씩
+**84pt(12.0%)**. 배포까지 나갔고, 화면만 봐서는 아무도 못 알아봤습니다(쇼츠는
+피사체가 가운데라 위아래는 대개 천장·바닥입니다).
+
+**그런데 진짜 쇼츠로 컨트롤을 꺼내 보니 잘리는 자리가 하필 조작부였습니다.**
+
+| 잘리는 자리 | 사라지는 것 |
+|---|---|
+| 위 42pt | 음소거 · 자막(CC) · 설정(⚙) 버튼, 채널 이름 줄 윗부분 |
+| 아래 42pt | 공유 버튼 · 채널 아이콘 · **YouTube 로고** |
+
+일부가 가려지는 게 아니라 **아예 안 보였습니다.** `controls=1` 로 유튜브 자체
+컨트롤을 쓰고 있으니 위 두 번째 문장이 그대로 적용됩니다.
+
+**규칙 — 플레이어는 언제나 통째로 보여야 합니다.** 자리가 모자라면 자르지 말고
+**폭을 줄여 맞춥니다.**
+
+```ts
+const playerWidth = Math.min(width, Math.floor((stageHeight * 9) / 16));
+```
+
+옆에 여백이 생기는 게 싫으면 **바를 접어 자리를 만드세요**(`ui/ChromeContext.tsx`).
+접을 때도 바를 영상 위로 **띄우지 말고** 높이를 0 으로 접습니다 — 띄우는 순간
+그게 위 절의 오버레이입니다.
+
+**튜토리얼처럼 화면을 덮어야 하는 것**은 덮는 동안 **플레이어를 걷어냅니다**
+(썸네일로 교체). 세워 두기만(`paused`) 해서는 임베드가 그대로 살아 있어
+막이 그 앞을 가리는 것이 됩니다.
+
+**확인은 목업이 아니라 진짜 영상으로 합니다.** 목 플레이어는 회색 판이라
+조작부가 어디 걸리는지 안 보입니다. 실제 쇼츠를 띄우고 컨트롤을 꺼내
+잘린 것과 안 자른 것을 나란히 놓고 보세요.
+
 ---
 
 ## 9. 작업 습관
