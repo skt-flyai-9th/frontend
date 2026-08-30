@@ -62,26 +62,50 @@ const MIX_COLORS = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#cbd5e1'];
 /**
  * 3.5 `insight_data` 에서 소비층 비율을 꺼냅니다.
  *
- * ⚠️ **서버가 주는 모양을 아직 모릅니다.** 실서버 3.5 가 빈 배열이라 한 번도 못
- *    봤습니다(BE 질의 중). 그래서 **아는 모양만 읽고, 아니면 그냥 없다고 봅니다** —
- *    억지로 해석해서 엉뚱한 비율을 그리는 것보다 빈 칸이 낫습니다.
+ * ✅ **서버가 주는 모양을 2026-08-30 에 확인했습니다** (새 매장을 등록해 실측).
+ *    그전에는 3.5 가 빈 배열이라 한 번도 못 봤고, 목업으로 짐작한 배열 모양
+ *    (`age_mix: [{label, value}]`)을 읽고 있었습니다 — 실제와 다릅니다.
  *
- * 지금 읽는 모양(목업 기준): `{ age_mix: [{label, value}], gender_mix: [...] }`
- * BE 가 다른 이름으로 주면 **이 함수만** 고치면 됩니다.
+ *    "insight_data": {
+ *      "age_distribution":    { "10s": 11, "20s": 16, "30s": 21, "40s": 21, "50s_plus": 31 },
+ *      "gender_distribution": { "male": 44, "female": 56 }
+ *    }
+ *
+ * **이름표가 아니라 키가 뜻을 담고 있습니다.** 그래서 키를 사람 말로 바꿔 줍니다.
+ * 모르는 키는 **버립니다** — 억지로 해석해 엉뚱한 비율을 그리는 것보다 빈 칸이 낫습니다.
+ * 순서는 아래 표 순서를 따릅니다(10대부터 시계방향이 읽기 좋습니다).
  */
-function readMix(data: unknown, key: 'ageMix' | 'genderMix'): DonutSeg[] | null {
+const MIX_LABELS = {
+  age: [
+    ['10s', '10대'],
+    ['20s', '20대'],
+    ['30s', '30대'],
+    ['40s', '40대'],
+    ['50sPlus', '50대 이상'],
+    ['60s', '60대'],
+  ],
+  gender: [
+    ['male', '남성'],
+    ['female', '여성'],
+  ],
+} as const;
+
+function readMix(data: unknown, kind: 'age' | 'gender'): DonutSeg[] | null {
   if (!data || typeof data !== 'object') return null;
+  const key = kind === 'age' ? 'ageDistribution' : 'genderDistribution';
   const raw = (data as Record<string, unknown>)[key];
-  if (!Array.isArray(raw)) return null;
-  const items = raw.filter((r): r is { label: string; value: number } =>
-    !!r && typeof r === 'object' &&
-    typeof (r as { label?: unknown }).label === 'string' &&
-    typeof (r as { value?: unknown }).value === 'number'
-  );
+  if (!raw || typeof raw !== 'object') return null;
+
+  const src = raw as Record<string, unknown>;
+  const items: { label: string; value: number }[] = [];
+  for (const [k, label] of MIX_LABELS[kind]) {
+    const v = src[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) items.push({ label, value: v });
+  }
   if (items.length === 0) return null;
 
   // 비중이 큰 순으로 색을 나눠 줍니다(위 MIX_COLORS 머리말). 그리는 **순서는
-  // 원래대로** 둡니다 — 도넛은 10대부터 시계방향으로 도는 게 읽기 좋습니다.
+  // 위 표 순서대로** 둡니다 — 도넛은 10대부터 시계방향으로 도는 게 읽기 좋습니다.
   const rank = new Map<number, number>();
   [...items.keys()]
     .sort((a, b) => items[b].value - items[a].value)
@@ -191,23 +215,25 @@ export default function InsightScreen() {
   /**
    * 시안은 제목 옆에 **"보라매 상권" 같은 짧은 지역 이름**을 칩으로 답니다.
    *
-   * ⚠️ **그런 필드가 없습니다.** 3.5 의 `insight_title` 을 넣어 봤더니
-   *    "주거 밀집 생활형 골목상권, 점심 시간대 집중" 처럼 문장이 통째로 들어가
-   *    칩이 제목보다 길어졌습니다(캡처로 확인).
+   * ✅ **2026-08-30 에 서버가 그걸 주기 시작했습니다.** 예전 `insight_title` 은
+   *    "주거 밀집 생활형 골목상권, 점심 시간대 집중" 처럼 문장이라 칩에 못 넣었는데,
+   *    새로 등록한 매장에서는 **"압구정로데오·도산공원"** 처럼 상권 이름이 옵니다.
    *
-   * 그래서 **칩은 달지 않고**, 제목을 시안의 한 줄 요약 자리에 씁니다 — 길이도
-   * 역할도 그쪽이 맞습니다(시안: "20대 여성 유입이 가장 높은 상권이에요").
-   * 자세한 설명은 그 아래 줄로 내립니다. 지역 이름은 BE 에 요청해 두었습니다.
+   * 다만 옛 매장에는 문장이 그대로 남아 있을 수 있어 **길이를 보고 가릅니다.**
+   *   짧으면(20자 이하) 칩에 넣고, 길면 예전처럼 요약 줄에 두고 칩은 주소에서 뽑습니다.
    */
-  const areaSummary = local?.insightTitle?.trim() || null;
+  const rawTitle = local?.insightTitle?.trim() || null;
+  const titleIsName = !!rawTitle && rawTitle.length <= 20;
 
-  /** 시안 칩 — 매장 주소에서 뽑습니다(위 `areaLabel` 머리말). */
-  const areaName = areaLabel(store?.address);
+  /** 시안 칩 — 서버가 준 상권 이름, 없으면 매장 주소에서(위 `areaLabel` 머리말). */
+  const areaName = titleIsName ? rawTitle : areaLabel(store?.address);
+  /** 한 줄 요약 — 제목을 칩으로 썼으면 여기서는 반복하지 않습니다. */
+  const areaSummary = titleIsName ? null : rawTitle;
 
   /** 소비층 도넛 두 개. 값이 없으면 null 이고 화면은 빈 칸을 그립니다. */
   const mixes: { label: string; segs: DonutSeg[] | null }[] = [
-    { label: '연령대', segs: readMix(local?.insightData, 'ageMix') },
-    { label: '성별', segs: readMix(local?.insightData, 'genderMix') },
+    { label: '연령대', segs: readMix(local?.insightData, 'age') },
+    { label: '성별', segs: readMix(local?.insightData, 'gender') },
   ];
 
   /** 두 플랫폼 모두 0 이면 아직 올린 영상이 없는 것입니다. */
