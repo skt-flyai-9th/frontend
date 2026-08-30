@@ -125,7 +125,14 @@ export function FeedPage({
     **영상은 한 군데도 안 잘립니다.** 자르는 것도 약관상 위험합니다(§8-1: 플레이어의
     어느 부분도 가리지 않기 — 잘라내는 것도 결국 안 보이게 하는 것입니다).
   */
-  const playerWidth = Math.min(width, Math.floor((stageHeight * 9) / 16));
+  /*
+    ⚠️ **올림입니다.** 내림으로 두면 9:16 로 되돌린 높이가 무대보다 **1~2px 모자라**,
+       가운데 정렬된 영상의 위아래로 무대 바닥(검정)이 실선처럼 비칩니다
+       (2026-08-30 지적: "하단 바랑 영상 사이에 검은 줄". 실측: 무대 99~674 · 영상 100~674).
+       올리면 영상이 무대보다 커져 `overflow: hidden` 이 잘라 냅니다 — 잘리는 양이
+       1px 라 위 ②(글자 잘림)와는 무관합니다.
+  */
+  const playerWidth = Math.min(width, Math.ceil((stageHeight * 9) / 16));
   /* 그라디언트 id 는 카드마다 달라야 합니다 — 같으면 서로 덮어씁니다. */
   const gradientId = `feedShelf-${format.id}`;
   const sideId = `feedSide-${format.id}`;

@@ -374,9 +374,32 @@ export default function AiChatScreen() {
     submitTurn.mutate(inputValue, { onSuccess: applyResponse });
   };
 
+  /**
+   * 선택지를 눌렀을 때 **무엇으로 보낼지** 정합니다.
+   *
+   * 🔴 **확인 단계는 `OPTION` 이 아니라 `CONFIRM` 으로 보내야 합니다**
+   *    (2026-08-30 사장님 지적: "같은 대화가 반복된다").
+   *
+   *    "이대로 추천받기 / 수정하기" 가 나오는 차례에서 `OPTION` 으로 보내면 서버가
+   *    **같은 질문을 다시 합니다.** 실서버로 열 번을 이어 봤는데 끝없이 되풀이됐고,
+   *    같은 자리에서 `CONFIRM` 을 보내자 **곧바로 추천 3 개**가 왔습니다
+   *    (`action: RECOMMEND`). 프론트 문제였습니다.
+   *
+   *    원인은 **id 를 하나만 보고 있던 것**입니다. 예전에는 `CONFIRM_TRUE` 만
+   *    걸렀는데, 서버가 실제로 주는 id 는 **`confirm` · `edit`** 입니다. 그래서
+   *    그 가지에 한 번도 안 걸렸습니다.
+   *
+   *    ⚠️ 서버가 이름을 또 바꿀 수 있으니 **아는 이름을 모아** 두고 대소문자도
+   *       무시합니다. 모르는 이름이 오면 예전처럼 `OPTION` 으로 보냅니다 —
+   *       확인 단계가 아닌 선택지를 CONFIRM 으로 보내면 그게 더 큰 사고입니다.
+   */
+  const CONFIRM_YES = ['confirm', 'confirm_true', 'yes', 'true'];
+  const CONFIRM_NO = ['edit', 'confirm_false', 'no', 'false'];
+
   const pickOption = (option: ShortformOption) => {
-    if (option.id === 'CONFIRM_TRUE') send({ type: 'CONFIRM', value: true }, option.label);
-    else if (option.id === 'CONFIRM_FALSE') send({ type: 'CONFIRM', value: false }, option.label);
+    const id = option.id.trim().toLowerCase();
+    if (CONFIRM_YES.includes(id)) send({ type: 'CONFIRM', value: true }, option.label);
+    else if (CONFIRM_NO.includes(id)) send({ type: 'CONFIRM', value: false }, option.label);
     else send({ type: 'OPTION', optionId: option.id }, option.label);
   };
 
