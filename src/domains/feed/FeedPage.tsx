@@ -111,7 +111,17 @@ export function FeedPage({
     예전에는 영상을 안 자르고 폭을 줄여 좌우에 검은 여백을 뒀습니다. 시안은
     **폭을 꽉 채우고 위아래를 자릅니다** — 쇼츠는 원래 그렇게 봅니다.
   */
-  const shelfHeight = 96;
+  /*
+    🔴 **띠를 96 → 56 으로 조였습니다** (2026-08-30 지적: "하단 공간이 너무 크다").
+
+    안에 들어가는 것 중 가장 큰 게 **원형 버튼 40** 입니다(하트·촬영). 글자 묶음은
+    제목 20 + 태그 17 + 사이 2 = 39 라 버튼보다 작습니다. 그래서 40 + 위아래 8 씩 = 56 이
+    **더 줄일 수 없는 값**입니다. 여기서 더 줄이면 버튼이 눌리기 어려워집니다.
+
+    덤 — 띠가 줄어든 만큼 영상이 커져 **잘리는 양도 줄어듭니다**
+    (실측 393×852: 무대 575 → 615, 잘림 124 → 84 · 17.7% → 12.0%).
+  */
+  const shelfHeight = 56;
   const stageHeight = Math.max(200, height - shelfHeight);
   /*
     🔴 **영상이 폭을 꽉 채웁니다 — 위아래가 잘립니다** (2026-08-30 디자인 요청:
@@ -269,6 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space[3],
     paddingHorizontal: space[4],
+    paddingVertical: space[2],
   },
   left: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   /* 시안 h-9 w-9(36). 사진이 없어 옅은 원만 둡니다. */
