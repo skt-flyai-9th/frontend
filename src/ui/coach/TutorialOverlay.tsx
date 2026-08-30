@@ -26,11 +26,20 @@
  *   · 위·아래·왼·오른 네 장  → 네모난 구멍
  *   · 모서리 네 조각        → 둥근 구멍
  *
- * 모서리 조각은 네모난 귀퉁이와 둥근 호 사이의 **오목한 초승달**입니다. borderRadius
- * 는 귀퉁이를 깎아내는 것이라 볼록한 모양만 남아서, 그걸로 만들면 정확히 반대가
- * 칠해집니다(2026-08-29 "안쪽으로 파먹은 모양"). 대신 **두꺼운 테두리**로 만듭니다 —
- * 4R×4R 에 모서리 2R·두께 R 을 주면 안쪽 반지름 R, 바깥 반지름 2R 짜리 고리가 되고,
- * 안쪽 구멍을 구멍의 모서리 호에 겹쳐 R×R 상자로 잘라내면 초승달만 남습니다.
+ * 모서리 조각은 네모난 귀퉁이와 둥근 호 사이의 **오목한 초승달**입니다.
+ *
+ * ⚠️ **테두리로 만들지 마세요** (2026-08-30 지적: "대각선으로 X자 모양으로 선이 생겼다").
+ *    한동안 4R×4R 에 모서리 2R·두께 R 을 준 **고리**를 잘라 썼습니다. RN 은 테두리를
+ *    네 변으로 나눠 그리고 **변이 만나는 45° 자리에 이음매**가 남습니다. 그 이음매가
+ *    네 모서리에서 하나씩 보여 구멍 둘레에 X 자로 나타났습니다.
+ *
+ *    지금은 **도형 하나(SVG path)** 로 그립니다 — 테두리가 없으니 이음매도 없습니다.
+ *    100×100 좌표계에 그려 두고 상자 크기에 맞춰 늘립니다(`preserveAspectRatio="none"`).
+ *    상자가 정사각형이라 호는 원형 그대로입니다. 네 모서리는 같은 그림을 90° 씩
+ *    돌려 씁니다.
+ *
+ * borderRadius 로는 만들 수 없습니다 — 귀퉁이를 깎아내는 것이라 **볼록한** 모양만
+ * 남고, 우리가 칠해야 할 건 그 반대인 오목한 쪽입니다(2026-08-29 "파먹은 모양").
  *
  * ⚠️ 조각끼리 **겹치면 안 됩니다.** 반투명이라 겹친 곳만 두 배로 진해집니다.
  *
@@ -60,6 +69,7 @@ import {
   View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import Svg, { G, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCoach, type CoachName } from './CoachContext';
@@ -108,6 +118,14 @@ export interface TutorialStep {
 
 const AnimatedBlur = Animated.createAnimatedComponent(BlurView);
 
+/**
+ * 모서리 초승달 — 정사각형에서 **안쪽 귀퉁이 쪽 사분원을 뺀** 모양.
+ *
+ * 100×100 기준입니다. 왼쪽 위 모서리용으로 그려 두고, 나머지 셋은 90° 씩 돌립니다.
+ * 원의 중심은 상자의 **오른쪽 아래**(100,100), 반지름 100 — 구멍의 모서리 호와 같습니다.
+ */
+const CRESCENT = 'M0,0 L100,0 A100,100 0 0 0 0,100 Z';
+
 /** 45° 돌린 정사각형의 중심에서 꼭짓점까지 */
 const HALF_DIAGONAL = TUTORIAL.pointer.size * Math.SQRT1_2;
 
@@ -150,11 +168,6 @@ const Scrim = React.memo(function Scrim({
   const bottom = Animated.add(ay, ah);
   const cornerX = Animated.subtract(right, ar);
   const cornerY = Animated.subtract(bottom, ar);
-  /* 고리 — 바깥 4R, 모서리 2R, 두께 R. 안쪽 구멍이 반지름 R 이 됩니다(머리말). */
-  const ringSize = Animated.multiply(ar, 4);
-  const ringRadius = Animated.multiply(ar, 2);
-  const negR = Animated.multiply(ar, -1);
-  const neg2R = Animated.multiply(ar, -2);
 
   /** 딤 + (멈춰 있으면) 블러. 네 장이 같은 몸을 씁니다. */
   const bar = (key: string, style: Animated.WithAnimatedObject<object>) => (
@@ -186,42 +199,24 @@ const Scrim = React.memo(function Scrim({
       {bar('right', { left: right, right: 0, top: ay, height: ah })}
 
       {/*
-        모서리 네 곳. R×R 로 잘라낸 상자 안에 고리를 하나씩 넣고, 고리의 **안쪽 구멍**을
-        구멍의 모서리 호에 겹쳐 둡니다 — 남는 초승달만 칠해집니다. 고리 자리는 안쪽
-        구멍의 중심이 상자의 **구멍 쪽 귀퉁이**에 오도록 밀어 넣은 값입니다.
+        모서리 네 곳. R×R 짜리 상자에 초승달을 하나씩 그립니다(`CRESCENT`).
+        같은 그림을 90° 씩 돌려 네 귀퉁이에 맞춥니다 — 왼위 0° · 오른위 90° ·
+        오른아래 180° · 왼아래 270°.
       */}
-      <Animated.View style={[styles.clip, { left: ax, top: ay, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: negR, top: negR, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
-      <Animated.View style={[styles.clip, { left: cornerX, top: ay, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: neg2R, top: negR, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
-      <Animated.View style={[styles.clip, { left: ax, top: cornerY, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: negR, top: neg2R, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
-      <Animated.View style={[styles.clip, { left: cornerX, top: cornerY, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: neg2R, top: neg2R, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
+      {([
+        [ax, ay, 0],
+        [cornerX, ay, 90],
+        [cornerX, cornerY, 180],
+        [ax, cornerY, 270],
+      ] as const).map(([left, top, angle]) => (
+        <Animated.View key={angle} style={[styles.clip, { left, top, width: ar, height: ar }]}>
+          <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <G rotation={angle} origin="50, 50">
+              <Path d={CRESCENT} fill={TUTORIAL.backdrop.cornerFill} />
+            </G>
+          </Svg>
+        </Animated.View>
+      ))}
     </View>
   );
 });
@@ -603,12 +598,6 @@ const styles = StyleSheet.create({
   dim: { backgroundColor: TUTORIAL.backdrop.dim },
   /* 모서리 조각을 R×R 로 잘라내는 상자. 안 자르면 고리가 구멍 안으로 삐져나옵니다. */
   clip: { position: 'absolute', overflow: 'hidden' },
-  /* 안쪽이 뚫린 고리. 색은 테두리에만 있습니다 — 가운데가 비어야 구멍이 뚫립니다. */
-  ringPiece: {
-    position: 'absolute',
-    borderColor: TUTORIAL.backdrop.cornerFill,
-    backgroundColor: 'transparent',
-  },
 
   ring: {
     position: 'absolute',

@@ -27,12 +27,10 @@ type TabName = 'HomeFeed' | 'Favorites' | 'AiChat' | 'My';
 const STEPS: (TutorialStep & { meta: TabName })[] = [
   {
     targetId: 'tab-home',
-    /* 칸(98) 말고 가운데 아이콘을 짚습니다 — 좁힐수록 둥글게 읽힙니다. */
-    inset: { x: 20 },
     meta: 'HomeFeed',
     title: '홈',
     description: '인기 숏폼을 보고 마음에 드는 구성을 그대로 따라 촬영해요.',
-    pad: 4,
+    pad: 8,
     radius: 16,
   },
   {
@@ -54,33 +52,27 @@ const STEPS: (TutorialStep & { meta: TabName })[] = [
   },
   {
     targetId: 'tab-saved',
-    /* 칸(98) 말고 가운데 아이콘을 짚습니다 — 좁힐수록 둥글게 읽힙니다. */
-    inset: { x: 20 },
     meta: 'Favorites',
     title: '관심 목록',
     description: '좋아요한 숏폼을 모아 두고 언제든 촬영할 수 있어요.',
-    pad: 4,
+    pad: 8,
     radius: 16,
   },
   {
     targetId: 'tab-chat',
-    /* 칸(98) 말고 가운데 아이콘을 짚습니다 — 좁힐수록 둥글게 읽힙니다. */
-    inset: { x: 20 },
     meta: 'AiChat',
     title: 'AI 추천 숏폼',
     description: '몇 가지 질문에 답하면 매장에 맞는 촬영 구성을 추천해줘요.',
-    pad: 4,
+    pad: 8,
     radius: 16,
   },
   {
     targetId: 'tab-mypage',
-    /* 칸(98) 말고 가운데 아이콘을 짚습니다 — 좁힐수록 둥글게 읽힙니다. */
-    inset: { x: 20 },
     meta: 'My',
     title: '마이페이지',
     description:
       '사장님이 만든 숏폼을 보관해뒀어요. 편집하던 숏폼이 있다면 이어서 편집할 수도 있어요.',
-    pad: 4,
+    pad: 8,
     radius: 16,
   },
   {

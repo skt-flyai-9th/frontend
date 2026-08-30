@@ -618,7 +618,16 @@ export default function AiChatScreen() {
 
         {/* 입력줄이 시스템 바에 덮이지 않게 안전영역만큼 더 띄웁니다 */}
         {showInput && (
-          <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
+          /*
+            🔴 **하단 안전영역을 여기서 또 주면 안 됩니다** (2026-08-30 지적: "하단 바랑
+               안 붙고 그 위에 하얀 선마냥 여백이 있다").
+
+            이 화면은 **탭 안**에 있습니다. 홈 인디케이터 자리는 아래 탭바가 이미
+            먹고 있는데, 여기서 `insets.bottom`(34) 을 한 번 더 주고 있었습니다.
+            그만큼이 입력창과 탭바 사이에 흰 띠로 남았습니다. 탭 밖 화면이라면
+            필요하지만 여기서는 아닙니다.
+          */
+          <View style={[styles.inputRow, { paddingBottom: space[3] }]}>
             <TextInput
               ref={inputRef}
               value={input}
