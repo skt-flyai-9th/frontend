@@ -63,7 +63,7 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCoach, type CoachName } from './CoachContext';
-import { ANDROID_BLUR_METHOD, BLUR_WHILE_MOVING, TUTORIAL } from './tutorialTheme';
+import { ANDROID_BLUR_METHOD, BLUR_WHILE_MOVING, SCRIM_BLUR, TUTORIAL } from './tutorialTheme';
 import { blurTargetRef } from './blurTarget';
 import { pressTap } from '../press';
 import theme, { color } from '../../design/theme';
@@ -159,7 +159,8 @@ const Scrim = React.memo(function Scrim({
   /** 딤 + (멈춰 있으면) 블러. 네 장이 같은 몸을 씁니다. */
   const bar = (key: string, style: Animated.WithAnimatedObject<object>) => (
     <Animated.View key={key} style={[styles.piece, style]}>
-      {blurOn ? (
+      {/* 막은 한 겹(딤)입니다 — 모서리 조각과 재질이 갈리면 사각형이 보입니다(theme 머리말). */}
+      {SCRIM_BLUR && blurOn ? (
         <AnimatedBlur
           intensity={TUTORIAL.backdrop.blurIntensity}
           tint={TUTORIAL.backdrop.tint}

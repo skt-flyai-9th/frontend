@@ -171,15 +171,19 @@ export function FeedPage({
         {/*
           시안의 네 스탑을 **불투명한 색**으로 옮겼습니다(머리말 ⚠️).
           아래는 순백, 위로 갈수록 열은 회색 — 깊이는 남기고 검은 띄는 안 생깁니다.
+
+          2026-08-30 지시로 **기울기를 더 줘습니다** — "하단 흰 바에만 그라데이션을
+          넣는건 어때". 예전 값(#e9eef4)은 너무 옌아 그라데이션이 있는지 모를
+          정도였습니다. **영상으로는 이어지지 않습니다** — 띄 안에서만 변합니다.
           `offset` 은 아래(0)에서 위(1) 입니다.
         */}
         <Svg width={width} height={shelfHeight} style={StyleSheet.absoluteFill}>
           <Defs>
             <LinearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
               <Stop offset="0" stopColor="#ffffff" />
-              <Stop offset="0.4" stopColor="#fbfcfe" />
-              <Stop offset="0.75" stopColor="#f2f5f9" />
-              <Stop offset="1" stopColor="#e9eef4" />
+              <Stop offset="0.4" stopColor="#f7f9fc" />
+              <Stop offset="0.75" stopColor="#e9eef5" />
+              <Stop offset="1" stopColor="#d8e0ea" />
             </LinearGradient>
           </Defs>
           <Rect x={0} y={0} width={width} height={shelfHeight} fill={`url(#${gradientId})`} />

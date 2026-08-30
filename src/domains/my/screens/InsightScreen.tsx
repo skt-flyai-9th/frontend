@@ -83,7 +83,7 @@ const MIX_LABELS = {
     ['30s', '30대'],
     ['40s', '40대'],
     /* 시안은 `50 +` 입니다 — 막대 왼쪽 이름칸이 좁아 '50대 이상' 은 잘립니다. */
-    ['50sPlus', '50+'],
+    ['50sPlus', '50 +'],
     ['60s', '60대'],
   ],
   gender: [
@@ -312,19 +312,16 @@ export default function InsightScreen() {
             onRetry={insights.refetch}
             loadingLabel="분석을 불러오고 있어요"
           >
-            {areaSummary || local?.insightContent ? (
-              <View style={{ gap: space[2] }}>
-                {areaSummary ? (
-                  <View style={styles.summaryPill}>
-                    <Sparkles size={13} strokeWidth={2} color={color.brand[600]} />
-                    <Text style={styles.summaryText} numberOfLines={2}>
-                      {areaSummary}
-                    </Text>
-                  </View>
-                ) : null}
-                {local?.insightContent ? (
-                  <Text style={styles.localBody}>{local.insightContent}</Text>
-                ) : null}
+            {local?.insightContent ? (
+              /*
+                🔴 **한 줄 요약 알약을 뺐습니다** (2026-08-30 지적).
+                   시안 `매장인사이트배열수정.png` 에는 제목 옆 칩과 **설명 문단**만
+                   있습니다 — 반짝이 아이콘이 붙은 알약 줄은 없습니다. 서버가 주는
+                   상권 설명(`insight_content`) 하나면 충분하고, 알약까지 두면 같은
+                   이야기가 두 번 나옵니다.
+              */
+              <View style={styles.localBox}>
+                <Text style={styles.localBody}>{local.insightContent}</Text>
               </View>
             ) : (
               <Text style={styles.localBody}>아직 상권 분석이 준비되지 않았습니다.</Text>
@@ -563,7 +560,22 @@ const styles = StyleSheet.create({
    *    KPI 를 6 내리고 아래 차트 카드까지 6 더 밀었습니다
    *    (@2x 측정: 카드 상단 시안 222 / 앱 234, 그리드→차트 간격 시안 37 / 앱 49).
    */
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6, marginVertical: -6 },
+  /*
+    🔴 **위 카드와의 간격**을 여기서 만듭니다 (2026-08-30 지적: "주간 조회수 추이랑
+       총 조회수·좋아요 수 상하 간격이 너무 좁다").
+
+    칸마다 `padding: 6` 이라 바깥 여백은 음수로 상쇄합니다. 예전에는 위아래를 모두
+    `-6` 으로 지웠는데, 그때는 이 블록이 **맨 위(탭 바로 아래)** 에 있어서 문제가
+    없었습니다. 배치가 바뀌어 **차트 카드 바로 아래**로 내려오면서 둘이 딱 붙었습니다.
+    위쪽만 카드 사이 간격(16)만큼 띄웁니다 — 칸 padding 6 을 빼고 10 을 줍니다.
+  */
+  kpiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginTop: space[4] - 6,
+    marginBottom: -6,
+  },
   kpiWrap: { width: '50%', padding: 6 },
   kpiCard: {
     padding: 14,
@@ -651,6 +663,14 @@ const styles = StyleSheet.create({
   },
   areaChipText: { ...theme.text.label, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.brand[600] },
   /* 시안: 한 줄 요약 pill — rounded-full · 테두리 hairline · px-3 py-2 · 12 medium */
+  /* 상권 설명을 담는 옅은 상자 — 시안의 둥근 네모. */
+  localBox: {
+    padding: space[4],
+    borderRadius: radius.xl,
+    borderWidth: theme.border.hairline,
+    borderColor: color.hairlineSoft,
+    backgroundColor: color.paper,
+  },
   summaryPill: {
     flexDirection: 'row',
     alignItems: 'center',
