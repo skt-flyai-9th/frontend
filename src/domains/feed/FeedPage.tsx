@@ -55,24 +55,20 @@
  *    아래 탭바도 흰색이라 밝은 선반이 오히려 매끄럽게 이어집니다.
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Heart } from 'lucide-react-native';
+import { StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
-import { SlateEditGlyph } from '../../ui/SlateEditGlyph';
 import { CoachTarget, useCoach } from '../../ui/coach/CoachContext';
 import { representativeVideoUrl } from '../../api/formatVideo';
-import { pressTap } from '../../ui/press';
 import { formatHashtags } from '../../lib/format';
-import theme, { color, radius, space } from '../../design/theme';
+import { color, radius } from '../../design/theme';
 import { videoHeightFor } from '../../ui/ChromeContext';
 import type { VideoFormat } from '../../api/schema/types';
 
 export function FeedPage({
   format,
-  showShelf = true,
   height,
   width,
   active,
@@ -81,11 +77,9 @@ export function FeedPage({
 }: {
   format: VideoFormat;
   /**
-   * 아래 정보 띠를 그릴지. 홈은 **바를 한 번에 하나만** 띄우므로, 탭바나 앱바가
-   * 나와 있는 동안에는 선반이 빠집니다 (`ui/ChromeContext.tsx`).
+   * 이 한 장이 차지할 높이. **모드와 무관하게 늘 같은 값**입니다
+   * (`homePageHeightFor`) — 선반이 목록 밖으로 나가면서 그렇게 됐습니다.
    */
-  showShelf?: boolean;
-  /** 이 한 장이 차지할 높이 (탭바·안전영역을 뺀 값) */
   height: number;
   width: number;
   /** 지금 보고 있는 장인지. **이 장만 영상을 재생합니다.** */
@@ -93,7 +87,6 @@ export function FeedPage({
   onToggleFavorite: (f: VideoFormat) => void;
   onCreate: (f: VideoFormat) => void;
 }) {
-  const fav = !!format.isFavorite;
 
   /*
     코치마크가 도는지. 원래는 랙 때문에 **세우기만** 했는데(2026-08-29 지적),
@@ -123,7 +116,6 @@ export function FeedPage({
   const showPlayer = active && !coachRunning;
 
   // 세 태그의 규칙은 lib/format.ts 한 곳에 있습니다 (홈·관심목록·AI 추천 카드 공용)
-  const tags = formatHashtags(format);
 
   /*
     🔴 **영상과 정보 띠를 물리적으로 나눕니다** (2026-08-29, 시안 `튜토리얼,홈UI,촬영화면UI.html`).
@@ -148,21 +140,13 @@ export function FeedPage({
     (실측 393×852: 무대 575 → 615, 잘림 124 → 84 · 17.7% → 12.0%).
   */
   /*
-    🔴 **자리가 남으면 띠가 가져갑니다** (2026-08-30, 앱바·탭바 치우기와 한 쌍).
+    🔴 **장 높이는 이제 늘 같습니다** (2026-08-31, 깜빡임 고침).
 
-    앱바와 탭바가 치워지면 이 장이 671 → 764 로 커집니다. 그런데 영상은 폭이
-    정해져 있어 아무리 커져도 **699** 를 넘지 않습니다. 남는 65 를 무대에 그냥
-    주면 영상 위아래에 `mediaBlack` 이 드러나 **검은 띠**가 생깁니다 — 지난번
-    검은 줄과 같은 사고입니다.
-
-    그래서 무대는 "영상이 딱 들어갈 만큼" 에서 멈추고, 남는 건 띠가 먹습니다.
-      바 있음 (height 671) → 무대 615, 띠 56   ← 84pt 잘림
-      바 없음 (height 764) → 무대 699, 띠 65   ← **안 잘림**
+    선반이 목록 **밖**으로 나갔으므로(`FeedShelf`), 이 장은 통째로 무대입니다.
+    남는 자리를 띠와 나눠 갖던 계산이 사라졌습니다 — 나눌 것이 없습니다.
   */
-  const SHELF_MIN = 56;
-  const shelfRoom = showShelf ? SHELF_MIN : 0;
   /** 무대에 줄 수 있는 최대 높이 */
-  const room = Math.max(200, height - shelfRoom);
+  const room = Math.max(200, height);
   /** 폭을 꽉 채웠을 때의 영상 높이 (플레이어와 같은 식 — ui/ChromeContext.tsx) */
   const full = videoHeightFor(width);
   /**
@@ -176,7 +160,6 @@ export function FeedPage({
    *    반올림이 어긋나면 그 1pt 가 영상을 감싸는 흰 줄로 보입니다(2026-08-31 지적).
    */
   const stageHeight = videoHeightFor(fitWidth);
-  const shelfHeight = Math.max(shelfRoom, height - stageHeight);
   /*
     ─────────────────────────────────────────────────────────────
     🔴 **영상을 자르지 않습니다** (2026-08-30, 약관 재검토 결과)
@@ -284,76 +267,6 @@ export function FeedPage({
         시안은 왼쪽 묶음과 오른쪽 버튼이 **같은 줄**을 나눠 씁니다 — 그래서 96 에
         들어갑니다(사장님이 "구성 배치가 중요하다" 고 짚으신 부분).
       */}
-      {!showShelf ? null : (
-      <View style={[styles.shelf, { height: shelfHeight }]}>
-        <View style={[styles.infoRow, { height: shelfHeight }]}>
-          <View style={styles.left}>
-            {/*
-              시안은 채널 프로필 사진을 놓습니다. 5.1 에 avatar 필드가 없어
-              **자리만** 둡니다 — 없는 사진을 지어내지 않습니다(CLAUDE.md §2).
-              값이 생기면 여기에 <Image> 를 넣으면 됩니다.
-            */}
-            <View style={styles.avatar} />
-            <View style={styles.texts}>
-              <Text style={styles.title} numberOfLines={1}>
-                {format.formatTitle}
-              </Text>
-              {tags.length > 0 ? (
-                /*
-                  태그를 **한 덩어리 글자에서 줄로** 바꿨습니다 (2026-08-30 지적:
-                  "태그들이 너무 붙어 있다"). 시안은 `hashtags.join(" ")` 라 사이가
-                  띄어쓰기 한 칸(≈3.5pt)뿐입니다. 사이를 8pt 로 벌립니다.
-                */
-                <View style={styles.tagRow}>
-                  {tags.map((t) => (
-                    <Text key={t} style={styles.tags} numberOfLines={1}>
-                      {t}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={fav ? '찜 해제' : '찜하기'}
-              accessibilityState={{ selected: fav }}
-              hitSlop={6}
-              onPress={() => onToggleFavorite(format)}
-              style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
-            >
-              <Heart
-                size={20}
-                strokeWidth={2}
-                color={fav ? color.danger[500] : color.ink[700]}
-                fill={fav ? color.danger[500] : 'transparent'}
-              />
-            </Pressable>
-
-            {/*
-              🔴 **촬영 아이콘이 바뀌었습니다** (2026-08-29 시안).
-                 재생 삼각형 → **슬레이트 + 연필**(`SlateEditGlyph`).
-                 삼각형은 "영상을 튼다" 로 읽혀서, 누르면 촬영 준비로 간다는 게
-                 안 보였습니다.
-            */}
-            {/* 코치마크 3단계가 짚는 곳 — 시안 data-coach="make" */}
-            <CoachTarget name="make" enabled={active} style={styles.roundWrap}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="이 영상으로 촬영하기"
-                hitSlop={6}
-                onPress={() => onCreate(format)}
-                style={({ pressed }) => [styles.roundBtn, pressTap(pressed, 'icon')]}
-              >
-                <SlateEditGlyph size={24} color={color.ink[700]} strokeWidth={1.7} />
-              </Pressable>
-            </CoachTarget>
-          </View>
-        </View>
-      </View>
-      )}
     </View>
   );
 }
@@ -408,48 +321,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: 4,
-  },
-  shelf: { justifyContent: 'flex-end', backgroundColor: color.paper },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[3],
-    paddingHorizontal: space[4],
-    paddingVertical: space[2],
-  },
-  left: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  /* 시안 h-9 w-9(36). 사진이 없어 옅은 원만 둡니다. */
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(15,23,42,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(15,23,42,0.15)',
-  },
-  texts: { flex: 1, minWidth: 0, gap: 2 },
-  /* 시안: 14.5 semibold leading-snug 흰색 */
-  title: {
-    ...theme.text.bodySmall,
-    fontSize: 14.5,
-    lineHeight: 20,
-    fontFamily: theme.text.bodyStrong.fontFamily,
-    fontWeight: theme.text.bodyStrong.fontWeight,
-    color: color.ink[900],
-  },
-  /* 시안: 12 medium white/55 */
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  tags: { ...theme.text.label, lineHeight: 17, color: 'rgba(51,65,85,0.75)' },
-
-  actions: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  /* 코치마크 이름표 상자 — 버튼 크기를 그대로 물려받습니다. */
-  roundWrap: { width: 40, height: 40 },
-  /* 시안: 40 원형. 어두운 바닥이라 유리질 배경을 깔아 아이콘이 뜹니다. */
-  roundBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

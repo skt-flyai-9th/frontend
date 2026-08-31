@@ -83,6 +83,14 @@ export default function MyVideoScreen({ route, navigation }: Props) {
             initialScrollIndex={startIndex}
             getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
             showsVerticalScrollIndicator={false}
+            /*
+              🔴 **그리는 칸 수를 좁힙니다** (튕김 고침, 위 Reel 머리말 ②).
+                 기본 21(앞뒤 10 장)이면 화면 밖 칸까지 잔뜩 살아 있습니다.
+            */
+            windowSize={3}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            removeClippedSubviews
             onMomentumScrollEnd={(e) =>
               setCurrent(Math.round(e.nativeEvent.contentOffset.y / height))
             }
@@ -92,6 +100,7 @@ export default function MyVideoScreen({ route, navigation }: Props) {
                 width={width}
                 height={height}
                 active={index === current}
+                near={Math.abs(index - current) <= 1}
                 storeName={store?.name ?? '우리 가게'}
                 logoUrl={store?.logoUrl}
                 bottomInset={insets.bottom}
@@ -128,6 +137,7 @@ function Reel({
   width,
   height,
   active,
+  near,
   storeName,
   logoUrl,
   bottomInset,
@@ -135,7 +145,10 @@ function Reel({
   short: StoreShort;
   width: number;
   height: number;
+  /** 지금 보고 있는 칸인지 — 이 칸만 소리가 납니다 */
   active: boolean;
+  /** 보고 있는 칸에서 한 장 안쪽인지. **여기까지만 플레이어를 만듭니다.** */
+  near: boolean;
   storeName: string;
   logoUrl?: string;
   bottomInset: number;
@@ -150,36 +163,28 @@ function Reel({
   const { saving, saved, save } = useSaveToGallery();
   const { sharing, share } = useShareVideo();
 
-  const player = useVideoPlayer(short.videoUrl, (p) => {
-    p.loop = true;
-  });
-  const started = useRef(false);
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **플레이어는 보고 있는 것 앞뒤 한 장까지만 만듭니다** (2026-08-31 지적:
+       "마이페이지에서 숏폼 확인 중에 갑자기 앱 밖으로 나가진다")
+    ─────────────────────────────────────────────────────────────
+    예전에는 `useVideoPlayer` 가 **이 칸마다** 있었습니다. 훅이라 조건을 걸 수
+    없어서, 목록이 그린 칸 수만큼 안드로이드 ExoPlayer 가 통째로 생겼습니다.
+    FlatList 기본 `windowSize` 는 21 — 앞뒤 10 장씩입니다. 숏폼이 열댓 개만
+    돼도 **디코더와 메모리가 동시에 열 몇 개씩** 잡힙니다.
 
-  /**
-   * 로드 상태를 화면에 드러냅니다.
-   * 실기기(2026-08-24)에서 영상 URL 이 죽어 있을 때 아무 표시 없이 "0초" 로만
-   * 보였습니다 — 조용한 실패 금지 원칙 위반입니다. 이제 로딩 중엔 스피너,
-   * 실패면 이유가 글자로 뜹니다.
-   */
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
-  useEffect(() => {
-    const sub = player.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay') setLoadState('ready');
-      else if (status === 'error') setLoadState('error');
-      else if (status === 'loading') setLoadState('loading');
-    });
-    return () => sub.remove();
-  }, [player]);
+    그 끝이 튕김입니다. 안드로이드는 이 상황에서 예외를 던지지 않고 **프로세스를
+    그냥 죽입니다** — 그래서 오류 화면도 없이 "앱 밖으로 나가진" 것처럼 보입니다.
+    자바스크립트 쪽에는 흔적이 안 남아 로그로도 안 잡힙니다.
 
-  // 보이는 영상만 재생합니다. 전부 틀면 소리가 겹치고 메모리도 터집니다.
-  if (active && !started.current) {
-    started.current = true;
-    player.play();
-  }
-  if (!active && started.current) {
-    started.current = false;
-    player.pause();
-  }
+    고침은 둘입니다.
+      ① 영상을 자식(`ReelVideo`)으로 내려, **가까운 칸에만** 붙입니다.
+         멀어지면 그 칸이 사라지면서 플레이어도 같이 풀립니다.
+      ② 목록이 그리는 범위 자체를 좁힙니다 (`windowSize` 3).
+
+    멀리 있는 칸은 표지 사진(`coverImageUrl`)만 남습니다 — 어차피 화면 밖이고,
+    넘겨서 다가오면 그 전에 플레이어가 붙습니다.
+  */
 
   return (
     <View style={{ width, height }}>
@@ -195,26 +200,11 @@ function Reel({
         />
       ) : null}
 
-      <VideoView
-        style={StyleSheet.absoluteFill}
-        player={player}
-        contentFit="contain"
-        nativeControls={false}
-      />
-
-      {loadState === 'loading' && (
-        <View style={styles.stateOverlay}>
-          <ActivityIndicator color={color.paper} />
-          <Text style={[text.bodySmall, { color: color.paper }]}>영상을 불러오는 중…</Text>
-        </View>
-      )}
-      {loadState === 'error' && (
-        <View style={styles.stateOverlay}>
-          <Text style={[text.bodySmall, { color: color.paper, textAlign: 'center' }]}>
-            영상을 불러오지 못했습니다.{'\n'}신호를 확인하고 다시 열어 주세요.
-          </Text>
-        </View>
-      )}
+      {/*
+        ⚠️ 주소가 비어 있을 수 있습니다 — 그때는 표지 사진만 남습니다
+           (`StoreShort.videoUrl` 주석). 빈 주소로 플레이어를 만들면 죽습니다.
+      */}
+      {near && short.videoUrl ? <ReelVideo url={short.videoUrl} active={active} /> : null}
 
       {/* 하단 정보. 글자가 영상에 묻히지 않도록 어두운 판 위에 올립니다. */}
       <View style={[styles.info, { paddingBottom: Math.max(bottomInset, space[4]) }]}>
@@ -261,6 +251,66 @@ function Reel({
         </View>
       </View>
     </View>
+  );
+}
+
+/**
+ * 영상 한 장. **가까운 칸에만 붙습니다** (위 Reel 머리말 참고).
+ * 사라지면 `useVideoPlayer` 가 정리되면서 네이티브 플레이어도 같이 풀립니다.
+ */
+function ReelVideo({ url, active }: { url: string; active: boolean }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = true;
+  });
+  const started = useRef(false);
+
+  /**
+   * 로드 상태를 화면에 드러냅니다.
+   * 실기기(2026-08-24)에서 영상 URL 이 죽어 있을 때 아무 표시 없이 "0초" 로만
+   * 보였습니다 — 조용한 실패 금지 원칙 위반입니다.
+   */
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  useEffect(() => {
+    const sub = player.addListener('statusChange', ({ status }) => {
+      if (status === 'readyToPlay') setLoadState('ready');
+      else if (status === 'error') setLoadState('error');
+      else if (status === 'loading') setLoadState('loading');
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  // 보이는 영상만 재생합니다. 전부 틀면 소리가 겹치고 메모리도 터집니다.
+  if (active && !started.current) {
+    started.current = true;
+    player.play();
+  }
+  if (!active && started.current) {
+    started.current = false;
+    player.pause();
+  }
+
+  return (
+    <>
+      <VideoView
+        style={StyleSheet.absoluteFill}
+        player={player}
+        contentFit="contain"
+        nativeControls={false}
+      />
+      {loadState === 'loading' && (
+        <View style={styles.stateOverlay}>
+          <ActivityIndicator color={color.paper} />
+          <Text style={[text.bodySmall, { color: color.paper }]}>영상을 불러오는 중…</Text>
+        </View>
+      )}
+      {loadState === 'error' && (
+        <View style={styles.stateOverlay}>
+          <Text style={[text.bodySmall, { color: color.paper, textAlign: 'center' }]}>
+            영상을 불러오지 못했습니다.{'\n'}신호를 확인하고 다시 열어 주세요.
+          </Text>
+        </View>
+      )}
+    </>
   );
 }
 

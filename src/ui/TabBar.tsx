@@ -16,7 +16,7 @@
  *    억지로 네이티브로 올리면 색 보간을 포기해야 합니다.
  */
 import React, { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { CoachTarget, type CoachName } from './coach/CoachContext';
 
 /** 라우트 이름 → 시안 코치마크 이름표. */
@@ -32,7 +32,7 @@ import { CommonActions } from '@react-navigation/native';
 
 import theme, { color, motion, radius, sizing, space } from '../design/theme';
 import { TabGlyph, type TabGlyphName } from './TabGlyph';
-import { bottomInsetFor, showsTabs, tabSlackFor, useChrome } from './ChromeContext';
+import { bottomInsetFor, homeBarHeightFor, showsTabs, useChrome } from './ChromeContext';
 
 /** 라우트 이름 → 시안 글리프·라벨. 라우트가 늘면 여기만 고칩니다. */
 const TAB_META: Record<
@@ -103,13 +103,51 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
   /* 홈이 한 장의 높이를 셀 때와 **같은 값**을 써야 합니다 — ChromeContext */
   const bottomInset = bottomInsetFor(insets.bottom);
   /* 지금 탭바를 그릴 차례인지 — 홈은 바를 한 번에 하나만 띄웁니다(ui/ChromeContext.tsx) */
-  const mode = useChrome().mode;
+  const { mode, shelf } = useChrome();
   const hidden = !showsTabs(mode);
   /*
     혼자 뜰 때 남는 세로(16pt)를 **아래쪽으로** 먹습니다. 그래야 탭바 윗면이
-    영상에 딱 닿아 줄이 안 생깁니다 — 근거는 `tabSlackFor` 주석.
+    영상에 딱 닿아 줄이 안 생깁니다 — 근거는 `homeBarHeightFor` 주석.
   */
-  const slack = tabSlackFor(mode, width, winH, insets.top, insets.bottom);
+  /*
+    🔴 **칸 높이는 늘 같습니다** (2026-08-31 지시: "위에서 아래로 내려오는 듯
+       깜빡이는데 … 그냥 그 위에 얹어두고 투명도 차이로").
+
+    예전엔 선반이 뜰 때 이 바를 99 → 34 로 **접었습니다.** 그러면 화면 전체가
+    65 만큼 늘어났다 줄었다 하고, 그게 "위에서 아래로 내려오는" 움직임이었습니다.
+
+    이제 칸은 65 + 안전영역으로 **고정**이고, 그 안에서 탭 줄과 선반이 자리를
+    같이 씁니다. 바뀌는 것은 **투명도뿐**이라 아무것도 움직이지 않습니다.
+  */
+  const barH = homeBarHeightFor(width, winH, insets.top, insets.bottom);
+  const slack = barH - sizing.tabRowHeight;
+
+  /** 0 = 탭 줄 · 1 = 선반. 한 시계로 둘을 반대로 움직입니다. */
+  const swap = useRef(new Animated.Value(hidden ? 1 : 0)).current;
+  useEffect(() => {
+    const a = Animated.timing(swap, {
+      toValue: hidden ? 1 : 0,
+      /*
+        🔴 **320ms · JS 드라이버** (2026-08-31 지적: "투명도 조절 안 되고 그냥
+           내려오는 걸로 처리되어 있어 … 지금 너무 빠르기도 하고").
+
+        ① 느리게. 220 은 눈이 "흐려졌다" 고 읽기 전에 끝나서 그냥 툭 바뀌는
+           것처럼 보입니다. 320 이면 바뀌는 게 보입니다.
+        ② **드라이버를 JS 로 내렸습니다.** 이 파일 머리말대로 탭바 애니메이션은
+           원래 전부 JS 드라이버입니다(캡슐이 색을 보간해야 해서). 그 안에
+           네이티브로 도는 값을 하나 섞어 두면, 같은 순간에 `pointerEvents` 같은
+           props 가 바뀌며 다시 그려질 때 안드로이드에서 **네이티브 값이 튀어**
+           흐려지는 과정이 통째로 날아갈 수 있습니다. 여기서 움직이는 건
+           투명도 하나뿐이라 JS 로도 충분합니다.
+      */
+      duration: 320,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    });
+    a.start();
+    return () => a.stop();
+  }, [hidden, swap]);
+  const tabsOpacity = swap.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
   const tabWidth = width / state.routes.length;
   const capsuleW = sizing.tabCapsuleWidth;
 
@@ -173,9 +211,8 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
       style={[
         styles.wrap,
         {
-          height: (hidden ? 0 : sizing.tabRowHeight) + bottomInset + slack,
+          height: barH + bottomInset,
           paddingBottom: bottomInset + slack,
-          borderTopWidth: hidden ? 0 : theme.border.hairline,
         },
       ]}
     >
@@ -183,10 +220,14 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
       <View style={[StyleSheet.absoluteFill, styles.glass]} />
 
       {/*
-        ⚠️ 접을 때는 **줄을 아예 그리지 않습니다.** 높이만 0 으로 두면 가운데
-           정렬된 아이콘이 위아래로 삐져나와 반쪽이 남습니다(실제로 그렇게 나왔습니다).
+        선반이 나와 있을 때는 **투명해질 뿐** 자리는 그대로 지킵니다.
+        손가락이 통과하도록 `pointerEvents` 도 같이 끕니다 — 안 그러면 안 보이는
+        탭 아이콘이 선반 버튼을 가로챕니다.
       */}
-      <View style={[styles.row, hidden && styles.rowGone]}>
+      <Animated.View
+        style={[styles.row, { opacity: tabsOpacity }]}
+        pointerEvents={hidden ? 'none' : 'auto'}
+      >
         {/*
           ⚠️ 위치(네이티브)와 색(JS)을 **한 노드에 같이 두면 RN 이 예외를 냅니다.**
              바깥이 움직이고 안쪽이 색을 칠하도록 두 겹으로 나눕니다.
@@ -258,7 +299,21 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
             button
           );
         })}
-      </View>
+      </Animated.View>
+
+      {/*
+        🔴 **선반은 탭 줄 위에 겹칩니다.** 홈이 만들어 `ChromeContext` 에 맡긴
+           것을 여기서 그립니다. 자리와 크기가 탭 줄과 **정확히 같으므로**,
+           둘이 바뀌어도 움직이는 것은 없고 투명도만 오갑니다.
+      */}
+      {shelf ? (
+        <Animated.View
+          style={[styles.shelfLayer, { height: barH, opacity: swap }]}
+          pointerEvents={hidden ? 'auto' : 'none'}
+        >
+          {shelf}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -271,7 +326,8 @@ const styles = StyleSheet.create({
   },
   glass: { backgroundColor: 'rgba(255,255,255,0.9)' },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  rowGone: { display: 'none' },
+  /* 탭 줄과 같은 칸. 아래 안전영역은 `wrap` 의 paddingBottom 이 이미 잡아 둡니다. */
+  shelfLayer: { position: 'absolute', left: 0, right: 0, top: 0 },
   capsule: {
     position: 'absolute',
     top: 0,

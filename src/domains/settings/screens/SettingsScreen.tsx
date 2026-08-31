@@ -37,6 +37,7 @@ import {
   TriangleAlert,
 } from 'lucide-react-native';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -48,6 +49,18 @@ import { useLogout, useWithdraw } from '../../../api/queries/auth';
 
 /** app.json 의 version. OTA 로 나간 번들에도 그때의 값이 그대로 들어 있습니다. */
 const APP_VERSION = Constants.expoConfig?.version ?? '—';
+
+/*
+  🔴 **지금 폰에 올라와 있는 업데이트 번호** (2026-08-31).
+
+  무선 업데이트(OTA)는 **껐다 켜기를 두 번** 해야 적용됩니다. 그 사이에 화면을
+  보면 고친 것이 안 보이는데, 그게 "안 고쳤다" 인지 "아직 안 받았다" 인지
+  화면만 봐서는 가릴 수가 없습니다 — 실제로 그것 때문에 한참 헤맸습니다.
+
+  이제 여기 여덟 자리를 보고 EAS 에 올린 번호와 맞춰 보면 바로 압니다.
+  APK 에 들어 있는 그대로면(아직 아무 업데이트도 안 받았으면) '기본' 입니다.
+*/
+const OTA_TAG = Updates.updateId ? Updates.updateId.slice(0, 8) : '기본';
 import { useAppState } from '../../../lib/appState';
 import type { RootStackParamList, MyStackParamList } from '../../../navigation/types';
 
@@ -250,7 +263,9 @@ export default function SettingsScreen() {
             (2026-08-27 에 1.0.1 로 올리면서 드러났습니다). 화면이 실제와 다른 번호를
             말하면 사장님이 "업데이트가 안 됐다" 를 판단할 근거가 사라집니다.
           */}
-          <Text style={styles.version}>Reals. 버전 {APP_VERSION}</Text>
+          <Text style={styles.version}>
+            Reals. 버전 {APP_VERSION} · 업데이트 {OTA_TAG}
+          </Text>
         </View>
       </ScrollView>
 

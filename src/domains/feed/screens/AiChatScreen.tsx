@@ -356,13 +356,42 @@ export default function AiChatScreen() {
     });
   }, [createSession, sessionId, storeId]);
 
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **실패하면 멈춥니다 — 저절로 다시 걸지 않습니다** (2026-08-31 지적:
+       "숏폼 추천 화면에서 에러메세지 계속 뜨는 버그")
+    ─────────────────────────────────────────────────────────────
+    이 자리가 **끝없는 되풀이**였습니다.
+
+      대화 만들기 실패
+        → `isPending` 이 true → false 로 바뀜
+        → 이 effect 가 다시 돎 (`isPending` 이 의존값이라)
+        → 아직 `sessionId` 없고 기록도 비었으니 조건이 **다시 참**
+        → `begin()` 이 또 불림 → 또 실패 → …
+
+    서버가 잠깐 느리거나 신호가 끊긴 동안 요청이 초당 몇 번씩 나갔고, 실패할
+    때마다 경고가 다시 떠서 **계속 뜨는 것처럼** 보였습니다.
+
+    `isError` 를 조건에 넣어 **한 번 실패하면 거기서 섭니다.** 다시 거는 길은
+    두 가지로 이미 열려 있습니다 — 아래 경고의 안내대로 오른쪽 위 **새 대화**
+    버튼(:507)이거나, 화면을 다시 여는 것입니다. `begin()` 이 `mutate` 를 부르는
+    순간 `isError` 가 풀리므로 이 조건이 다시 막지 않습니다.
+  */
   useEffect(() => {
     mounted.current = true;
-    if (storeId && !sessionId && log.length === 0 && !createSession.isPending) void begin();
+    if (
+      storeId &&
+      !sessionId &&
+      log.length === 0 &&
+      !createSession.isPending &&
+      !createSession.isError
+    ) {
+      void begin();
+    }
     return () => {
       mounted.current = false;
     };
-  }, [begin, createSession.isPending, log.length, sessionId, storeId]);
+  }, [begin, createSession.isError, createSession.isPending, log.length, sessionId, storeId]);
 
   const send = (inputValue: ShortformTurnInput, label: string) => {
     if (!sessionId || submitTurn.isPending) return;

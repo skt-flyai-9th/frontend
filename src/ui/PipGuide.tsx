@@ -78,7 +78,22 @@ const BAR_GAP = 6;
 const HOME_LEFT = space[4];
 const HOME_TOP = 110;
 /** 이만큼 움직이면 탭이 아니라 끌기로 봅니다. */
-const DRAG_SLOP = 6;
+const DRAG_SLOP = 8;
+/*
+  🔴 **탭으로 쳐 주는 최대 흔들림** (2026-08-31 지적: "접기 버튼 안 먹히는 건
+     간헐적으로 계속 그래").
+
+  6pt 는 **손가락한테 너무 빡빡했습니다.** 사람이 26pt 짜리 띠를 누르면 그 정도는
+  예사로 밀립니다 — 특히 창이 화면 아래에 있어 엄지를 뻗어 누를 때 그렇습니다.
+  그만큼만 밀려도 "끌기" 로 쳐서 접기가 안 먹혔고, 밀리냐 마냐는 그때그때라
+  **간헐적**으로 보였습니다.
+
+  RN 이 누름을 취소하는 기준도 대략 이 언저리입니다. 시간까지 함께 봐서,
+  **짧고 조금 밀린 것**은 탭으로 봅니다. 끌기는 8pt 부터 창이 따라오기 시작하되,
+  그 정도만 밀리고 끝났으면 창을 **제자리로 되돌리고** 탭으로 처리합니다.
+*/
+const TAP_SLOP = 16;
+const TAP_MS = 500;
 
 export function PipGuide({
   url,
@@ -152,6 +167,10 @@ export function PipGuide({
   /** 놓은 자리(누적 이동량). 다음 끌기의 기준이 됩니다. */
   const offset = useRef({ x: 0, y: 0 });
   const dragging = useRef(false);
+  /** 이번 손짓이 이동이었나 — 창이 따라 움직이기 시작했는지. */
+  const moved = useRef(false);
+  /** 손이 닿은 시각. 탭인지 가릴 때 씁니다. */
+  const touchedAt = useRef(0);
 
   /* 영상 + **위아래 띠 둘** (접기 · 확대). 끌기 범위를 재는 데 씁니다. */
   const pipHeight = Math.round((pipWidth * 16) / 9) + (BAR_GAP + BAR) * 2;
@@ -168,20 +187,69 @@ export function PipGuide({
     };
   };
 
-  const responder = useMemo(
-    () =>
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **탭 판정을 끌기와 같은 자리로 옮겼습니다** (2026-08-31 지적:
+       "접기 버튼이 특정 장소에서만 작동 … 이동은 문제없어")
+    ─────────────────────────────────────────────────────────────
+    "끌기는 되는데 탭만 안 된다" 가 결정적인 단서였습니다. 손가락이 이 띠에
+    **닿는 것 자체는 언제나 되고 있었다**는 뜻이니까요.
+
+    갈라진 이유는 **탭과 끌기를 서로 다른 것이 맡고 있었기** 때문입니다.
+
+      끌기 → 바깥 View 의 PanResponder
+      탭   → 안쪽 Pressable
+
+    RN 의 제스처는 **하나만 이깁니다.** 손가락이 6pt 만 흔들려도 바깥이
+    가로채고, 그 순간 안쪽 Pressable 은 **취소**됩니다 — 눌렀는데 아무 일도
+    안 일어납니다. 손이 얼마나 흔들리냐는 창이 어디 있느냐(엄지를 뻗는 각도)에
+    따라 달라져서, 사장님께는 "특정 장소에서만 되는 것" 으로 보였습니다.
+
+    이제 **하나가 둘 다 맡습니다.** 처음부터 우리가 받고, 손을 뗄 때 지나온
+    거리로 가릅니다.
+
+      6pt 넘게 움직였다  → 이동
+      아니다             → 탭 (접기 / 확대)
+
+    누른 느낌은 `pressedBar` 가 대신 냅니다 — Pressable 을 뺐다고 눌린 표시까지
+    없어지면 안 됩니다.
+  */
+  /** 지금 눌려 있는 띠. 눌린 표시(어두워짐)에만 씁니다. */
+  const [pressedBar, setPressedBar] = useState<'top' | 'bottom' | null>(null);
+  /** 띠를 탭했을 때 할 일. 리스폰더를 다시 만들지 않으려고 ref 로 넘깁니다. */
+  const onTapTop = useRef<() => void>(() => {});
+  const onTapBottom = useRef<() => void>(() => {});
+
+  const responders = useMemo(() => {
+    const make = (kind: 'top' | 'bottom', tap: React.RefObject<() => void>) =>
       PanResponder.create({
-        // 탭은 그대로 버튼에 갑니다. 손가락이 움직이기 시작할 때만 우리가 가로챕니다.
-        onMoveShouldSetPanResponder: (_e, g) =>
-          Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP,
+        // **처음부터 우리가 받습니다.** 안쪽에 다른 손이 없어야 서로 뺏지 않습니다.
+        onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
-          dragging.current = true;
+          moved.current = false;
+          touchedAt.current = Date.now();
+          setPressedBar(kind);
         },
         onPanResponderMove: (_e, g) => {
-          const next = clamp(offset.current.x + g.dx, offset.current.y + g.dy);
-          pan.setValue(next);
+          if (!moved.current && Math.abs(g.dx) <= DRAG_SLOP && Math.abs(g.dy) <= DRAG_SLOP) return;
+          moved.current = true;
+          dragging.current = true;
+          pan.setValue(clamp(offset.current.x + g.dx, offset.current.y + g.dy));
         },
         onPanResponderRelease: (_e, g) => {
+          setPressedBar(null);
+          /*
+            **탭이냐 이동이냐는 지나온 거리와 걸린 시간으로 가릅니다.**
+            조금 밀렸어도 짧게 끝났으면 탭입니다 — 그동안 창이 몇 pt 따라왔더라도
+            제자리로 돌려놓고 버튼을 누른 것으로 칩니다.
+          */
+          const travel = Math.hypot(g.dx, g.dy);
+          if (travel <= TAP_SLOP && Date.now() - touchedAt.current <= TAP_MS) {
+            pan.setValue(offset.current);
+            dragging.current = false;
+            tap.current?.();
+            return;
+          }
           offset.current = clamp(offset.current.x + g.dx, offset.current.y + g.dy);
           pan.setValue(offset.current);
           // 손을 뗀 직후의 탭 판정과 겹치지 않게 한 박자 뒤에 풉니다.
@@ -190,12 +258,14 @@ export function PipGuide({
           }, 50);
         },
         onPanResponderTerminate: () => {
+          setPressedBar(null);
           dragging.current = false;
         },
-      }),
+      });
+    return { top: make('top', onTapTop), bottom: make('bottom', onTapBottom) };
     // clamp 는 화면 크기·안전영역이 바뀔 때만 달라집니다.
-    [width, height, insets.top, insets.bottom, pipWidth]
-  );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, insets.top, insets.bottom, pipWidth]);
 
   if (!url) return null;
 
@@ -208,6 +278,10 @@ export function PipGuide({
     setBigStart(lastSec.current);
     setExpanded(true);
   };
+
+  // 리스폰더는 다시 만들지 않고 **할 일만** 갈아 끼웁니다 (위 머리말 참고).
+  onTapTop.current = () => runFold(true);
+  onTapBottom.current = openBig;
 
   const closeBig = () => {
     setSmallStart(lastSec.current);
@@ -277,21 +351,27 @@ export function PipGuide({
             🔴 **접기 띠** — 아래 확대 띠와 **똑같이 생긴 알약**입니다 (2026-08-31 지시).
                영상 **위**에 두되 영상을 덮지 않습니다(바깥 띠).
           */}
-          <View style={styles.barTop}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="참고 영상 접기"
-              hitSlop={{ top: 6, left: 6, right: 6, bottom: 4 }}
-              onPress={() => runFold(true)}
-              style={styles.barPress}
-            >
-              {({ pressed }) => (
-                <View style={[styles.barInner, pressTap(pressed, 'icon')]}>
-                  <X size={12} strokeWidth={2.5} color={color.paper} />
-                  <Text style={styles.barLabel}>접기</Text>
-                </View>
-              )}
-            </Pressable>
+          {/*
+            🔴 **위 띠도 손잡이입니다** (2026-08-31 지적: "하단으로만 움직이게 하면
+               이동이 불편해서 — 특히 태스크 바 1 2 3 에 겹치면 작동 불가").
+
+            아래 띠만 손잡이면, 창을 화면 아래로 내렸을 때 그 띠가 컷 번호줄과
+            겹쳐 **잡을 데가 없어집니다.** 위 띠에도 같은 제스처를 달아 두면
+            위아래 어느 쪽으로 몰아도 반대쪽으로 잡아 끌 수 있습니다.
+              탭  → 접기
+              끌기 → 창 이동
+          */}
+          <View
+            accessibilityRole="button"
+            accessibilityLabel="참고 영상 접기 (끌면 창이 움직입니다)"
+            hitSlop={{ top: 6, left: 6, right: 6, bottom: 4 }}
+            style={styles.barTop}
+            {...responders.top.panHandlers}
+          >
+            <View style={[styles.barInner, pressTap(pressedBar === 'top', 'icon')]}>
+              <X size={12} strokeWidth={2.5} color={color.paper} />
+              <Text style={styles.barLabel}>접기</Text>
+            </View>
           </View>
 
           {/* 영상 상자 — 시안: radius 14 · 테두리 1 white/20 · 그림자 */}
@@ -319,21 +399,17 @@ export function PipGuide({
             손가락은 띠 어디를 눌러도 됩니다. 영상 화면은 여전히 안 가립니다
             (유튜브 약관 — 머리말 참고).
           */}
-          <View style={styles.bar} {...responder.panHandlers}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="참고 영상 크게 보기 (끌면 창이 움직입니다)"
-              hitSlop={{ top: 4, left: 6, right: 6, bottom: 6 }}
-              onPress={openBig}
-              style={styles.barPress}
-            >
-              {({ pressed }) => (
-                <View style={[styles.barInner, pressTap(pressed, 'icon')]}>
-                  <Maximize2 size={12} strokeWidth={2.5} color={color.paper} />
-                  <Text style={styles.barLabel}>확대</Text>
-                </View>
-              )}
-            </Pressable>
+          <View
+            accessibilityRole="button"
+            accessibilityLabel="참고 영상 크게 보기 (끌면 창이 움직입니다)"
+            hitSlop={{ top: 4, left: 6, right: 6, bottom: 6 }}
+            style={styles.bar}
+            {...responders.bottom.panHandlers}
+          >
+            <View style={[styles.barInner, pressTap(pressedBar === 'bottom', 'icon')]}>
+              <Maximize2 size={12} strokeWidth={2.5} color={color.paper} />
+              <Text style={styles.barLabel}>확대</Text>
+            </View>
           </View>
         </Animated.View>
       )}
@@ -410,7 +486,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   restoreBtn: { width: 36, height: 36, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  barPress: { flex: 1 },
   // 시안: h26 전체폭 pill · 테두리 white/15 · bg rgba(20,20,30,.65) · gap-1
   barInner: {
     flex: 1,
