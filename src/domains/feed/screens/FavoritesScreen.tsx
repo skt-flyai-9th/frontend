@@ -8,9 +8,21 @@
  *   헤더   중앙 "관심 목록" + 우측 "선택" 글자 버튼
  *   선택 모드 타일에 브랜드색 안쪽 링, 하단에 "좋아요 취소(N개)" 막대
  *
- * ⚠️ 시안은 타일을 누르면 곧장 촬영으로 갑니다. 우리는 FormatDetail 로 보냅니다 —
- *    시안에 없는 상세 화면이 우리에겐 있고, 거기서 참고 영상을 본 뒤
- *    "이 방법으로 만들기" 로 이어지기 때문입니다. 눌러서 도달하는 곳은 결국 같습니다.
+ * 🔴 **타일을 누르면 홈과 똑같은 길로 갑니다** (2026-08-31 지적).
+ *
+ *    예전에는 `FormatDetail` 로 곧장 보냈습니다. 그런데 그 화면은 **`projectId` 가
+ *    있어야 컷 구성이 채워집니다.** 관심 목록은 아직 기획을 만들기 전이라 넘길
+ *    `projectId` 가 없고, 그래서 컷 목록 자리에 이 한 줄만 남았습니다.
+ *
+ *      "촬영 준비를 시작하면 이 방식에 맞는 컷 구성이 만들어집니다."
+ *
+ *    사장님 눈에는 **내용물이 사라진 옛 화면**으로 보입니다. 실제로 하나도 틀리지
+ *    않은 화면인데, 들어온 문이 잘못돼서 빈 채로 뜬 것입니다.
+ *
+ *    홈은 이미 **"어떤 주제를 찍고 싶으세요"(PurposeSelect)** 를 먼저 거칩니다.
+ *    거기서 기획이 만들어지고(4.1), 그 화면이 `projectId` 를 들고 `FormatDetail`
+ *    로 넘겨 주므로 컷이 채워집니다. 관심 목록도 같은 문으로 보냅니다 —
+ *    **그 뒤는 완전히 같습니다.**
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
@@ -164,8 +176,9 @@ export default function FavoritesScreen() {
                   onPress={() =>
                     selectMode
                       ? toggleSelect(item.id)
-                      : nav.navigate('Create', {
-                          screen: 'FormatDetail',
+                      : // 홈의 촬영 버튼과 **같은 문**입니다 (위 머리말)
+                        nav.navigate('Create', {
+                          screen: 'PurposeSelect',
                           params: { formatId: item.id },
                         })
                   }
