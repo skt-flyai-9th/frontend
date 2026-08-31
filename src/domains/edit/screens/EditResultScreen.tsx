@@ -341,16 +341,14 @@ export default function EditResultScreen({ navigation, route }: Props) {
             </Card>
           ) : null}
 
-          {/* 곡 대신 분위기만 오는 포맷(SUGGESTED) — 예전에는 이 경우 카드가 통째로 없었습니다 */}
-          {trackMood ? (
-            <Card style={styles.card}>
-              <CardLabel icon={Music2}>어울리는 음원</CardLabel>
-              <View style={styles.trackRow}>
-                <Text style={styles.value}>{trackMood}</Text>
-                <CopyBtn value={trackMood} label="어울리는 음원" />
-              </View>
-            </Card>
-          ) : null}
+          {/*
+            🔴 **"어울리는 음원" 카드는 뺐습니다** (2026-08-31 지시, `내보내기화면음원삭제.jpg`).
+
+            곡 대신 분위기만 오는 포맷(SUGGESTED)에서 `track.mood` 를 보여 주던
+            카드입니다. 바로 위 "음원 검색 키워드" 와 아래 "음원 넣는 법" 은 그대로
+            둡니다 — 그 둘만으로 플랫폼에서 곡을 찾을 수 있습니다.
+            되살리려면 `trackMood`(위 261줄)로 같은 카드를 다시 그리면 됩니다.
+          */}
 
           {trackSegment ? (
             <Card style={styles.card}>

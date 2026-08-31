@@ -204,7 +204,8 @@ export default function PurposeSelectScreen({ navigation, route }: Props) {
         </BottomAction>
       }
     >
-      <AppBar onBack={() => navigation.goBack()} title="촬영 준비" />
+      {/* 2026-08-31 지시 ④ — "촬영 준비" 를 "촬영 가이드" 로 */}
+      <AppBar onBack={() => navigation.goBack()} title="촬영 가이드" />
 
       <View style={styles.body}>
         <Text style={styles.title}>어떤 주제를 찍고 싶으세요?</Text>

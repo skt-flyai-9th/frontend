@@ -140,7 +140,14 @@ export default function SettingsScreen() {
         >
           <ChevronLeft size={24} strokeWidth={2} color={color.ink[900]} />
         </Pressable>
-        <Text style={text.heading}>설정</Text>
+        {/*
+          🔴 **제목을 가운데로** (2026-08-31 지시 ⑤).
+             뒤로가기(36) 옆에 붙어 있던 것을 화면 한가운데로 옮깁니다. 오른쪽에
+             같은 폭(36)의 빈 자리를 둬서 **글자의 중심이 화면 중심과 맞습니다** —
+             `textAlign: 'center'` 만으로는 왼쪽 버튼만큼 오른쪽으로 밀립니다.
+        */}
+        <Text style={[text.heading, styles.headerTitle]}>설정</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       {/* 시안 스크롤 영역: px-4 pb-10. 카드가 헤더 바로 아래 붙습니다(pt 없음) */}
@@ -375,6 +382,9 @@ const styles = StyleSheet.create({
     paddingTop: space[2],
     paddingBottom: space[3],
   },
+  headerTitle: { flex: 1, textAlign: 'center' },
+  /* 뒤로가기와 같은 폭. 이게 있어야 제목이 진짜 가운데에 옵니다. */
+  headerSpacer: { width: 36 },
   backBtn: {
     width: 36,
     height: 36,
@@ -399,7 +409,7 @@ const styles = StyleSheet.create({
     borderColor: color.brand[300],
     backgroundColor: color.brand[50],
   },
-  planLeft: { flexDirection: 'row', alignItems: 'center', gap: space[3], flex: 1 },
+  planLeft: { flexDirection: 'row', alignItems: 'center', gap: space[3], flex: 1, minWidth: 0 },
   planTile: {
     width: 44,
     height: 44,
@@ -408,11 +418,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /*
+    🔴 **좁은 폰에서 글자가 버튼을 밀고 들어갔습니다** (2026-08-31 지시 ⑥).
+
+    `planText` 에 `flex` 가 없어 글자가 제 폭을 그대로 요구했고, 360 같은 좁은
+    화면에서 "월 3편까지 만들 수 있어요" 가 **Pro 업그레이드 버튼과 겹쳤습니다.**
+    `flex: 1` + `minWidth: 0` 을 주면 자리가 모자랄 때 **두 줄로 감깁니다**
+    (카드가 그만큼 높아집니다). 버튼은 `flexShrink: 0` 이라 찌그러지지 않습니다.
+  */
   // 시안: mt-0.5
-  planText: { gap: space[0.5] },
+  planText: { gap: space[0.5], flex: 1, minWidth: 0 },
   planSub: { ...text.caption, color: color.ink[500] },
   // 시안: h-9 rounded-xl px-3.5 · 13 semibold
   upgradeBtn: {
+    flexShrink: 0,
     height: 36,
     justifyContent: 'center',
     paddingHorizontal: space[3.5],
