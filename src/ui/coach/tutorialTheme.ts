@@ -60,22 +60,55 @@ export const ANDROID_BLUR_METHOD: BlurMethod | undefined =
 export const BLUR_WHILE_MOVING =
   Platform.OS !== 'android' || Number(Platform.Version) >= 31;
 
+/**
+ * 🔴 **막에는 블러를 쓰지 않습니다** (2026-08-30 지적: "테두리로 뿌옇게 사각형이
+ *    분명 보이잖아. 그건 사각형 모양이 보여선 안 돼").
+ *
+ * 구멍 둘레는 재질이 둘로 갈립니다.
+ *   네 장     블러 + 딤   (네모라서 블러를 얹을 수 있습니다)
+ *   모서리    딤만        (두꺼운 테두리로 만든 초승달이라 블러를 못 얹습니다)
+ *
+ * 두 재질은 **같은 색이 될 수 없습니다.** 블러의 tint 는 알파 합성이 아니라서,
+ * 한 바탕(흰 탭바)에서 맞춰 놓아도 다른 바탕에서 어긋납니다. 그 차이가 구멍
+ * 바깥에 **사각형 윤곽**으로 보입니다. 실측으로 0.34 → 0.40 까지 좁혀 봤지만
+ * 5배 확대에서 여전히 남았습니다.
+ *
+ * 그래서 **한 겹(딤)으로 통일**합니다. 어느 바탕에서도 이음매가 없습니다.
+ *
+ * 블러를 되살리려면 둘 중 하나가 필요합니다.
+ *   ① `react-native-svg` 의 `Mask` 로 되돌리기 — 구멍이 움직이는 280ms 동안
+ *      화면 크기 비트맵을 매 프레임 다시 떠서 눈에 띄게 끊깁니다(그래서 걷어냈습니다)
+ *   ② `@react-native-masked-view` 를 넣기 — **네이티브 모듈이라 APK 재빌드**입니다
+ */
+export const SCRIM_BLUR = false;
+
 export const TUTORIAL = {
   /** 전체 배경 — 딤 + 블러 */
   backdrop: {
-    /** 요청서 rgba(0,0,0,0.45~0.55). 가운데 값으로 둡니다. */
-    dim: 'rgba(0, 0, 0, 0.5)',
-    /** 요청서 blur(14px) */
-    blurIntensity: 40,
+    /** 시안 최최종 원문 `rgba(15,18,25,0.3)`. 카드가 흰색이 되어 막을 옅게 둡니다. */
+    dim: 'rgba(15, 18, 25, 0.3)',
+    /** 시안 최최종 원문 blur(5px). `SCRIM_BLUR` 가 꺼져 있으면 안 씁니다. */
+    blurIntensity: 22,
     tint: 'dark' as const,
     /**
      * 구멍 모서리를 메우는 조각에 쓰는 색.
      *
      * 모서리 조각은 **두꺼운 테두리로 만든 고리**라(TutorialOverlay 머리말) 블러를
-     * 입힐 수가 없습니다 — 테두리는 블러 위에 그려집니다. 폭이 6~26pt 짜리 초승달이라
-     * 눈에 안 띄지만, 블러가 tint 로 살짝 어둡게 만드는 만큼만 더 진하게 둡니다.
+     * 입힐 수가 없습니다 — 테두리는 블러 위에 그려집니다.
+     *
+     * 🔴 **여기 값이 어긋나면 구멍 둘레에 사각형이 보입니다** (2026-08-30 지적:
+     *    "테두리로 뿌옇게 사각형이 분명 보이잖아").
+     *
+     *    네 장(블러+딤)과 모서리 조각(딤만)이 같은 바탕 위에서 같은 색이 되어야
+     *    이음매가 안 보입니다. 블러의 `tint: dark` 가 **추가로 어둡게** 만들기 때문에
+     *    딤만 쓰는 모서리는 그만큼 더 진해야 합니다.
+     *
+     *    흰 탭바 위에서 실측하고 맞췄습니다(2026-08-30, 5배 확대 캡처).
+     *      네 장    rgb(160,162,166)
+     *      모서리   rgb(171,173,176)  ← 0.34 일 때. **11 만큼 밝아 사각형이 보였습니다**
+     *    255·(1−a) + 15·a = 160  →  a ≈ 0.40. 그 값으로 둡니다.
      */
-    cornerFill: 'rgba(0, 0, 0, 0.56)',
+    cornerFill: 'rgba(15, 18, 25, 0.3)',
   },
 
   /** 스포트라이트 테두리 — 시안 원문 값입니다(요청서에는 없음) */
@@ -87,16 +120,35 @@ export const TUTORIAL = {
     glowRadius: 15,
   },
 
-  /** 툴팁 카드 */
+  /**
+   * 카드 그림자 — 흰 카드가 밝은 막 위에 떠 보이게 합니다.
+   * 시안 최최종 `boxShadow: 0 12px 32px rgba(15,23,42,0.22)`.
+   */
+  cardShadow: {
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 12,
+  },
+
+  /**
+   * 툴팁 카드.
+   *
+   * 🔴 **2026-08-30 에 흰 카드로 뒤집었습니다** (지시 ⑧: "저희 앱 컬러가 파랑이라
+   *    해당 캡쳐본들처럼 설명창 UI 수정이 필요합니다"). 하루 전 요청서는 어두운
+   *    유리였는데, 새 시안(`최최종.html`)이 흰 카드 + 파란 버튼으로 바뀌었습니다.
+   *    값은 시안 원문 그대로입니다.
+   */
   card: {
-    /** 요청서 rgba(40, 44, 52, 0.72) */
-    bg: 'rgba(40, 44, 52, 0.72)',
-    /** 요청서 blur(20px) */
-    blurIntensity: 55,
-    tint: 'dark' as const,
-    /** 요청서 1px solid rgba(255, 255, 255, 0.12) */
+    /** 시안 최최종 `background: "#ffffff"` */
+    bg: '#ffffff',
+    /** 흰 카드라 블러는 안 씁니다 — 불투명입니다. */
+    blurIntensity: 0,
+    tint: 'light' as const,
+    /** 시안 최최종 `border: 1px solid rgba(15,23,42,0.08)` */
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(15, 23, 42, 0.08)',
     /** 요청서 border-radius: 20px */
     radius: 20,
     /** 요청서 padding: 20px ~ 24px — 상하좌우 균일 */
@@ -119,14 +171,16 @@ export const TUTORIAL = {
     overlap: 1,
   },
 
-  /** 글자 */
+  /** 글자 — 시안 최최종 원문 값 (지시 ⑧: 제목 16px · 설명 13.5px) */
   text: {
-    /** 단계 표시 `3/7` · 건너뛰기 */
-    sub: 'rgba(255, 255, 255, 0.7)',
+    /** 단계 표시 `3/7` */
+    count: '#94a3b8',
+    /** 건너뛰기 */
+    sub: '#64748b',
     /** 제목 */
-    title: 'rgba(255, 255, 255, 0.95)',
-    /** 본문 — 요청서 "텍스트 대비 확보" */
-    body: 'rgba(255, 255, 255, 0.78)',
+    title: '#0f172a',
+    /** 본문 */
+    body: '#475569',
     /** 본문 줄간격(요청서 "줄간격 확보") */
     bodyLineHeight: 22,
     titleLineHeight: 22,
@@ -140,13 +194,14 @@ export const TUTORIAL = {
     /** 시안 비율 1 : 1.4 — "다음" 이 더 넓습니다(요청서에는 없어 시안을 따릅니다) */
     primaryFlex: 1.4,
     secondaryFlex: 1,
-    /** 이전 — 반투명 다크 + 미세 보더 */
-    secondaryBg: 'rgba(255, 255, 255, 0.08)',
-    secondaryBorder: 'rgba(255, 255, 255, 0.08)',
-    secondaryText: 'rgba(255, 255, 255, 0.85)',
-    secondaryTextDim: 'rgba(255, 255, 255, 0.35)',
-    /** 다음·완료 — 솔리드 화이트 + 다크 텍스트 */
-    primaryBg: '#ffffff',
+    /** 이전 — 옅은 회색 판 (시안 최최종) */
+    secondaryBg: '#F1F5F9',
+    secondaryBorder: 'rgba(15, 23, 42, 0.06)',
+    secondaryText: '#334155',
+    secondaryTextDim: '#cbd5e1',
+    /** 다음·완료 — **브랜드 파랑** (지시 ⑧: "저희 앱 컬러가 파랑이라") */
+    primaryBg: '#2563eb',
+    primaryText: '#ffffff',
   },
 
   /** 움직임 — 시안 transition .28s cubic-bezier(.22,1,.36,1) */

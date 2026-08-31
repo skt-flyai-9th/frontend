@@ -36,6 +36,7 @@ import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Loading, JobProgress } from '../../../ui/Feedback';
 import { Shutter } from '../../../ui/Shutter';
+import { TakePreview } from '../components/TakePreview';
 import {
   useTaskGuide,
   useTasks,
@@ -75,6 +76,8 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   const [micPermission, requestMic] = useMicrophonePermissions();
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  /** 녹화를 시작한 시각. 길이는 이 값으로 잽니다(아래 `recordAsync` 주석). */
+  const startedAt = useRef(0);
   /** 방금 찍은 것. 값이 있으면 시안 ReviewSheet 가 뜹니다. */
   const [take, setTake] = useState<{ uri: string; durationSec: number } | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
@@ -102,6 +105,7 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
 
   const beginRecording = useCallback(async () => {
     if (!cameraRef.current) return;
+    startedAt.current = Date.now();
     setRecording(true);
     try {
       const video = await cameraRef.current.recordAsync({ maxDuration: 60 });
@@ -110,12 +114,25 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
        * 시안: 녹화를 멈추면 그 자리에서 ReviewSheet 로 결정합니다.
        * 길이는 우리가 센 초입니다 — recordAsync 는 uri 만 줍니다.
        */
-      if (video?.uri) setTake({ uri: video.uri, durationSec: Math.max(1, elapsed) });
+      if (video?.uri) {
+        /*
+          🔴 **`elapsed` 를 쓰면 안 됩니다** (2026-08-30 지적: "전부 3초 이하라고 뜬다").
+
+          `recordAsync` 는 **녹화가 끝날 때까지 기다리는** 함수입니다. 그 사이에
+          `elapsed` 는 계속 오르지만, 이 함수가 붙들고 있는 값은 **버튼을 누른 순간의
+          것**(0)입니다. 그래서 어떤 컷을 찍어도 `max(1, 0) = 1초` 로 기록됐고,
+          "3초보다 짧습니다" 가 언제나 떴습니다.
+
+          시계에서 직접 잽니다 — 붙들릴 값이 없습니다.
+        */
+        const sec = Math.max(1, Math.round((Date.now() - startedAt.current) / 1000));
+        setTake({ uri: video.uri, durationSec: sec });
+      }
     } catch (e) {
       setRecording(false);
       console.warn('[dance-camera] 녹화 실패', e);
     }
-  }, [elapsed]);
+  }, []);
 
   /**
    * 찍은 영상을 올립니다.
@@ -265,9 +282,12 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
               시안은 회색 자리표시자입니다. 우리는 지어낼 값이 없어 같은 자리표시자를 두되,
               실제로 아는 것 하나(촬영 길이)만 적습니다.
             */}
-            <View style={styles.preview}>
-              <Text style={styles.previewLabel}>{take.durationSec}초 촬영됨</Text>
-            </View>
+            {/*
+              🔴 회색 자리표시자에서 **재생되는 미리보기**로 (2026-08-30 지시 ⑪).
+                 예전에는 "N초 촬영됨" 글자만 있어서 잘 찍혔는지 알 수가 없었습니다.
+            */}
+            <TakePreview uri={take.uri} />
+            <Text style={styles.previewLabel}>{take.durationSec}초 촬영됨</Text>
 
             <Text style={styles.sheetTitle}>안무 촬영 완료</Text>
             <Text style={styles.sheetSub}>촬영한 영상을 확인하고 결정하세요</Text>
@@ -283,10 +303,10 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
             ) : (
               // 시안: mt-4 gap-2.5 · 각 버튼 h-12 flex-1
               <View style={styles.sheetBtns}>
+                {/* 아이콘 없이 글자만 — 시안 최최종 원문에서도 뺐습니다. */}
                 <Button
                   label="다시 촬영"
                   variant="secondary"
-                  icon={RotateCcw}
                   style={styles.sheetBtn}
                   onPress={() => {
                     setTake(null);
@@ -295,7 +315,6 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
                 />
                 <Button
                   label={upload.isError ? '다시 올리기' : '사용하기'}
-                  icon={Check}
                   style={styles.sheetBtn}
                   onPress={useTake}
                 />

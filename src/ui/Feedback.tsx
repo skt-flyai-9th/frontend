@@ -192,17 +192,28 @@ export function Banner({
   tone = 'info',
   title,
   description,
+  showIcon = true,
 }: {
   tone?: BannerTone;
   title: string;
   description?: string;
+  /**
+   * 왼쪽 아이콘 타일. 기본은 켭니다.
+   *
+   * AI 숏폼 추천의 오류 안내만 **끕니다** (2026-08-30 지시 ⑬: "이모티콘 삭제").
+   * 그 화면은 말풍선이 이어지는 대화라, 색 타일이 붙으면 시스템 경고처럼 보여
+   * 대화 흐름에서 튑니다.
+   */
+  showIcon?: boolean;
 }) {
   const t = BANNER[tone];
   return (
     <View style={styles.banner}>
-      <View style={[styles.bannerTile, { backgroundColor: t.tile }]}>
-        <t.Icon size={18} strokeWidth={2} color={t.icon} />
-      </View>
+      {showIcon ? (
+        <View style={[styles.bannerTile, { backgroundColor: t.tile }]}>
+          <t.Icon size={18} strokeWidth={2} color={t.icon} />
+        </View>
+      ) : null}
       <View style={styles.bannerBody}>
         <Text style={[text.bodySmall, styles.bannerTitle, { color: t.fg }]}>{title}</Text>
         {description ? <Text style={text.caption}>{description}</Text> : null}

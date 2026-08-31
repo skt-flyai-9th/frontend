@@ -110,7 +110,12 @@ export function AppBar({ title, onBack, right, logo, home, step }: AppBarProps) 
         {/* 시안: 중앙 요소는 절대 배치 — 좌우 요소 폭에 밀리지 않습니다 */}
         {home ? (
           <View pointerEvents="none" style={[styles.center, { alignItems: 'center' }]}>
-            <RealsLogo size={22} />
+            {/*
+              시안은 22 인데 **28 로 키웁니다** (2026-08-30 지시 ①: "Reals 로고 크기
+              키우기, 구체적인 값으로는 28px 정도"). 홈 헤더만 해당합니다 — 다른
+              화면의 좌측 로고(18)는 그대로입니다.
+            */}
+            <RealsLogo size={28} />
           </View>
         ) : title ? (
           <View pointerEvents="none" style={styles.center}>

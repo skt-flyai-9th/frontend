@@ -15,10 +15,10 @@
  *    칩**입니다 — 누르면 그때 아래 입력창이 올라오고 키보드가 함께 뜹니다
  *    (2026-08-26 사장님 지시).
  *
- *    ⚠️ 시안 6차 원문은 `const composerOpen = true` 로 입력창을 항상 열어 둡니다.
- *       실기기에서 써 보니 "빈 칸이 늘 떠 있으면 뭘 적으라는 건지 모르겠다" 는
- *       판단이 나와 **시안과 다르게** 닫아 두기로 했습니다. 되돌리려면
- *       `showInput` 을 `!!sessionId` 로 되돌리면 됩니다.
+ *    ⚠️ **입력창은 늘 열어 둡니다** (2026-08-30 지시 ③④). 한동안 "직접 입력" 을
+ *       눌러야만 열리게 두었는데(2026-08-26 판단), 실기기에서 두 가지가 걸렸습니다 —
+ *       창이 아예 안 뜨는 것으로 보이고, 눌러서 열면 그 자리에 **빈 여백**이 남았습니다.
+ *       시안 6차 원문(`composerOpen = true`)으로 되돌립니다.
  *
  * ③ 기다리는 동안은 화면 바깥 스피너가 아니라 **말풍선 안에서** 점이 움직입니다.
  *
@@ -374,9 +374,32 @@ export default function AiChatScreen() {
     submitTurn.mutate(inputValue, { onSuccess: applyResponse });
   };
 
+  /**
+   * 선택지를 눌렀을 때 **무엇으로 보낼지** 정합니다.
+   *
+   * 🔴 **확인 단계는 `OPTION` 이 아니라 `CONFIRM` 으로 보내야 합니다**
+   *    (2026-08-30 사장님 지적: "같은 대화가 반복된다").
+   *
+   *    "이대로 추천받기 / 수정하기" 가 나오는 차례에서 `OPTION` 으로 보내면 서버가
+   *    **같은 질문을 다시 합니다.** 실서버로 열 번을 이어 봤는데 끝없이 되풀이됐고,
+   *    같은 자리에서 `CONFIRM` 을 보내자 **곧바로 추천 3 개**가 왔습니다
+   *    (`action: RECOMMEND`). 프론트 문제였습니다.
+   *
+   *    원인은 **id 를 하나만 보고 있던 것**입니다. 예전에는 `CONFIRM_TRUE` 만
+   *    걸렀는데, 서버가 실제로 주는 id 는 **`confirm` · `edit`** 입니다. 그래서
+   *    그 가지에 한 번도 안 걸렸습니다.
+   *
+   *    ⚠️ 서버가 이름을 또 바꿀 수 있으니 **아는 이름을 모아** 두고 대소문자도
+   *       무시합니다. 모르는 이름이 오면 예전처럼 `OPTION` 으로 보냅니다 —
+   *       확인 단계가 아닌 선택지를 CONFIRM 으로 보내면 그게 더 큰 사고입니다.
+   */
+  const CONFIRM_YES = ['confirm', 'confirm_true', 'yes', 'true'];
+  const CONFIRM_NO = ['edit', 'confirm_false', 'no', 'false'];
+
   const pickOption = (option: ShortformOption) => {
-    if (option.id === 'CONFIRM_TRUE') send({ type: 'CONFIRM', value: true }, option.label);
-    else if (option.id === 'CONFIRM_FALSE') send({ type: 'CONFIRM', value: false }, option.label);
+    const id = option.id.trim().toLowerCase();
+    if (CONFIRM_YES.includes(id)) send({ type: 'CONFIRM', value: true }, option.label);
+    else if (CONFIRM_NO.includes(id)) send({ type: 'CONFIRM', value: false }, option.label);
     else send({ type: 'OPTION', optionId: option.id }, option.label);
   };
 
@@ -470,7 +493,8 @@ export default function AiChatScreen() {
   const choices = options.filter((o) => !isFreeInputOption(o));
 
   const openEnded = !!sessionId && !pending && options.length === 0 && !hasRecs;
-  const showInput = !!sessionId && (freeInput || hasRecs || openEnded || hasError);
+  /* 입력창은 대화가 열려 있으면 **늘** 보입니다 (머리말 ②의 ⚠️). */
+  const showInput = !!sessionId;
 
   return (
     <Screen padded={false} scroll={false} edges={['top']} background={color.surface}>
@@ -524,15 +548,18 @@ export default function AiChatScreen() {
 
           {pending && <Thinking />}
 
-          {hasError && (
-            <Banner
-              tone="warn"
-              title="AI 추천을 이어가지 못했습니다"
-              description="잠시 후 다시 시도하거나 오른쪽 위에서 새 대화를 시작해 주세요."
-            />
-          )}
+          {/*
+            선택지와 "직접 입력" 을 **한 줄 묶음**에 넣습니다 (2026-08-30 지시 ⑫:
+            "윗줄에 충분한 여백이 있으면 굳이 아랫줄 말고 윗줄에 나란히").
 
-          {!pending && choices.length > 0 && (
+            예전에는 둘을 다른 상자에 담아 "직접 입력" 이 **언제나 새 줄**로 내려갔습니다.
+            한 상자에 담으면 자리가 남을 때 옆에 붙고, 모자랄 때만 다음 줄로 갑니다.
+
+            ⚠️ 조건이 `choices` 가 아니라 **`options`** 인 것은 일부러입니다. 서버가
+               `FREE_INPUT` **하나만** 보내는 차례에는 걸러낸 목록이 비는데, 그때
+               `choices` 로 재면 "직접 입력" 까지 같이 사라져 길이 막힙니다.
+          */}
+          {!pending && options.length > 0 && (
             <View style={styles.options}>
               {choices.map((option) => (
                 <Pressable
@@ -545,28 +572,16 @@ export default function AiChatScreen() {
                   <Text style={styles.optionText}>{option.label}</Text>
                 </Pressable>
               ))}
-            </View>
-          )}
 
-          {/*
-            "직접 입력" 도 **선택지와 같은 칩**입니다 (사장님 지시).
-            누르면 아래 입력창이 올라오고 커서가 들어가 키보드까지 같이 뜹니다.
-            선택지 줄 안에 들어가야 같은 높이로 나란히 서므로 위 블록과 한 몸입니다.
-
-            ⚠️ 조건이 `choices` 가 아니라 **`options`** 인 것은 일부러입니다. 서버가
-               `FREE_INPUT` **하나만** 보내는 차례에는 걸러낸 목록이 비는데, 그때
-               `choices` 로 재면 이 칩까지 같이 사라져 길이 막힙니다.
-          */}
-          {!pending && options.length > 0 && !freeInput && (
-            <View style={styles.options}>
+              {/* 같은 칩이되 색만 물러납니다 — 객관식이 먼저 눈에 들어와야 합니다. */}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="보기에 없는 답을 직접 입력"
                 hitSlop={6}
                 onPress={() => {
                   setFreeInput(true);
-                  // 칸이 그려진 다음에 커서를 넣어야 키보드가 뜹니다.
-                  setTimeout(() => inputRef.current?.focus(), 80);
+                  // 입력창은 늘 떠 있으므로 커서만 넣어 키보드를 올립니다.
+                  inputRef.current?.focus();
                 }}
                 style={({ pressed }) => [styles.option, styles.optionGhost, pressed && { opacity: 0.7 }]}
               >
@@ -603,20 +618,51 @@ export default function AiChatScreen() {
                   accessibilityRole="button"
                   onPress={tryNext}
                   hitSlop={6}
-                  style={({ pressed }) => [styles.freeLink, pressed && { opacity: 0.6 }]}
+                  style={({ pressed }) => [styles.moreBtn, pressed && { opacity: 0.6 }]}
                 >
-                  <Text style={styles.freeLinkText}>다른 추천 보기</Text>
+                  <Text style={styles.moreBtnText}>다른 추천 보기</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.freeLinkText}>현재 조건의 추천을 모두 확인했어요</Text>
+                <Text style={styles.moreDone}>현재 조건의 추천을 모두 확인했어요</Text>
               )}
             </>
           )}
         </ScrollView>
 
+        {hasError && (
+          /*
+            🔴 **오류 알림은 대화 **아래**에 답니다** (2026-08-31 지시: "하단으로 내려").
+
+            예전에는 스크롤 안, 말풍선 뒤에 뒀습니다. 그런데 `begin()` 이 새 대화를
+            시작하며 **말풍선을 먼저 비우기** 때문에, 세션 만들기가 실패하면 빈 목록의
+            맨 위 — 곧 **화면 상단** — 에 떴습니다. 그게 지적하신 자리입니다.
+
+            스크롤 **밖**, 입력줄 바로 위에 두면 말풍선이 몇 개든 언제나 아래에 있고
+            내용에 밀려 올라가지도 않습니다. 문구·색·아이콘은 그대로입니다
+            (2026-08-30 지시 ⑬ — 아이콘 없이 "중단되었습니다").
+          */
+          <View style={styles.errorDock}>
+            <Banner
+              tone="warn"
+              showIcon={false}
+              title="AI 숏폼 추천 대화가 중단되었습니다"
+              description="잠시 후 다시 시도하거나 오른쪽 위에서 새 대화를 시작해 주세요."
+            />
+          </View>
+        )}
+
         {/* 입력줄이 시스템 바에 덮이지 않게 안전영역만큼 더 띄웁니다 */}
         {showInput && (
-          <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
+          /*
+            🔴 **하단 안전영역을 여기서 또 주면 안 됩니다** (2026-08-30 지적: "하단 바랑
+               안 붙고 그 위에 하얀 선마냥 여백이 있다").
+
+            이 화면은 **탭 안**에 있습니다. 홈 인디케이터 자리는 아래 탭바가 이미
+            먹고 있는데, 여기서 `insets.bottom`(34) 을 한 번 더 주고 있었습니다.
+            그만큼이 입력창과 탭바 사이에 흰 띠로 남았습니다. 탭 밖 화면이라면
+            필요하지만 여기서는 아닙니다.
+          */
+          <View style={[styles.inputRow, { paddingBottom: space[3] }]}>
             <TextInput
               ref={inputRef}
               value={input}
@@ -651,6 +697,8 @@ export default function AiChatScreen() {
 
 const styles = StyleSheet.create({
   chat: { paddingHorizontal: space[5], paddingTop: space[3], gap: space[3], paddingBottom: space[6] },
+  /* 대화 아래, 입력줄 위. 좌우 여백은 말풍선과 같은 줄에 맞춥니다. */
+  errorDock: { paddingHorizontal: space[5], paddingBottom: space[3] },
   bubbleRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-start' },
   meRow: { justifyContent: 'flex-end' },
   avatar: {
@@ -698,8 +746,29 @@ const styles = StyleSheet.create({
   optionGhost: { borderColor: color.ink[200], backgroundColor: color.surface },
 
   // 객관식보다 약하게 보여야 하는 보조 동선(직접 입력 · 다른 추천)
-  freeLink: { alignSelf: 'flex-start', marginLeft: 40, paddingVertical: space[2] },
-  freeLinkText: { ...theme.text.caption, color: color.ink[500], textDecorationLine: 'underline' },
+  /*
+    "다른 추천 보기" — **밑줄 글자에서 테두리 칩으로** (2026-08-30 지시 ⑤).
+    밑줄만 있으면 눌러도 되는 자리인지 안 보였습니다. 카드 아래 가운데에 둡니다.
+  */
+  moreBtn: {
+    alignSelf: 'center',
+    marginTop: space[3],
+    height: 38,
+    paddingHorizontal: space[5],
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color.ink[200],
+    backgroundColor: color.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreBtnText: {
+    ...theme.text.bodySmall,
+    fontFamily: theme.text.bodyStrong.fontFamily,
+    fontWeight: theme.text.bodyStrong.fontWeight,
+    color: color.ink[700],
+  },
+  moreDone: { ...theme.text.caption, alignSelf: 'center', marginTop: space[3], color: color.ink[500] },
 
   // ── 추천 카드 (시안 image (1).png) ──────────────────
   cardStrip: { marginHorizontal: -space[5] },

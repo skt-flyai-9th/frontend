@@ -42,7 +42,21 @@ const DURATION = 1000;
 const easeInOutCubic = (x: number) =>
   x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 
-export function Donut({ segs, size = 80 }: { segs: DonutSeg[]; size?: number }) {
+export function Donut({
+  segs,
+  size = 80,
+  center,
+}: {
+  segs: DonutSeg[];
+  size?: number;
+  /**
+   * 가운데 글자. 안 주면 가장 큰 칸의 이름을 씁니다.
+   *
+   * 시안 최최종은 성별 도넛에 **비율**(`56%`)을 넣고 브랜드색으로 씁니다 —
+   * 이름은 옆 범례에 이미 있어서, 가운데는 숫자가 더 쓸모 있습니다.
+   */
+  center?: string;
+}) {
   const [t, setT] = useState(0);
   /** 프레임 루프를 멈출 때 쓰는 손잡이. 화면을 떠나면 바로 끊습니다. */
   const raf = useRef<number | null>(null);
@@ -115,10 +129,10 @@ export function Donut({ segs, size = 80 }: { segs: DonutSeg[]; size?: number }) 
           {arcs}
         </G>
       </Svg>
-      {top ? (
+      {center || top ? (
         <View style={styles.center} pointerEvents="none">
-          <Text style={styles.centerText} numberOfLines={1}>
-            {top.label}
+          <Text style={[styles.centerText, !!center && styles.centerStrong]} numberOfLines={1}>
+            {center ?? top!.label}
           </Text>
         </View>
       ) : null}
@@ -133,7 +147,7 @@ export function DonutLegend({ segs }: { segs: DonutSeg[] }) {
       {segs.map((s) => (
         <View key={s.label} style={styles.legendRow}>
           <View style={[styles.dot, { backgroundColor: s.color }]} />
-          <Text style={styles.legendText} numberOfLines={1}>
+          <Text style={styles.legendText} numberOfLines={2}>
             {s.label}
           </Text>
         </View>
@@ -144,6 +158,7 @@ export function DonutLegend({ segs }: { segs: DonutSeg[] }) {
 
 const styles = StyleSheet.create({
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  centerStrong: { ...theme.text.bodySmall, color: color.brand[600] },
   centerText: {
     ...theme.text.micro,
     fontFamily: theme.text.bodyStrong.fontFamily,
@@ -151,7 +166,16 @@ const styles = StyleSheet.create({
     color: color.ink[900],
   },
   legend: { flex: 1, minWidth: 0, gap: 4 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  legendText: { ...theme.text.label, flex: 1, minWidth: 0, color: color.ink[700] },
+  /*
+    범례 한 줄. 점을 **위쪽에 맞춥니다** — 글자가 두 줄로 감길 때 점이 가운데로
+    내려가면 어느 줄에 붙은 건지 헷갈립니다.
+  */
+  legendRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
+  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0, marginTop: 4 },
+  /*
+    ⚠️ 한 줄로 자르지 않습니다. 소비층 카드는 두 칸으로 나뉘어 좁아서
+    "50대 이상" 이 `50…` 으로 잘렸습니다(2026-08-30 실측). 글자를 줄이는 대신
+    **감기게** 둡니다 — 40~60대 사장님께는 `50대+` 보다 온전한 말이 낫습니다.
+  */
+  legendText: { ...theme.text.micro, lineHeight: 16, flex: 1, minWidth: 0, color: color.ink[700] },
 });

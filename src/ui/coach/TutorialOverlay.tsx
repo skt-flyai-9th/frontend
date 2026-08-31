@@ -26,11 +26,20 @@
  *   · 위·아래·왼·오른 네 장  → 네모난 구멍
  *   · 모서리 네 조각        → 둥근 구멍
  *
- * 모서리 조각은 네모난 귀퉁이와 둥근 호 사이의 **오목한 초승달**입니다. borderRadius
- * 는 귀퉁이를 깎아내는 것이라 볼록한 모양만 남아서, 그걸로 만들면 정확히 반대가
- * 칠해집니다(2026-08-29 "안쪽으로 파먹은 모양"). 대신 **두꺼운 테두리**로 만듭니다 —
- * 4R×4R 에 모서리 2R·두께 R 을 주면 안쪽 반지름 R, 바깥 반지름 2R 짜리 고리가 되고,
- * 안쪽 구멍을 구멍의 모서리 호에 겹쳐 R×R 상자로 잘라내면 초승달만 남습니다.
+ * 모서리 조각은 네모난 귀퉁이와 둥근 호 사이의 **오목한 초승달**입니다.
+ *
+ * ⚠️ **테두리로 만들지 마세요** (2026-08-30 지적: "대각선으로 X자 모양으로 선이 생겼다").
+ *    한동안 4R×4R 에 모서리 2R·두께 R 을 준 **고리**를 잘라 썼습니다. RN 은 테두리를
+ *    네 변으로 나눠 그리고 **변이 만나는 45° 자리에 이음매**가 남습니다. 그 이음매가
+ *    네 모서리에서 하나씩 보여 구멍 둘레에 X 자로 나타났습니다.
+ *
+ *    지금은 **도형 하나(SVG path)** 로 그립니다 — 테두리가 없으니 이음매도 없습니다.
+ *    100×100 좌표계에 그려 두고 상자 크기에 맞춰 늘립니다(`preserveAspectRatio="none"`).
+ *    상자가 정사각형이라 호는 원형 그대로입니다. 네 모서리는 같은 그림을 90° 씩
+ *    돌려 씁니다.
+ *
+ * borderRadius 로는 만들 수 없습니다 — 귀퉁이를 깎아내는 것이라 **볼록한** 모양만
+ * 남고, 우리가 칠해야 할 건 그 반대인 오목한 쪽입니다(2026-08-29 "파먹은 모양").
  *
  * ⚠️ 조각끼리 **겹치면 안 됩니다.** 반투명이라 겹친 곳만 두 배로 진해집니다.
  *
@@ -60,10 +69,11 @@ import {
   View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import Svg, { G, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCoach, type CoachName } from './CoachContext';
-import { ANDROID_BLUR_METHOD, BLUR_WHILE_MOVING, TUTORIAL } from './tutorialTheme';
+import { ANDROID_BLUR_METHOD, BLUR_WHILE_MOVING, SCRIM_BLUR, TUTORIAL } from './tutorialTheme';
 import { blurTargetRef } from './blurTarget';
 import { pressTap } from '../press';
 import theme, { color } from '../../design/theme';
@@ -88,6 +98,15 @@ export interface TutorialStep {
   pointerPosition?: PointerPosition;
   /** 짚을 곳 둘레 여백. 화면 밖으로 나가면 양쪽에서 같이 줄입니다. */
   pad?: number;
+  /**
+   * 잰 자리를 **안쪽으로 좁힙니다.** 여백(`pad`)의 반대입니다.
+   *
+   * 탭 버튼이 그렇습니다 — 이름표는 칸 전체(98)에 붙어 있는데, 정작 짚고 싶은 건
+   * 가운데 아이콘입니다. 칸째로 뚫으면 넓고 납작해서 **모서리가 각져 보입니다**
+   * (2026-08-30 지시 ⑧: "포커싱되는 부분 경계 미세한 수정 필수. 둥글게!").
+   * 좁혀서 뚫으면 같은 반지름이라도 훨씬 둥글게 읽힙니다.
+   */
+  inset?: { x?: number; y?: number };
   /** 구멍 모서리. `999` 면 완전한 원입니다. */
   radius?: number;
   /** 이 단계로 넘어갈 때 호스트에게 알릴 값 — 탭 이동 등에 씁니다. */
@@ -98,6 +117,14 @@ export interface TutorialStep {
 }
 
 const AnimatedBlur = Animated.createAnimatedComponent(BlurView);
+
+/**
+ * 모서리 초승달 — 정사각형에서 **안쪽 귀퉁이 쪽 사분원을 뺀** 모양.
+ *
+ * 100×100 기준입니다. 왼쪽 위 모서리용으로 그려 두고, 나머지 셋은 90° 씩 돌립니다.
+ * 원의 중심은 상자의 **오른쪽 아래**(100,100), 반지름 100 — 구멍의 모서리 호와 같습니다.
+ */
+const CRESCENT = 'M0,0 L100,0 A100,100 0 0 0 0,100 Z';
 
 /** 45° 돌린 정사각형의 중심에서 꼭짓점까지 */
 const HALF_DIAGONAL = TUTORIAL.pointer.size * Math.SQRT1_2;
@@ -141,16 +168,12 @@ const Scrim = React.memo(function Scrim({
   const bottom = Animated.add(ay, ah);
   const cornerX = Animated.subtract(right, ar);
   const cornerY = Animated.subtract(bottom, ar);
-  /* 고리 — 바깥 4R, 모서리 2R, 두께 R. 안쪽 구멍이 반지름 R 이 됩니다(머리말). */
-  const ringSize = Animated.multiply(ar, 4);
-  const ringRadius = Animated.multiply(ar, 2);
-  const negR = Animated.multiply(ar, -1);
-  const neg2R = Animated.multiply(ar, -2);
 
   /** 딤 + (멈춰 있으면) 블러. 네 장이 같은 몸을 씁니다. */
   const bar = (key: string, style: Animated.WithAnimatedObject<object>) => (
     <Animated.View key={key} style={[styles.piece, style]}>
-      {blurOn ? (
+      {/* 막은 한 겹(딤)입니다 — 모서리 조각과 재질이 갈리면 사각형이 보입니다(theme 머리말). */}
+      {SCRIM_BLUR && blurOn ? (
         <AnimatedBlur
           intensity={TUTORIAL.backdrop.blurIntensity}
           tint={TUTORIAL.backdrop.tint}
@@ -176,42 +199,24 @@ const Scrim = React.memo(function Scrim({
       {bar('right', { left: right, right: 0, top: ay, height: ah })}
 
       {/*
-        모서리 네 곳. R×R 로 잘라낸 상자 안에 고리를 하나씩 넣고, 고리의 **안쪽 구멍**을
-        구멍의 모서리 호에 겹쳐 둡니다 — 남는 초승달만 칠해집니다. 고리 자리는 안쪽
-        구멍의 중심이 상자의 **구멍 쪽 귀퉁이**에 오도록 밀어 넣은 값입니다.
+        모서리 네 곳. R×R 짜리 상자에 초승달을 하나씩 그립니다(`CRESCENT`).
+        같은 그림을 90° 씩 돌려 네 귀퉁이에 맞춥니다 — 왼위 0° · 오른위 90° ·
+        오른아래 180° · 왼아래 270°.
       */}
-      <Animated.View style={[styles.clip, { left: ax, top: ay, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: negR, top: negR, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
-      <Animated.View style={[styles.clip, { left: cornerX, top: ay, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: neg2R, top: negR, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
-      <Animated.View style={[styles.clip, { left: ax, top: cornerY, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: negR, top: neg2R, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
-      <Animated.View style={[styles.clip, { left: cornerX, top: cornerY, width: ar, height: ar }]}>
-        <Animated.View
-          style={[
-            styles.ringPiece,
-            { left: neg2R, top: neg2R, width: ringSize, height: ringSize, borderRadius: ringRadius, borderWidth: ar },
-          ]}
-        />
-      </Animated.View>
+      {([
+        [ax, ay, 0],
+        [cornerX, ay, 90],
+        [cornerX, cornerY, 180],
+        [ax, cornerY, 270],
+      ] as const).map(([left, top, angle]) => (
+        <Animated.View key={angle} style={[styles.clip, { left, top, width: ar, height: ar }]}>
+          <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <G rotation={angle} origin="50, 50">
+              <Path d={CRESCENT} fill={TUTORIAL.backdrop.cornerFill} />
+            </G>
+          </Svg>
+        </Animated.View>
+      ))}
     </View>
   );
 });
@@ -321,16 +326,26 @@ export function TutorialOverlay({
   const hole = useMemo(() => {
     if (!cur) return null;
     if (!rect) return held.current;
+    /* 먼저 안쪽으로 좁히고(`inset`), 그 다음 바깥으로 여백을 줍니다(`pad`). */
+    const ix = Math.min(cur.inset?.x ?? 0, rect.w / 2 - 8);
+    const iy = Math.min(cur.inset?.y ?? 0, rect.h / 2 - 8);
+    const box = {
+      x: rect.x + Math.max(0, ix),
+      y: rect.y + Math.max(0, iy),
+      w: rect.w - Math.max(0, ix) * 2,
+      h: rect.h - Math.max(0, iy) * 2,
+    };
+
     const pad = cur.pad ?? 0;
-    const padX = Math.max(0, Math.min(pad, rect.x, winW - (rect.x + rect.w)));
-    const padY = Math.max(0, Math.min(pad, rect.y, winH - (rect.y + rect.h)));
-    const x = Math.max(0, rect.x - padX);
-    const y = Math.max(0, rect.y - padY);
+    const padX = Math.max(0, Math.min(pad, box.x, winW - (box.x + box.w)));
+    const padY = Math.max(0, Math.min(pad, box.y, winH - (box.y + box.h)));
+    const x = Math.max(0, box.x - padX);
+    const y = Math.max(0, box.y - padY);
     return {
       x,
       y,
-      w: Math.max(0, Math.min(winW - x, rect.w + padX * 2)),
-      h: Math.max(0, Math.min(winH - y, rect.h + padY * 2)),
+      w: Math.max(0, Math.min(winW - x, box.w + padX * 2)),
+      h: Math.max(0, Math.min(winH - y, box.h + padY * 2)),
     };
   }, [cur, rect, winW, winH]);
 
@@ -496,16 +511,11 @@ export function TutorialOverlay({
             setTipH((v) => (Math.abs(v - h) > 1 ? h : v));
           }}
         >
-          {/* 유리 — 블러 위에 반투명 색을 덮습니다 */}
-          <BlurView
-            intensity={TUTORIAL.card.blurIntensity}
-            tint={TUTORIAL.card.tint}
-            blurMethod={ANDROID_BLUR_METHOD}
-            blurTarget={blurTargetRef}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={[StyleSheet.absoluteFill, styles.tipTint]} />
-
+          {/*
+            카드는 **불투명 흰색**입니다 (2026-08-30 지시 ⑧). 어두운 유리였을 때는
+            블러를 깔았는데, 흰 판에는 뒤가 비칠 일이 없어 뺐습니다 — 블러 한 겹이
+            통째로 사라지니 그만큼 가볍기도 합니다.
+          */}
           <View style={styles.tipHead}>
             <Text style={styles.count}>
               {shown}/{total}
@@ -588,12 +598,6 @@ const styles = StyleSheet.create({
   dim: { backgroundColor: TUTORIAL.backdrop.dim },
   /* 모서리 조각을 R×R 로 잘라내는 상자. 안 자르면 고리가 구멍 안으로 삐져나옵니다. */
   clip: { position: 'absolute', overflow: 'hidden' },
-  /* 안쪽이 뚫린 고리. 색은 테두리에만 있습니다 — 가운데가 비어야 구멍이 뚫립니다. */
-  ringPiece: {
-    position: 'absolute',
-    borderColor: TUTORIAL.backdrop.cornerFill,
-    backgroundColor: 'transparent',
-  },
 
   ring: {
     position: 'absolute',
@@ -611,10 +615,10 @@ const styles = StyleSheet.create({
     borderRadius: TUTORIAL.card.radius,
     borderWidth: TUTORIAL.card.borderWidth,
     borderColor: TUTORIAL.card.borderColor,
+    backgroundColor: TUTORIAL.card.bg,
     padding: TUTORIAL.card.padding,
-    overflow: 'hidden',
+    ...TUTORIAL.cardShadow,
   },
-  tipTint: { backgroundColor: TUTORIAL.card.bg },
 
   pointerClip: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   pointerBody: {
@@ -622,6 +626,7 @@ const styles = StyleSheet.create({
     backgroundColor: TUTORIAL.card.bg,
     transform: [{ rotate: '45deg' }],
   },
+  /* 흰 카드에는 테두리 선이 거의 안 보여, 다이아몬드는 면만 씁니다(시안 최최종). */
   /* 돌린 뒤 바깥을 향하는 두 변에만 테두리를 둡니다 */
   pointerBorderUp: {
     borderTopWidth: TUTORIAL.card.borderWidth,
@@ -639,7 +644,7 @@ const styles = StyleSheet.create({
     ...theme.text.label,
     fontFamily: theme.text.heading.fontFamily,
     fontWeight: theme.text.heading.fontWeight,
-    color: TUTORIAL.text.sub,
+    color: TUTORIAL.text.count,
   },
   skip: {
     ...theme.text.label,
@@ -692,6 +697,6 @@ const styles = StyleSheet.create({
     ...theme.text.bodySmall,
     fontFamily: theme.text.bodyStrong.fontFamily,
     fontWeight: theme.text.bodyStrong.fontWeight,
-    color: color.ink[900],
+    color: TUTORIAL.button.primaryText,
   },
 });

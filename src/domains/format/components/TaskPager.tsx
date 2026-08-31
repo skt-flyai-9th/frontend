@@ -30,7 +30,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import { RotateCw, Sparkles } from 'lucide-react-native';
+
 
 import { GuidePlayer } from '../../../ui/GuidePlayer';
 import { Loading } from '../../../ui/Feedback';
@@ -101,12 +101,8 @@ function Card({
           {title || `컷 ${index + 1}`}
         </Text>
       </View>
-      {desc ? (
-        <View style={styles.descRow}>
-          <Sparkles size={13} strokeWidth={2} color={color.brand[600]} />
-          <Text style={styles.desc}>{desc}</Text>
-        </View>
-      ) : null}
+      {/* 아이콘 없이 글자만 (2026-08-30 지시 ⑩: "AI 한줄 소개 앞에 이모티콘 삭제"). */}
+      {desc ? <Text style={styles.desc}>{desc}</Text> : null}
     </View>
   );
 }
@@ -210,22 +206,17 @@ export function TaskPager({
           </View>
         )}
 
-        {/* 시안: 좌상단 `TASK 1 / 4` */}
-        <View style={[styles.badge, styles.badgeLeft]} pointerEvents="none">
-          <Text style={styles.badgeText}>
-            TASK {page + 1} / {tasks.length}
-          </Text>
-        </View>
+        {/*
+          🔴 **영상 위에 얹던 배지 두 개를 뺐습니다** (2026-08-30 지시 ⑩:
+             "임베딩 영상 상단에 Task, 구간반복 이 부분 삭제").
 
-        {/* 시안: 우상단 `↻ 0:00 – 0:04 구간 반복`. 구간이 없으면 띄우지 않습니다. */}
-        {from && to ? (
-          <View style={[styles.badge, styles.badgeRight]} pointerEvents="none">
-            <RotateCw size={12} strokeWidth={2.2} color={color.paper} />
-            <Text style={styles.badgeText}>
-              {from} – {to} 구간 반복
-            </Text>
-          </View>
-        ) : null}
+          좌상단 `TASK 1 / 4` 와 우상단 `↻ 0:00–0:04 구간 반복` 이었습니다.
+          지시이기도 하지만 **약관상으로도 지워야 하는 것**이었습니다 — 유튜브
+          임베드 위에는 아무것도 얹을 수 없습니다(CLAUDE.md §8-1).
+
+          몇 번째 컷인지는 아래 카드에 이미 번호가 있고, 구간 반복은 눈으로 보면
+          알 수 있습니다.
+        */}
       </View>
 
       {/* 카드만 옆으로 넘어갑니다. 영상은 위에 그대로 있습니다. */}

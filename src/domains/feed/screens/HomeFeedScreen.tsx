@@ -28,7 +28,7 @@
  *   구분    카드 사이는 여백이 아니라 surface 색 8px 띠입니다.
  *   당겨서 새로고침 · 로딩은 스피너가 아니라 스켈레톤
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,7 @@ import {
   type ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
@@ -47,6 +47,15 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
+import {
+  barSlack,
+  bottomInsetFor,
+  showsAppBar,
+  showsShelf,
+  showsTabs,
+  useChrome,
+} from '../../../ui/ChromeContext';
+import { useCoach } from '../../../ui/coach/CoachContext';
 import { useVideoFormats, useToggleFavorite } from '../../../api/queries/project';
 import { color, radius, sizing, space, text } from '../../../design/theme';
 import type { RootStackParamList } from '../../../navigation/types';
@@ -97,6 +106,91 @@ export default function HomeFeedScreen() {
   const [index, setIndex] = useState(0);
 
   /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **바는 한 번에 하나만** (2026-08-31, 사장님 안)
+    ─────────────────────────────────────────────────────────────
+    영상이 폭을 꽉 채우면서 안 잘리려면 무대가 699 여야 하는데, 바에 줄 수 있는
+    예산은 65 뿐입니다. 앱바 44 · 선반 56 · 탭바 49 는 **하나씩이면** 다 들어가고
+    둘만 겹쳐도 넘칩니다. 산수는 `ui/ChromeContext.tsx` 머리말.
+
+    어느 모드에서든 영상은 **393×699 · 잘림 0 · 옆 여백 0** 입니다.
+
+    무엇으로 바꾸나 — **새 손짓을 만들지 않았습니다.** 이미 있는 손짓에 얹습니다.
+    영상 위에는 터치 판을 못 놓기 때문입니다(약관: 쇼츠 자체 조작을 막게 됩니다).
+
+    규칙은 한 줄입니다 — **손짓 방향 = 바가 있는 쪽.**
+
+      멈춰서 보고 있으면          선반    촬영 버튼이 늘 손에 있습니다
+      위로 밀면 (다음 영상)       앱바    앱바는 **위**에 있습니다
+      아래로 당기면 (이전 영상)   탭바    탭바는 **아래**에 있습니다
+      다른 탭에서 홈으로 오면     탭바    방금 탭을 쓰던 참이니까요 (사장님 지시)
+
+    🔴 **방향은 스크롤 변화량이 아니라 "몇 번째 영상인가" 로 봅니다** (2026-08-31).
+
+       처음에는 마지막 스크롤의 부호(`dy > 0`)로 판정했는데 **실제 폰에서 위아래가
+       정확히 반대로 돌았습니다.** 페이징은 손을 뗀 뒤 스냅 지점으로 되돌아가며
+       멈추는데, 그 **마지막 되돌아오는 움직임의 부호가 손짓과 반대**입니다.
+       위로 밀어 다음 장으로 갔는데 마지막 몇 프레임이 아래로 움직여 탭바가 떴습니다.
+
+       영상 번호는 그런 흔들림이 없습니다. 번호가 오르면 다음 장(위로 민 것),
+       내리면 이전 장(아래로 당긴 것)입니다. 뒤집힐 여지가 없습니다.
+
+    ⚠️ **모드는 번호가 확정된 뒤에만 바뀝니다.** 끄는 도중에 바꾸면 한 장의 높이가
+       손가락 밑에서 변해 페이징이 어긋납니다. `onViewableItemsChanged` 는 60% 이상
+       보일 때 한 번만 울리므로 그 조건을 자연히 만족합니다.
+  */
+  const chrome = useChrome();
+  const focused = useIsFocused();
+  const coachRunning = useCoach()?.activeName != null;
+  const back = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 직전에 보고 있던 장. 번호가 오르면 다음 장(위로 밈), 내리면 이전 장(아래로 당김). */
+  const prevIndex = useRef(0);
+
+  /**
+   * 잠깐 다른 바를 보여 줬다가 선반으로 돌아옵니다.
+   * 1.6초로 뒀다가 **3초로 늘렸습니다** (2026-08-31 지적: "좀 짧은 것 같다").
+   */
+  const BACK_TO_SHELF_MS = 3000;
+  const flash = (m: 'tabs' | 'appbar') => {
+    if (back.current) clearTimeout(back.current);
+    chrome.setMode(m);
+    back.current = setTimeout(() => chrome.setMode('shelf'), BACK_TO_SHELF_MS);
+  };
+
+  /*
+    🔴 **홈을 벗어나면 `tabs` 로 둡니다 — `all` 이 아니라** (2026-08-31 지적:
+       "위 아래가 중복돼서 보일 때가 있다").
+
+       탭은 가로 트랙이라 옆 탭으로 미는 **동안 홈이 아직 화면에 남아 있습니다.**
+       그때 `all` 로 바꾸면 홈에 앱바와 탭바가 **같이** 그려져 위아래가 겹쳐 보입니다.
+       다른 탭 화면들은 자기 헤더를 따로 그리므로 홈의 앱바는 필요 없고, 탭바만
+       있으면 됩니다.
+
+    🔴 **다른 탭에서 홈으로 오면 탭바를 먼저 띄웁니다** (사장님 지시).
+       방금 탭을 쓰던 참이라 탭바가 그대로 이어지는 게 자연스럽습니다.
+       3초 뒤 선반으로 돌아옵니다.
+  */
+  useEffect(() => {
+    if (!focused) {
+      if (back.current) clearTimeout(back.current);
+      chrome.setMode('tabs');
+      return;
+    }
+    flash('tabs');
+    return () => {
+      if (back.current) clearTimeout(back.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused]);
+
+  // 튜토리얼이 도는 동안은 셋 다 보입니다 — 코치마크가 탭바와 선반을 같이 짚습니다.
+  useEffect(() => {
+    chrome.setLocked(coachRunning);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachRunning]);
+
+  /*
    * ⚠️ 이 둘은 **ref 로 고정해야 합니다.** FlatList 는 `viewabilityConfig` 와
    *    `onViewableItemsChanged` 가 렌더마다 새 객체로 바뀌면 예외를 냅니다
    *    ("Changing onViewableItemsChanged on the fly is not supported").
@@ -113,7 +207,21 @@ export default function HomeFeedScreen() {
   const onCreate = (f: VideoFormat) =>
     nav.navigate('Create', { screen: 'PurposeSelect', params: { formatId: f.id } });
 
-  const header = (
+  /*
+    🔴 **접을 때 자리까지 비웁니다.** `height: 0` 이라 아래가 그만큼 올라옵니다.
+       `position: absolute` 로 영상 **위에 띄우면 약관 위반**입니다 —
+       근거는 `ui/ChromeContext.tsx` 머리말과 CLAUDE.md §8-1.
+  */
+  /* 혼자 있는 바가 남는 세로를 먹습니다 — 근거는 ChromeContext 의 `barSlack` 주석 */
+  const appSlack = barSlack(chrome.mode, 'appbar', width, height, insets.top, insets.bottom);
+  const tabSlack = barSlack(chrome.mode, 'tabs', width, height, insets.top, insets.bottom);
+
+  const header = !showsAppBar(chrome.mode) ? (
+    <View style={{ height: 0, overflow: 'hidden' }} />
+  ) : (
+    /* 남는 21pt 를 앱바 **위쪽**(상태바 쪽)에 둡니다. 둘 다 흰색이라 티가 안 나고,
+       앱바 아랫면이 영상에 딱 닿아 흰 틈이 안 생깁니다. */
+    <View style={{ paddingTop: appSlack, backgroundColor: color.paper }}>
     <AppBar
       home={{
         /*
@@ -126,6 +234,7 @@ export default function HomeFeedScreen() {
         onMenu: () => nav.navigate('Settings'),
       }}
     />
+    </View>
   );
 
   /*
@@ -133,10 +242,87 @@ export default function HomeFeedScreen() {
    * 이 값이 정확해야 `pagingEnabled` 가 딱 한 장씩 멈춥니다 — 어긋나면 두 장이
    * 걸친 상태로 서고, 그러면 자동재생 플레이어가 화면에 둘 보이게 됩니다.
    */
+  /*
+    치워진 바는 빼지 않습니다 — 그만큼 한 장이 커집니다.
+      바 있음 852 − 54 − 44 − 49 − 34 = 671
+      바 없음 852 − 54 −  0 −  0 − 34 = 764   ← 영상 699 + 띠 65
+  */
   const pageHeight = Math.max(
     320,
-    height - insets.top - sizing.appBarHeight - sizing.tabRowHeight - insets.bottom
+    height -
+      insets.top -
+      (showsAppBar(chrome.mode) ? sizing.appBarHeight + appSlack : 0) -
+      (showsTabs(chrome.mode) ? sizing.tabRowHeight + tabSlack : 0) -
+      /*
+        🔴 **탭바가 쓰는 값과 같아야 합니다.** 탭바는 접혀 있어도 아래 안전영역만큼은
+           자리를 차지합니다(`bottomInsetFor`). 여기서 `insets.bottom` 을 그대로 빼면
+           그 차이만큼 한 장이 화면보다 커져 **아래에 다음 영상이 삐져나옵니다.**
+      */
+      bottomInsetFor(insets.bottom)
   );
+
+  /*
+    🔴 **한 장의 높이가 바뀌면 스크롤 위치를 같이 옮겨야 합니다.**
+
+    `snapToInterval` 과 `getItemLayout` 이 이 값을 씁니다. 바뀐 값으로 다시
+    계산되는데 스크롤 오프셋은 옛 값(index × 671)에 머물러 있으면, 목록이
+    **두 장에 걸친 채로** 섭니다. 같은 장이 계속 맨 위에 오도록 밀어 줍니다.
+
+    ✅ 걸쳐 있어도 자동재생 플레이어는 여전히 하나입니다 — 보고 있는 장만
+       `active` 라 나머지는 썸네일입니다(FeedPage 머리말 ①). 약관은 안전합니다.
+  */
+  const listRef = useRef<FlatList<VideoFormat>>(null);
+  /** 보정하는 동안은 방향 판정을 쉽니다 (보정도 장 번호를 흔들 수 있습니다). */
+  const correcting = useRef(false);
+
+  useEffect(() => {
+    /*
+      🔴 **맨 아래에서만 깨지던 것** (2026-08-31 지적: "제일 하단이야, 중간은 괜찮아").
+
+      모드가 바뀌면 한 장의 높이가 달라져 목록 전체 길이도 달라집니다. 그런데
+      `scrollToOffset` 은 **그 순간의 길이** 기준으로 잘립니다(clamp). 목록 중간에서는
+      아래로 남은 여유가 많아 티가 안 나는데, **맨 끝 장에는 여유가 0** 이라
+      옮기려던 자리에 못 가고 잘린 채로 섭니다. 그래서 화면에 바로 위 영상의
+      꼬리와 지금 장의 머리가 같이 보여 "깨진 영상" 이 됩니다.
+
+      고침 둘.
+        ① `scrollToOffset`(절대 좌표) 대신 **`scrollToIndex`**(몇 번째 장) 를 씁니다.
+           목록이 자기 최신 길이로 자리를 다시 계산합니다.
+        ② 렌더가 끝난 **다음 프레임**에 부릅니다. 같은 프레임에 부르면 목록은 아직
+           옛 길이를 들고 있어 또 잘립니다. 두 프레임에 걸쳐 두 번 겁니다.
+    */
+    correcting.current = true;
+    let raf2 = 0;
+    const put = () => {
+      try {
+        listRef.current?.scrollToIndex({ index, animated: false });
+      } catch {
+        /* 아직 그려지지 않은 장이면 조용히 넘깁니다 — onScrollToIndexFailed 가 받습니다 */
+      }
+    };
+    const raf1 = requestAnimationFrame(() => {
+      put();
+      raf2 = requestAnimationFrame(() => {
+        put();
+        correcting.current = false;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      correcting.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageHeight]);
+
+  // 장이 바뀌면 그 방향에 있는 바를 잠깐 띄웁니다.
+  useEffect(() => {
+    const step = index - prevIndex.current;
+    prevIndex.current = index;
+    if (step === 0 || correcting.current) return;
+    flash(step > 0 ? 'appbar' : 'tabs');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
 
   // 첫 로딩은 스피너 대신 스켈레톤으로 — 무엇이 올지 미리 보입니다.
   if (formats.isLoading && !formats.data) {
@@ -173,9 +359,25 @@ export default function HomeFeedScreen() {
           />
         ) : (
           <FlatList
+            ref={listRef}
             data={formats.data ?? []}
             keyExtractor={(f) => String(f.id)}
             showsVerticalScrollIndicator={false}
+            /*
+              **손짓 방향 = 바가 있는 쪽** (위 주석).
+                위로 밀어 다음 영상   → 앱바(위)
+                아래로 당겨 이전 영상 → 탭바(아래)
+              방향은 **끌기 시작한 자리와 끝난 자리를 비교**해서 봅니다. 넘김이 끝난
+              뒤에만 바꾸므로 페이징이 어긋나지 않습니다.
+            */
+            /*
+              첫 영상에서 더 당기면 장 번호가 안 바뀌어 위 효과가 안 돕니다.
+              방향은 아래이니 탭바를 띄웁니다.
+            */
+            scrollEventThrottle={32}
+            onScroll={(e) => {
+              if (e.nativeEvent.contentOffset.y < -12) flash('tabs');
+            }}
             // 한 장씩 딱 멈춥니다 — 화면에 플레이어가 하나만 보이게 하는 핵심입니다.
             pagingEnabled
             snapToInterval={pageHeight}
@@ -187,6 +389,19 @@ export default function HomeFeedScreen() {
               offset: pageHeight * i,
               index: i,
             })}
+            /*
+              한 장의 높이가 막 바뀐 순간에는 목록이 아직 그 장을 안 그렸을 수 있습니다.
+              그때 조용히 다시 겁니다 — 안 그러면 맨 끝에서 어긋난 채로 섭니다.
+            */
+            onScrollToIndexFailed={({ index: i }) => {
+              requestAnimationFrame(() => {
+                try {
+                  listRef.current?.scrollToOffset({ offset: i * pageHeight, animated: false });
+                } catch {
+                  /* 여기서도 실패하면 다음 스크롤이 자연히 맞춰 줍니다 */
+                }
+              });
+            }}
             /*
              * 어느 장을 보고 있는지 판정. 60% 이상 보이면 그 장으로 봅니다 —
              * 손가락을 떼는 순간이 아니라 화면 점유로 재므로, 천천히 넘겨도 정확합니다.
@@ -204,6 +419,7 @@ export default function HomeFeedScreen() {
             renderItem={({ item, index: i }) => (
               <FeedPage
                 format={item}
+                showShelf={showsShelf(chrome.mode)}
                 height={pageHeight}
                 width={width}
                 active={i === index}

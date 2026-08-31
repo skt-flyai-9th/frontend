@@ -21,7 +21,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   CAMERA_IS_PLACEHOLDER,
   CameraPreview,
@@ -34,6 +33,7 @@ import { Button } from '../../../ui/Button';
 import { PipGuide } from '../../../ui/PipGuide';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
+import { TakePreview } from '../components/TakePreview';
 import { pressTap } from '../../../ui/press';
 import theme, { color, elevation, radius, sizing, space, text } from '../../../design/theme';
 import { JobProgress } from '../../../ui/Feedback';
@@ -172,24 +172,6 @@ function ClipCell({
  *    `textureView` 는 일반 뷰처럼 그려져 모서리와 잘림을 따릅니다.
  *    대신 조금 무거우므로 **이 한 장에만** 씁니다.
  */
-function TakePreview({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.muted = true;
-  });
-
-  return (
-    <View style={styles.preview}>
-      <VideoView
-        player={player}
-        style={styles.previewFill}
-        contentFit="cover"
-        nativeControls={false}
-        surfaceType="textureView"
-      />
-    </View>
-  );
-}
-
 function ClipStrip({
   tasks,
   taskId,
@@ -322,6 +304,8 @@ export default function CameraScreen({ navigation, route }: Props) {
   const [ready, setReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  /** 녹화를 시작한 시각. 길이는 이 값으로 잽니다(아래 `recordAsync` 주석). */
+  const startedAt = useRef(0);
   /**
    * 컷을 고릅니다. 스트립의 칸을 누르는 것이 유일한 경로입니다.
    * 녹화 중이거나 검수 시트가 떠 있으면 바꾸지 않습니다(옛 칩 줄의 조건 그대로).
@@ -394,18 +378,32 @@ export default function CameraScreen({ navigation, route }: Props) {
   const beginRecording = useCallback(async () => {
     if (!cameraRef.current) return;
     setLeft(stopAt);
+    startedAt.current = Date.now();
     setRecording(true);
     try {
       const cap = stopAt ?? 30;
       const video = await cameraRef.current.recordAsync({ maxDuration: cap });
       setRecording(false);
       // 지어낸 5초 대신 실제로 흐른 시간을 씁니다(1초 미만도 그대로).
-      if (video?.uri) setTake({ uri: video.uri, durationSec: Math.max(1, elapsed) });
+      if (video?.uri) {
+        /*
+          🔴 **`elapsed` 를 쓰면 안 됩니다** (2026-08-30 지적: "전부 3초 이하라고 뜬다").
+
+          `recordAsync` 는 **녹화가 끝날 때까지 기다리는** 함수입니다. 그 사이에
+          `elapsed` 는 계속 오르지만, 이 함수가 붙들고 있는 값은 **버튼을 누른 순간의
+          것**(0)입니다. 그래서 어떤 컷을 찍어도 `max(1, 0) = 1초` 로 기록됐고,
+          "3초보다 짧습니다" 가 언제나 떴습니다.
+
+          시계에서 직접 잽니다 — 붙들릴 값이 없습니다.
+        */
+        const sec = Math.max(1, Math.round((Date.now() - startedAt.current) / 1000));
+        setTake({ uri: video.uri, durationSec: sec });
+      }
     } catch (e) {
       setRecording(false);
       console.warn('[camera] 녹화 실패', e);
     }
-  }, [elapsed, stopAt]);
+  }, [stopAt]);
 
   const upload = useUploadFootage(projectId);
   const markTask = useUpdateTask(projectId);
@@ -648,8 +646,15 @@ export default function CameraScreen({ navigation, route }: Props) {
 
             <Text style={styles.sheetTitle}>{task?.taskTitle} 촬영 완료</Text>
             <Text style={styles.sheetSub}>
-              {take.durationSec < 3
-                ? '3초보다 짧습니다. 다시 찍는 편이 좋습니다.'
+              {/*
+                🔴 **기준은 3초가 아니라 그 컷의 목표 길이**입니다 (2026-08-30 지적).
+
+                3초짜리 컷은 3초에서 저절로 멈춥니다 — 그런데 "3초보다 짧다" 고
+                나무라고 있었습니다. 목표만큼 찍었으면 아무 말도 하지 않습니다.
+                목표를 모르는 컷(자유 촬영)만 3초를 기준으로 봅니다.
+              */}
+              {take.durationSec < (stopAt ?? 3)
+                ? '너무 짧게 찍혔습니다. 다시 찍는 편이 좋습니다.'
                 : '촬영한 컷을 확인하고 결정하세요'}
             </Text>
 
@@ -876,19 +881,6 @@ const styles = StyleSheet.create({
     촬영본 미리보기 — 시안: mx-auto · w-150 · rounded-2xl · 테두리 hairline · 그림자
     손잡이(grip)는 뺐습니다. 시안은 그 자리에 미리보기가 옵니다.
   */
-  preview: {
-    alignSelf: 'center',
-    width: 150,
-    aspectRatio: 9 / 16,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    borderWidth: theme.border.hairline,
-    borderColor: color.ink[200],
-    backgroundColor: color.ink[100],
-    ...elevation('card'),
-  },
-  // 모서리를 영상 자신에게도 겁니다 (부모 클리핑만 믿지 않습니다)
-  previewFill: { width: '100%', height: '100%', borderRadius: radius.lg },
 
   // 시안: 제목 15 semibold 가운데 · 부제 mt-1 13 slate 가운데
   sheetTitle: { ...text.bodyStrong, lineHeight: 22.5, textAlign: 'center' },

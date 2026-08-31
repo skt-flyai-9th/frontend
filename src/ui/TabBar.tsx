@@ -32,6 +32,7 @@ import { CommonActions } from '@react-navigation/native';
 
 import theme, { color, motion, radius, sizing, space } from '../design/theme';
 import { TabGlyph, type TabGlyphName } from './TabGlyph';
+import { barSlack, bottomInsetFor, showsTabs, useChrome } from './ChromeContext';
 
 /** 라우트 이름 → 시안 글리프·라벨. 라우트가 늘면 여기만 고칩니다. */
 const TAB_META: Record<
@@ -92,14 +93,23 @@ export interface RealsTabBarProps {
 
 export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidth }: RealsTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: winH } = useWindowDimensions();
 
   /**
    * 탭바가 기기 제스처 바 위에 겹치면 터치가 씹힙니다.
    * 높이를 고정하지 않고 안전영역만큼 늘린 뒤 그만큼 아래 여백을 줍니다.
    * insets.bottom 은 제스처 기기에서 20~34, 버튼 방식이면 0 이라 최소 8 은 확보합니다.
    */
-  const bottomInset = Math.max(insets.bottom, space[2]);
+  /* 홈이 한 장의 높이를 셀 때와 **같은 값**을 써야 합니다 — ChromeContext */
+  const bottomInset = bottomInsetFor(insets.bottom);
+  /* 지금 탭바를 그릴 차례인지 — 홈은 바를 한 번에 하나만 띄웁니다(ui/ChromeContext.tsx) */
+  const mode = useChrome().mode;
+  const hidden = !showsTabs(mode);
+  /*
+    혼자 있을 때 남는 세로(16pt)를 **아래쪽으로** 먹습니다. 그래야 바의 윗면이
+    영상에 딱 닿아 흰 틈이 안 생깁니다 — 근거는 `barSlack` 주석.
+  */
+  const slack = barSlack(mode, 'tabs', width, winH, insets.top, insets.bottom);
   const tabWidth = width / state.routes.length;
   const capsuleW = sizing.tabCapsuleWidth;
 
@@ -151,11 +161,32 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
       : colorRange[state.index] ?? BRAND_RGB;
 
   return (
-    <View style={[styles.wrap, { height: sizing.tabRowHeight + bottomInset, paddingBottom: bottomInset }]}>
+    /*
+      🔴 **치워지면 아이콘 줄만 접습니다** (2026-08-30, 홈 영상 잘림 대책).
+
+      아래 안전영역(`bottomInset`)은 **남깁니다** — 홈 인디케이터 자리라 영상이
+      그 밑으로 들어가면 안 됩니다. 접는 건 아이콘 줄 49 뿐입니다.
+      `wrap` 에 `overflow: 'hidden'` 이 있어 안쪽 줄은 그대로 두고 높이만 줄여도
+      깔끔하게 잘립니다. 근거와 산수는 `ui/ChromeContext.tsx` 머리말.
+    */
+    <View
+      style={[
+        styles.wrap,
+        {
+          height: (hidden ? 0 : sizing.tabRowHeight) + bottomInset + slack,
+          paddingBottom: bottomInset + slack,
+          borderTopWidth: hidden ? 0 : theme.border.hairline,
+        },
+      ]}
+    >
       <BlurView intensity={32} tint="light" style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, styles.glass]} />
 
-      <View style={styles.row}>
+      {/*
+        ⚠️ 접을 때는 **줄을 아예 그리지 않습니다.** 높이만 0 으로 두면 가운데
+           정렬된 아이콘이 위아래로 삐져나와 반쪽이 남습니다(실제로 그렇게 나왔습니다).
+      */}
+      <View style={[styles.row, hidden && styles.rowGone]}>
         {/*
           ⚠️ 위치(네이티브)와 색(JS)을 **한 노드에 같이 두면 RN 이 예외를 냅니다.**
              바깥이 움직이고 안쪽이 색을 칠하도록 두 겹으로 나눕니다.
@@ -240,6 +271,7 @@ const styles = StyleSheet.create({
   },
   glass: { backgroundColor: 'rgba(255,255,255,0.9)' },
   row: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  rowGone: { display: 'none' },
   capsule: {
     position: 'absolute',
     top: 0,

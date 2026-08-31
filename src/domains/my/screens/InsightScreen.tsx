@@ -34,7 +34,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Screen } from '../../../ui/Screen';
 import { LineChart } from '../../../ui/LineChart';
-import { Donut, DonutLegend, type DonutSeg } from '../../../ui/Donut';
+import { Donut, type DonutSeg } from '../../../ui/Donut';
+import { AgeBars } from '../../../ui/AgeBars';
 import { LoadGate } from '../../../ui/LoadGate';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
@@ -62,26 +63,58 @@ const MIX_COLORS = ['#2563eb', '#60a5fa', '#93c5fd', '#dbeafe', '#cbd5e1'];
 /**
  * 3.5 `insight_data` 에서 소비층 비율을 꺼냅니다.
  *
- * ⚠️ **서버가 주는 모양을 아직 모릅니다.** 실서버 3.5 가 빈 배열이라 한 번도 못
- *    봤습니다(BE 질의 중). 그래서 **아는 모양만 읽고, 아니면 그냥 없다고 봅니다** —
- *    억지로 해석해서 엉뚱한 비율을 그리는 것보다 빈 칸이 낫습니다.
+ * ✅ **서버가 주는 모양을 2026-08-30 에 확인했습니다** (새 매장을 등록해 실측).
+ *    그전에는 3.5 가 빈 배열이라 한 번도 못 봤고, 목업으로 짐작한 배열 모양
+ *    (`age_mix: [{label, value}]`)을 읽고 있었습니다 — 실제와 다릅니다.
  *
- * 지금 읽는 모양(목업 기준): `{ age_mix: [{label, value}], gender_mix: [...] }`
- * BE 가 다른 이름으로 주면 **이 함수만** 고치면 됩니다.
+ *    "insight_data": {
+ *      "age_distribution":    { "10s": 11, "20s": 16, "30s": 21, "40s": 21, "50s_plus": 31 },
+ *      "gender_distribution": { "male": 44, "female": 56 }
+ *    }
+ *
+ * **이름표가 아니라 키가 뜻을 담고 있습니다.** 그래서 키를 사람 말로 바꿔 줍니다.
+ * 모르는 키는 **버립니다** — 억지로 해석해 엉뚱한 비율을 그리는 것보다 빈 칸이 낫습니다.
+ * 순서는 아래 표 순서를 따릅니다(10대부터 시계방향이 읽기 좋습니다).
  */
-function readMix(data: unknown, key: 'ageMix' | 'genderMix'): DonutSeg[] | null {
+const MIX_LABELS = {
+  age: [
+    ['10s', '10대'],
+    ['20s', '20대'],
+    ['30s', '30대'],
+    ['40s', '40대'],
+    /* 시안은 `50 +` 입니다 — 막대 왼쪽 이름칸이 좁아 '50대 이상' 은 잘립니다. */
+    ['50sPlus', '50 +'],
+    ['60s', '60대'],
+  ],
+  gender: [
+    ['male', '남성'],
+    ['female', '여성'],
+  ],
+} as const;
+
+/** 도넛 가운데에 넣을 값 — 가장 큰 칸의 비율(시안 `56%`). */
+function topShare(segs: DonutSeg[]): string {
+  const total = segs.reduce((a, s) => a + s.value, 0) || 1;
+  const top = [...segs].sort((a, b) => b.value - a.value)[0];
+  return `${Math.round((top.value / total) * 100)}%`;
+}
+
+function readMix(data: unknown, kind: 'age' | 'gender'): DonutSeg[] | null {
   if (!data || typeof data !== 'object') return null;
+  const key = kind === 'age' ? 'ageDistribution' : 'genderDistribution';
   const raw = (data as Record<string, unknown>)[key];
-  if (!Array.isArray(raw)) return null;
-  const items = raw.filter((r): r is { label: string; value: number } =>
-    !!r && typeof r === 'object' &&
-    typeof (r as { label?: unknown }).label === 'string' &&
-    typeof (r as { value?: unknown }).value === 'number'
-  );
+  if (!raw || typeof raw !== 'object') return null;
+
+  const src = raw as Record<string, unknown>;
+  const items: { label: string; value: number }[] = [];
+  for (const [k, label] of MIX_LABELS[kind]) {
+    const v = src[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) items.push({ label, value: v });
+  }
   if (items.length === 0) return null;
 
   // 비중이 큰 순으로 색을 나눠 줍니다(위 MIX_COLORS 머리말). 그리는 **순서는
-  // 원래대로** 둡니다 — 도넛은 10대부터 시계방향으로 도는 게 읽기 좋습니다.
+  // 위 표 순서대로** 둡니다 — 도넛은 10대부터 시계방향으로 도는 게 읽기 좋습니다.
   const rank = new Map<number, number>();
   [...items.keys()]
     .sort((a, b) => items[b].value - items[a].value)
@@ -191,24 +224,24 @@ export default function InsightScreen() {
   /**
    * 시안은 제목 옆에 **"보라매 상권" 같은 짧은 지역 이름**을 칩으로 답니다.
    *
-   * ⚠️ **그런 필드가 없습니다.** 3.5 의 `insight_title` 을 넣어 봤더니
-   *    "주거 밀집 생활형 골목상권, 점심 시간대 집중" 처럼 문장이 통째로 들어가
-   *    칩이 제목보다 길어졌습니다(캡처로 확인).
+   * ✅ **2026-08-30 에 서버가 그걸 주기 시작했습니다.** 예전 `insight_title` 은
+   *    "주거 밀집 생활형 골목상권, 점심 시간대 집중" 처럼 문장이라 칩에 못 넣었는데,
+   *    새로 등록한 매장에서는 **"압구정로데오·도산공원"** 처럼 상권 이름이 옵니다.
    *
-   * 그래서 **칩은 달지 않고**, 제목을 시안의 한 줄 요약 자리에 씁니다 — 길이도
-   * 역할도 그쪽이 맞습니다(시안: "20대 여성 유입이 가장 높은 상권이에요").
-   * 자세한 설명은 그 아래 줄로 내립니다. 지역 이름은 BE 에 요청해 두었습니다.
+   * 다만 옛 매장에는 문장이 그대로 남아 있을 수 있어 **길이를 보고 가릅니다.**
+   *   짧으면(20자 이하) 칩에 넣고, 길면 예전처럼 요약 줄에 두고 칩은 주소에서 뽑습니다.
    */
-  const areaSummary = local?.insightTitle?.trim() || null;
+  const rawTitle = local?.insightTitle?.trim() || null;
+  const titleIsName = !!rawTitle && rawTitle.length <= 20;
 
-  /** 시안 칩 — 매장 주소에서 뽑습니다(위 `areaLabel` 머리말). */
-  const areaName = areaLabel(store?.address);
+  /** 시안 칩 — 서버가 준 상권 이름, 없으면 매장 주소에서(위 `areaLabel` 머리말). */
+  const areaName = titleIsName ? rawTitle : areaLabel(store?.address);
+  /** 한 줄 요약 — 제목을 칩으로 썼으면 여기서는 반복하지 않습니다. */
+  const areaSummary = titleIsName ? null : rawTitle;
 
-  /** 소비층 도넛 두 개. 값이 없으면 null 이고 화면은 빈 칸을 그립니다. */
-  const mixes: { label: string; segs: DonutSeg[] | null }[] = [
-    { label: '연령대', segs: readMix(local?.insightData, 'ageMix') },
-    { label: '성별', segs: readMix(local?.insightData, 'genderMix') },
-  ];
+  /** 방문층 — 성별은 도넛, 연령은 가로 막대. 없으면 null 이고 칸만 그립니다. */
+  const genderSegs = readMix(local?.insightData, 'gender');
+  const ageSegs = readMix(local?.insightData, 'age');
 
   /** 두 플랫폼 모두 0 이면 아직 올린 영상이 없는 것입니다. */
   const noPosts = platforms.length > 0 && platforms.every((p) => p.week.every((d) => d.value === 0));
@@ -240,7 +273,8 @@ export default function InsightScreen() {
         >
           <ChevronLeft size={24} strokeWidth={2} color={color.ink[900]} />
         </Pressable>
-        <Text style={text.heading}>매장 인사이트 분석</Text>
+        {/* 시안 `매장인사이트배열수정.png` — "분석" 을 뺀 짧은 제목입니다. */}
+        <Text style={text.heading}>매장 인사이트</Text>
       </View>
 
       <ScrollView
@@ -253,38 +287,150 @@ export default function InsightScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/*
-          ① 플랫폼 토글 — 시안 `PlatformTabs`.
-             mb-3 · bg #F1F5F9 · p-0.5 · 버튼 h-7 · 11 semibold
-             고른 쪽만 흰 배경 + 브랜드색, 나머지는 회색 글자입니다.
+          ④ 지역 상권 분석 — 시안 mt-6.
+             제목 16 옆에 **지역 이름 칩**(h-6 · brand-tint · 12 semibold),
+             그 아래 한 줄 요약 pill(sparkles 13 + 12 medium).
 
-          17.3 이 주는 플랫폼만 그립니다. 한 쪽만 오면 토글이 한 칸이 되고,
-          아예 없으면 줄 자체가 사라집니다 — 없는 플랫폼을 만들지 않습니다.
+          둘 다 3.5 가 줍니다. 지역 이름은 `insight_title`, 요약은 `insight_content`
+          입니다. 값이 없으면 칩과 pill 을 **그리지 않습니다** — "— 상권" 같은
+          빈 칩을 두면 고장으로 보입니다.
         */}
-        {platforms.length > 1 ? (
-          <View style={styles.tabs}>
-            {platforms.map((p) => {
-              // ⚠️ `plat` 이 아니라 **지금 그리는 플랫폼**과 견줍니다. 처음에는 고른 적이
-              //    없어 `plat` 이 null 인데, 화면은 첫 번째 것을 이미 그리고 있습니다.
-              //    null 로 견주면 **아무 탭도 안 켜진 채** 숫자만 나옵니다.
-              const on = p.platform === cur?.platform;
-              return (
-                <Pressable
-                  key={p.platform}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setPlat(p.platform)}
-                  style={({ pressed }) => [
-                    styles.tab,
-                    on && styles.tabOn,
-                    pressTap(pressed, 'icon'),
-                  ]}
-                >
-                  <Text style={[styles.tabText, on && styles.tabTextOn]}>{p.name}</Text>
-                </Pressable>
-              );
-            })}
+        <View style={styles.localWrap}>
+          <View style={styles.localHead}>
+            <Text style={styles.cardTitle}>지역 상권 분석</Text>
+            {areaName ? (
+              <View style={styles.areaChip}>
+                <Text style={styles.areaChipText}>{areaName}</Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
+
+          <LoadGate
+            loading={insights.isLoading}
+            error={insights.isError}
+            ready={insights.data !== undefined}
+            onRetry={insights.refetch}
+            loadingLabel="분석을 불러오고 있어요"
+          >
+            {local?.insightContent ? (
+              /*
+                🔴 **한 줄 요약 알약을 뺐습니다** (2026-08-30 지적).
+                   시안 `매장인사이트배열수정.png` 에는 제목 옆 칩과 **설명 문단**만
+                   있습니다 — 반짝이 아이콘이 붙은 알약 줄은 없습니다. 서버가 주는
+                   상권 설명(`insight_content`) 하나면 충분하고, 알약까지 두면 같은
+                   이야기가 두 번 나옵니다.
+              */
+              <View style={styles.localBox}>
+                <Text style={styles.localBody}>{local.insightContent}</Text>
+              </View>
+            ) : (
+              <Text style={styles.localBody}>아직 상권 분석이 준비되지 않았습니다.</Text>
+            )}
+          </LoadGate>
+        </View>
+
+        {/*
+          ② 우리 매장 주요 방문층 — 시안 `매장인사이트배열수정.png`.
+
+          🔴 **구성이 바뀌었습니다** (2026-08-30 지시 ⑨-2).
+             예전에는 도넛 두 개(연령·성별)였는데, 다섯 칸짜리 도넛은 조각이 잘게
+             쪼개져 어느 쪽이 큰지 안 읽혔습니다. 이제 **성별은 도넛, 연령은 가로
+             막대**입니다. 도넛 가운데에는 이름 대신 **비율**을 넣습니다.
+
+          값이 없으면 칸만 두고 이유를 밝힙니다 — 비율을 지어내면 사장님이 그 숫자를
+          보고 영상을 만드십니다(CLAUDE.md §2).
+        */}
+        <Text style={[styles.cardTitle, styles.sectionTitle]}>우리 매장 주요 방문층</Text>
+        {genderSegs || ageSegs ? (
+          <View style={styles.visitorRow}>
+            <View style={styles.genderCard}>
+              {genderSegs ? (
+                <>
+                  <Donut segs={genderSegs} size={80} center={topShare(genderSegs)} />
+                  <View style={styles.genderLegend}>
+                    {genderSegs.map((sg) => (
+                      <View key={sg.label} style={styles.genderLegendRow}>
+                        <View style={[styles.genderDot, { backgroundColor: sg.color }]} />
+                        <Text style={styles.genderLegendText}>{sg.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.mixEmpty}>집계 준비 중</Text>
+              )}
+            </View>
+            <View style={styles.ageCard}>
+              {ageSegs ? (
+                <AgeBars segs={ageSegs} />
+              ) : (
+                <Text style={styles.mixEmpty}>집계 준비 중</Text>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.mixCard}>
+            <Text style={styles.mixEmpty}>방문층 집계가 준비되면 여기에 표시됩니다</Text>
+          </View>
+        )}
+
+        {/* ③ 주간 조회수 추이 — 시안 mt-3 · p-4 */}
+        <View style={styles.card}>
+          {/*
+            플랫폼 토글이 **차트 카드 안으로** 들어왔습니다 (2026-08-30 배열 변경).
+            조회수는 플랫폼마다 다른 값이라, 고르는 자리와 보는 자리가 붙어 있어야
+            무엇을 고른 건지 헷갈리지 않습니다.
+          */}
+        {/*
+            ① 플랫폼 토글 — 시안 `PlatformTabs`.
+               mb-3 · bg #F1F5F9 · p-0.5 · 버튼 h-7 · 11 semibold
+               고른 쪽만 흰 배경 + 브랜드색, 나머지는 회색 글자입니다.
+
+            17.3 이 주는 플랫폼만 그립니다. 한 쪽만 오면 토글이 한 칸이 되고,
+            아예 없으면 줄 자체가 사라집니다 — 없는 플랫폼을 만들지 않습니다.
+          */}
+          {platforms.length > 1 ? (
+            <View style={styles.tabs}>
+              {platforms.map((p) => {
+                // ⚠️ `plat` 이 아니라 **지금 그리는 플랫폼**과 견줍니다. 처음에는 고른 적이
+                //    없어 `plat` 이 null 인데, 화면은 첫 번째 것을 이미 그리고 있습니다.
+                //    null 로 견주면 **아무 탭도 안 켜진 채** 숫자만 나옵니다.
+                const on = p.platform === cur?.platform;
+                return (
+                  <Pressable
+                    key={p.platform}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => setPlat(p.platform)}
+                    style={({ pressed }) => [
+                      styles.tab,
+                      on && styles.tabOn,
+                      pressTap(pressed, 'icon'),
+                    ]}
+                  >
+                    <Text style={[styles.tabText, on && styles.tabTextOn]}>{p.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>주간 조회수 추이</Text>
+            {cur?.viewsDelta ? <Text style={styles.delta}>{cur.viewsDelta}</Text> : null}
+          </View>
+          {(cur?.week.length ?? 0) >= 2 ? (
+            <LineChart
+              // 플랫폼을 바꾸면 선을 다시 그립니다(시안 key={plat}).
+              key={plat}
+              data={cur!.week.map((d) => ({ label: d.day, value: d.value }))}
+            />
+          ) : (
+            <View style={styles.chartEmpty}>
+              <Text style={styles.chartEmptyText}>주간 집계가 쌓이면 여기에 표시됩니다</Text>
+            </View>
+          )}
+        </View>
 
         {/*
           ② 조회수·좋아요 2열 — 시안 rounded-2xl · p-3.5 · 아이콘 16 + 12 라벨,
@@ -332,108 +478,6 @@ export default function InsightScreen() {
             아직 게시한 숏폼이 없어요. 영상을 올리면 조회수와 좋아요가 여기 쌓입니다.
           </Text>
         ) : null}
-
-        {/* ③ 주간 조회수 추이 — 시안 mt-3 · p-4 */}
-        <View style={styles.card}>
-          <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>주간 조회수 추이</Text>
-            {cur?.viewsDelta ? <Text style={styles.delta}>{cur.viewsDelta}</Text> : null}
-          </View>
-          {(cur?.week.length ?? 0) >= 2 ? (
-            <LineChart
-              // 플랫폼을 바꾸면 선을 다시 그립니다(시안 key={plat}).
-              key={plat}
-              data={cur!.week.map((d) => ({ label: d.day, value: d.value }))}
-            />
-          ) : (
-            <View style={styles.chartEmpty}>
-              <Text style={styles.chartEmptyText}>주간 집계가 쌓이면 여기에 표시됩니다</Text>
-            </View>
-          )}
-        </View>
-
-        {/*
-          ④ 지역 상권 분석 — 시안 mt-6.
-             제목 16 옆에 **지역 이름 칩**(h-6 · brand-tint · 12 semibold),
-             그 아래 한 줄 요약 pill(sparkles 13 + 12 medium).
-
-          둘 다 3.5 가 줍니다. 지역 이름은 `insight_title`, 요약은 `insight_content`
-          입니다. 값이 없으면 칩과 pill 을 **그리지 않습니다** — "— 상권" 같은
-          빈 칩을 두면 고장으로 보입니다.
-        */}
-        <View style={styles.localWrap}>
-          <View style={styles.localHead}>
-            <Text style={styles.cardTitle}>지역 상권 분석</Text>
-            {areaName ? (
-              <View style={styles.areaChip}>
-                <Text style={styles.areaChipText}>{areaName}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <LoadGate
-            loading={insights.isLoading}
-            error={insights.isError}
-            ready={insights.data !== undefined}
-            onRetry={insights.refetch}
-            loadingLabel="분석을 불러오고 있어요"
-          >
-            {areaSummary || local?.insightContent ? (
-              <View style={{ gap: space[2] }}>
-                {areaSummary ? (
-                  <View style={styles.summaryPill}>
-                    <Sparkles size={13} strokeWidth={2} color={color.brand[600]} />
-                    <Text style={styles.summaryText} numberOfLines={2}>
-                      {areaSummary}
-                    </Text>
-                  </View>
-                ) : null}
-                {local?.insightContent ? (
-                  <Text style={styles.localBody}>{local.insightContent}</Text>
-                ) : null}
-              </View>
-            ) : (
-              <Text style={styles.localBody}>아직 상권 분석이 준비되지 않았습니다.</Text>
-            )}
-          </LoadGate>
-        </View>
-
-        {/*
-          ⑤ 소비층 구성 — 시안 mt-6 · 2열 · 도넛 80 + 범례.
-
-          🔴 **자리만 만들어 둡니다** (2026-08-28 사장님 지시).
-             시안은 연령대(10대~50+)와 성별 비율을 도넛 두 개로 보여 주는데,
-             **그 값을 주는 필드를 아직 모릅니다.** 3.5 `insight_data` 안에 올 것으로
-             보이지만 지금 insights 가 빈 배열이라 형태를 확인할 수 없었습니다
-             (실측: store 21·67 둘 다 `{"insights": []}`).
-
-             비율을 지어내면 사장님이 그 숫자를 보고 영상을 만드십니다. 그래서
-             칸만 두고 왜 비었는지 밝힙니다 — 값이 오면 여기에 도넛을 넣습니다.
-        */}
-        <Text style={[styles.cardTitle, styles.sectionTitle]}>소비층 구성</Text>
-        <View style={styles.mixGrid}>
-          {mixes.map(({ label, segs }) => (
-            <View key={label} style={styles.mixWrap}>
-              <View style={styles.mixCard}>
-                {segs ? (
-                  <>
-                    {/* 12시부터 시계방향으로 1초에 걸쳐 쓸립니다 (`Donut` 머리말) */}
-                    <Donut segs={segs} size={80} />
-                    <DonutLegend segs={segs} />
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.mixDonut} />
-                    <View style={styles.mixTextWrap}>
-                      <Text style={styles.mixLabel}>{label}</Text>
-                      <Text style={styles.mixEmpty}>집계 준비 중</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
-          ))}
-        </View>
 
         {/* ⑤ 다음 숏폼 추천 */}
         <Text style={[styles.cardTitle, styles.sectionTitle]}>다음 숏폼 추천</Text>
@@ -516,7 +560,22 @@ const styles = StyleSheet.create({
    *    KPI 를 6 내리고 아래 차트 카드까지 6 더 밀었습니다
    *    (@2x 측정: 카드 상단 시안 222 / 앱 234, 그리드→차트 간격 시안 37 / 앱 49).
    */
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6, marginVertical: -6 },
+  /*
+    🔴 **위 카드와의 간격**을 여기서 만듭니다 (2026-08-30 지적: "주간 조회수 추이랑
+       총 조회수·좋아요 수 상하 간격이 너무 좁다").
+
+    칸마다 `padding: 6` 이라 바깥 여백은 음수로 상쇄합니다. 예전에는 위아래를 모두
+    `-6` 으로 지웠는데, 그때는 이 블록이 **맨 위(탭 바로 아래)** 에 있어서 문제가
+    없었습니다. 배치가 바뀌어 **차트 카드 바로 아래**로 내려오면서 둘이 딱 붙었습니다.
+    위쪽만 카드 사이 간격(16)만큼 띄웁니다 — 칸 padding 6 을 빼고 10 을 줍니다.
+  */
+  kpiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginTop: space[4] - 6,
+    marginBottom: -6,
+  },
   kpiWrap: { width: '50%', padding: 6 },
   kpiCard: {
     padding: 14,
@@ -604,6 +663,14 @@ const styles = StyleSheet.create({
   },
   areaChipText: { ...theme.text.label, fontFamily: theme.text.chipLabel.fontFamily, fontWeight: theme.text.chipLabel.fontWeight, color: color.brand[600] },
   /* 시안: 한 줄 요약 pill — rounded-full · 테두리 hairline · px-3 py-2 · 12 medium */
+  /* 상권 설명을 담는 옅은 상자 — 시안의 둥근 네모. */
+  localBox: {
+    padding: space[4],
+    borderRadius: radius.xl,
+    borderWidth: theme.border.hairline,
+    borderColor: color.hairlineSoft,
+    backgroundColor: color.paper,
+  },
   summaryPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -641,6 +708,34 @@ const styles = StyleSheet.create({
   },
   /* 도넛이 앉을 자리. 값이 오면 여기에 그립니다 — 지금은 비어 있음을 색으로만 말합니다. */
   mixDonut: { width: 64, height: 64, borderRadius: 32, borderWidth: 12, borderColor: '#F1F5F9' },
+
+  /* 방문층 — 시안 `grid-cols-[152px_1fr] gap-3`. 왼쪽 성별 도넛, 오른쪽 연령 막대. */
+  visitorRow: { flexDirection: 'row', gap: space[3] },
+  genderCard: {
+    width: 152,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.xl,
+    borderWidth: theme.border.hairline,
+    borderColor: color.hairlineSoft,
+    backgroundColor: color.paper,
+  },
+  genderLegend: { gap: 6 },
+  genderLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  genderDot: { width: 6, height: 6, borderRadius: 3 },
+  genderLegendText: { ...theme.text.micro, color: color.ink[500] },
+  ageCard: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: space[4],
+    borderRadius: radius.xl,
+    borderWidth: theme.border.hairline,
+    borderColor: color.hairlineSoft,
+    backgroundColor: color.paper,
+  },
   mixTextWrap: { flex: 1, minWidth: 0, gap: 2 },
   mixLabel: { ...theme.text.label, fontFamily: theme.text.bodyStrong.fontFamily, fontWeight: theme.text.bodyStrong.fontWeight, color: color.ink[700] },
   mixEmpty: { ...theme.text.micro, color: color.ink[400] },
