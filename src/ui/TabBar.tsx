@@ -32,7 +32,7 @@ import { CommonActions } from '@react-navigation/native';
 
 import theme, { color, motion, radius, sizing, space } from '../design/theme';
 import { TabGlyph, type TabGlyphName } from './TabGlyph';
-import { barSlack, bottomInsetFor, showsTabs, useChrome } from './ChromeContext';
+import { bottomInsetFor, showsTabs, tabSlackFor, useChrome } from './ChromeContext';
 
 /** 라우트 이름 → 시안 글리프·라벨. 라우트가 늘면 여기만 고칩니다. */
 const TAB_META: Record<
@@ -106,10 +106,10 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
   const mode = useChrome().mode;
   const hidden = !showsTabs(mode);
   /*
-    혼자 있을 때 남는 세로(16pt)를 **아래쪽으로** 먹습니다. 그래야 바의 윗면이
-    영상에 딱 닿아 흰 틈이 안 생깁니다 — 근거는 `barSlack` 주석.
+    혼자 뜰 때 남는 세로(16pt)를 **아래쪽으로** 먹습니다. 그래야 탭바 윗면이
+    영상에 딱 닿아 줄이 안 생깁니다 — 근거는 `tabSlackFor` 주석.
   */
-  const slack = barSlack(mode, 'tabs', width, winH, insets.top, insets.bottom);
+  const slack = tabSlackFor(mode, width, winH, insets.top, insets.bottom);
   const tabWidth = width / state.routes.length;
   const capsuleW = sizing.tabCapsuleWidth;
 

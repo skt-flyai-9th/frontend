@@ -202,6 +202,40 @@ function StoreGlyph({ size = 16, tint = C.brand }: { size?: number; tint?: strin
   );
 }
 
+/**
+ * 새 줄이 **아래에서 위로 떠오릅니다** (2026-08-31 지시: "알약 모양 답변이
+ * 선택지 하단에서 위로 올라오게").
+ *
+ * 시안 원문: `opacity .28s cubic-bezier(.33,1,.68,1)` + `transform .32s
+ * cubic-bezier(.2,.9,.25,1)`, `translateY(10px) → 0`.
+ *
+ * 붙는 순간 딱 한 번 도는 애니메이션이라 **네이티브 드라이버를 그대로 씁니다** —
+ * 웹에서 한 바퀴만 도는 함정은 `Animated.loop` 에만 있습니다(CLAUDE.md §5-④).
+ */
+function Rise({ children }: { children: React.ReactNode }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(t, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.bezier(0.2, 0.9, 0.25, 1),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [t]);
+  return (
+    <Animated.View
+      style={{
+        opacity: t,
+        transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 /** 시안의 AI 반짝임. */
 function Spark({ size = 15 }: { size?: number }) {
   return (
@@ -503,35 +537,42 @@ export function Art02({ active }: ArtProps) {
         {visible.map(({ c, i }) => {
           if (c.kind === 'ai') {
             return (
-              <View key={i} style={s2.aiRow}>
+              <Rise key={i}>
+              <View style={s2.aiRow}>
                 <View style={s2.avatar}>
                   <Spark />
                 </View>
                 <Text style={s2.aiBubble}>{c.text}</Text>
               </View>
+              </Rise>
             );
           }
           if (c.kind === 'me') {
             return (
-              <View key={i} style={s2.meRow}>
-                <Text style={s2.meBubble}>{c.text}</Text>
-              </View>
+              <Rise key={i}>
+                <View style={s2.meRow}>
+                  <Text style={s2.meBubble}>{c.text}</Text>
+                </View>
+              </Rise>
             );
           }
           if (c.kind === 'pick') {
             return (
-              <View key={i} style={s2.pickRow}>
+              <Rise key={i}>
+              <View style={s2.pickRow}>
                 {c.options.map((o, oi) => (
                   <Text key={o} style={[s2.chip, oi === 0 ? s2.chipOn : s2.chipOff]}>
                     {o}
                   </Text>
                 ))}
               </View>
+              </Rise>
             );
           }
           if (c.kind === 'dots') {
             return (
-              <View key={i} style={s2.aiRow}>
+              <Rise key={i}>
+              <View style={s2.aiRow}>
                 <View style={s2.avatar}>
                   <Spark />
                 </View>
@@ -555,10 +596,12 @@ export function Art02({ active }: ArtProps) {
                   ))}
                 </View>
               </View>
+              </Rise>
             );
           }
           return (
-            <View key={i} style={s2.cardsRow}>
+            <Rise key={i}>
+            <View style={s2.cardsRow}>
               {[0, 1, 2].map((k) => (
                 <View key={k} style={s2.recCard}>
                   <Svg width={74} height={132} style={StyleSheet.absoluteFill}>
@@ -579,6 +622,7 @@ export function Art02({ active }: ArtProps) {
                 </View>
               ))}
             </View>
+            </Rise>
           );
         })}
       </View>
@@ -613,23 +657,36 @@ export function Art03({ active }: ArtProps) {
 
   return (
     <Card height={196}>
-      <Animated.View style={[s3.track, { transform: [{ translateX: x }] }]}>
-        {S3_CUTS.map(([no, title, body, dot, cta], i) => (
-          <View key={i} style={s3.slide}>
-            {/* 위쪽 14px 어두운 띠 — 영상이 잘려 보이는 자리 */}
-            <View style={s3.bar}>
-              <Svg width={268} height={14}>
-                <Defs>
-                  <LinearGradient id={`s3b${i}`} x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor={C.ink600} />
-                    <Stop offset="1" stopColor={C.ink700} />
-                  </LinearGradient>
-                </Defs>
-                <Rect width={268} height={14} fill={`url(#s3b${i})`} />
-              </Svg>
-            </View>
+      {/*
+        🔴 **버튼은 고정, 지시사항만 넘어갑니다** (2026-08-31 지시:
+           "가이드 영상 넘길 때 버튼은 움직이지 않고 지시사항 부분만").
 
-            <View style={s3.body}>
+        예전에는 카드 한 장을 통째로 밀어서 버튼까지 같이 흘렀습니다. 이제 카드를
+        세 층으로 나눕니다 — **위 띠(고정) · 지시사항(넘어감) · 버튼(고정)**.
+        넘어가는 층만 트랙에 얹습니다.
+
+        버튼 글자는 시안이 장마다 달랐는데(01 만 "가이드 촬영 시작하기"), 고정하는
+        이상 하나로 둬야 해서 **첫 장의 것**을 씁니다.
+      */}
+
+      {/* ① 위 띠 — 영상이 잘려 보이는 자리. 고정입니다 */}
+      <View style={s3.bar}>
+        <Svg width={268} height={14}>
+          <Defs>
+            <LinearGradient id="s3bar" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={C.ink600} />
+              <Stop offset="1" stopColor={C.ink700} />
+            </LinearGradient>
+          </Defs>
+          <Rect width={268} height={14} fill="url(#s3bar)" />
+        </Svg>
+      </View>
+
+      {/* ② 지시사항 — 이 층만 넘어갑니다 */}
+      <View style={s3.window}>
+        <Animated.View style={[s3.track, { transform: [{ translateX: x }] }]}>
+          {S3_CUTS.map(([no, title, body, dot], i) => (
+            <View key={i} style={s3.body}>
               <View style={s3.head}>
                 <Text style={s3.no}>{no}</Text>
                 <Text style={s3.title}>{title}</Text>
@@ -641,13 +698,14 @@ export function Art03({ active }: ArtProps) {
                 ))}
               </View>
             </View>
+          ))}
+        </Animated.View>
+      </View>
 
-            <View style={s3.ctaWrap}>
-              <Text style={s3.cta}>{cta}</Text>
-            </View>
-          </View>
-        ))}
-      </Animated.View>
+      {/* ③ 버튼 — 고정입니다 */}
+      <View style={s3.ctaWrap}>
+        <Text style={s3.cta}>가이드 촬영 시작하기</Text>
+      </View>
     </Card>
   );
 }
@@ -738,13 +796,17 @@ export function Art04({ active }: ArtProps) {
           ))}
         </View>
 
-        {/* 진행바 — 시안 s5bar */}
+        {/*
+          진행바 — 시안 s5bar.
+
+          🔴 **`scaleX` 를 쓰면 안 됩니다** (2026-08-31 지적: "가운데에서 퍼진다").
+             시안 CSS 는 `transform-origin: left` 라 왼쪽에서 자라는데, RN 의
+             `scaleX` 는 **가운데를 기준**으로 늘어나 양쪽으로 퍼집니다.
+             `transform-origin` 이 없어서 **폭을 직접** 움직입니다.
+        */}
         <View style={s4.barTrack}>
           <Animated.View
-            style={[
-              s4.barFill,
-              { transform: [{ scaleX: kf(v, [0, 4, 86, 100], [0.04, 0.04, 1, 1]) }] },
-            ]}
+            style={[s4.barFill, { width: kf(v, [0, 4, 86, 100], ['4%', '4%', '100%', '100%']) }]}
           />
         </View>
 
@@ -860,12 +922,18 @@ export function Art05({ active }: ArtProps) {
                     style={[
                       s5.ageFill,
                       {
-                        width: `${w * 100}%`,
                         backgroundColor: on ? C.brand : C.brand200,
-                        // 시안: .06s 씩 늦게 = 7.6s 의 0.79%
-                        transform: [
-                          { scaleX: kf(v, shift([0, 10, 30, 100], i * 0.79), [0.02, 0.02, 1, 1]) },
-                        ],
+                        /*
+                          진행바와 같은 이유로 **폭을 직접** 움직입니다 —
+                          `scaleX` 는 가운데에서 퍼집니다(위 s5bar 주석).
+                          시안: .06s 씩 늦게 = 7.6s 의 0.79%
+                        */
+                        width: kf(v, shift([0, 10, 30, 100], i * 0.79), [
+                          `${w * 2}%`,
+                          `${w * 2}%`,
+                          `${w * 100}%`,
+                          `${w * 100}%`,
+                        ]),
                       },
                     ]}
                   />
@@ -1189,10 +1257,11 @@ const s2 = StyleSheet.create({
 });
 
 const s3 = StyleSheet.create({
-  track: { flexDirection: 'row', width: 1340, height: 196 },
-  slide: { width: 268, height: 196, backgroundColor: C.paper },
   bar: { height: 14, overflow: 'hidden' },
-  body: { flex: 1, paddingHorizontal: 16, paddingTop: 14 },
+  /* 카드 196 − 위 띠 14 − 버튼 자리 56 = 126 */
+  window: { height: 126, overflow: 'hidden' },
+  track: { flexDirection: 'row', width: 1340, height: 126 },
+  body: { width: 268, height: 126, paddingHorizontal: 16, paddingTop: 14 },
   head: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   no: { fontSize: 13, fontWeight: '800', color: C.brand },
   title: { fontSize: 16, fontWeight: '700', color: C.ink },
@@ -1270,7 +1339,7 @@ const s4 = StyleSheet.create({
   },
   taskLabel: { fontSize: 13, fontWeight: '600', color: C.ink },
   barTrack: { marginTop: 18, height: 6, borderRadius: 999, backgroundColor: C.line, overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 999, backgroundColor: C.brand, transform: [{ scaleX: 0.04 }] },
+  barFill: { height: 6, borderRadius: 999, backgroundColor: C.brand },
   cta: {
     marginTop: 16,
     height: 44,

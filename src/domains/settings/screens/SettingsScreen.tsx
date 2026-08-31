@@ -192,7 +192,8 @@ export default function SettingsScreen() {
             <View style={styles.planText}>
               <Text style={text.bodyStrong}>Free 플랜</Text>
               {/* 사용량 API 가 없어 시안의 "이번 달 3/3" 을 지어내지 않습니다. */}
-              <Text style={styles.planSub}>월 3편까지 만들 수 있어요</Text>
+              {/* 2026-08-31 지시 — "월 3편까지 만들 수 있어요" 에서 줄였습니다 */}
+              <Text style={styles.planSub}>월 3편까지 제작</Text>
             </View>
           </View>
           <Pressable

@@ -2,28 +2,23 @@
  * ChromeContext — 홈에서 **바를 한 번에 하나만** 띄우는 스위치.
  *
  * ─────────────────────────────────────────────────────────────
- * 왜 하나만인가 (2026-08-31, 사장님 안)
+ * 홈에서는 선반과 탭바 **둘 중 하나만** 뜹니다 (2026-08-31, 사장님 지시)
  * ─────────────────────────────────────────────────────────────
- * 홈은 세로 영상 한 편이 한 화면입니다. 영상이 **폭을 꽉 채우면서 안 잘리려면**
- * 무대가 699 여야 합니다. 그런데 쓸 수 있는 세로는 764 뿐입니다.
+ * 홈 앱바(리얼스 로고 · 햄버거)는 뺐습니다. 남은 둘은 **번갈아** 띄웁니다.
  *
- *   852 − 상태바 54 − 홈 인디케이터 34 = 764   ← 우리가 나눠 쓸 수 있는 전부
+ *   shelf  선반만   무대 708 → 영상 393×699 · 선반 65
+ *   tabs   탭바만   무대 699 → 영상 393×699 · 탭바 65 (49 + 남는 16)
+ *
+ * **두 모드 다 영상이 393×699 입니다** — 옆 여백 0 · 잘림 0 · 위아래 틈 0.
+ * 둘을 같이 띄우면(56 + 49 = 105) 예산 65 를 넘겨 영상이 370 으로 줄고 옆에
+ * 여백이 생깁니다. 그래서 **하나만** 띄웁니다.
+ *
+ * 왜 예산이 65인가 —
+ *
+ *   852 − 상태바 54 − 홈 인디케이터 34 = 764   ← 나눠 쓸 수 있는 전부
  *   폭을 꽉 채운 9:16                   = 699
  *                                       ────
- *   바에 줄 수 있는 예산                =  65
- *
- * 앱바 44 · 선반 56 · 탭바 49 는 **하나씩이면 전부 65 안에 들어갑니다.**
- * 둘만 겹쳐도(가장 작은 조합 44+49=93) 예산을 넘겨 영상이 줄거나 잘립니다.
- *
- * 그래서 세 모드를 **번갈아** 띄웁니다. 어느 모드에서든 영상은 393×699 입니다.
- *
- *   shelf   선반만 (기본)   무대 708 → 영상 393×699 · 남는 9 는 선반이 먹음
- *   tabs    탭바만          무대 715 → 영상 393×699 · 위아래 8 씩 남음
- *   appbar  앱바만          무대 720 → 영상 393×699 · 위아래 10.5 씩 남음
- *   all     셋 다 (잠금)    무대 615 → 영상 345×613 · 옆 24 씩. 튜토리얼 전용
- *
- * 기본을 **선반**으로 둔 이유는 거기에 **촬영 버튼과 제목**이 있어서입니다.
- * 이 화면에 온 이유가 그것이라, 주 동작이 한 단계 뒤로 가면 안 됩니다.
+ *   바 예산                             =  65
  *
  * ─────────────────────────────────────────────────────────────
  * 🔴 **바를 영상 위로 띄우면 안 됩니다**
@@ -52,14 +47,14 @@ import React, {
   useState,
 } from 'react';
 
-export type ChromeMode = 'shelf' | 'tabs' | 'appbar' | 'all';
+export type ChromeMode = 'shelf' | 'tabs';
 
 type ChromeApi = {
   mode: ChromeMode;
   /** 홈이 바꿉니다. 잠겨 있으면 기억만 하고 화면은 그대로 둡니다. */
   setMode: (m: ChromeMode) => void;
   /**
-   * 튜토리얼처럼 **바가 전부 보여야 하는** 동안 `all` 로 잠급니다.
+   * 튜토리얼처럼 **탭바가 보여야 하는** 동안 `tabs` 로 잠급니다.
    * 코치마크가 탭바 아이콘 넷과 선반의 촬영 버튼을 짚기 때문에, 둘 중 하나라도
    * 없으면 화살표가 허공을 가리킵니다. 풀면 원래 모드로 돌아갑니다.
    */
@@ -81,11 +76,11 @@ export function ChromeProvider({ children }: { children: React.ReactNode }) {
 
   const setLocked = useCallback((v: boolean) => {
     setLockedRaw(v);
-    setModeRaw(v ? 'all' : wanted.current);
+    setModeRaw(v ? 'tabs' : wanted.current);
   }, []);
 
   const api = useMemo<ChromeApi>(
-    () => ({ mode: locked ? 'all' : mode, setMode, setLocked }),
+    () => ({ mode: locked ? 'tabs' : mode, setMode, setLocked }),
     [mode, locked, setMode, setLocked]
   );
 
@@ -108,75 +103,62 @@ export function ChromeProvider({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Provider 밖에서도 죽지 않습니다 — 그때는 `all` 로 굳어집니다.
+ * Provider 밖에서도 죽지 않습니다 — 그때는 `tabs` 로 굳어집니다.
  * (설정·촬영처럼 탭 밖에 있는 화면들이 이 훅을 몰라도 되게 하려는 것입니다)
  */
 export function useChrome(): ChromeApi {
   return useContext(Ctx) ?? FALLBACK;
 }
 
-const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLocked: () => {} };
+const FALLBACK: ChromeApi = { mode: 'tabs', setMode: () => {}, setLocked: () => {} };
 
-/**
- * 🔴 **혼자 있는 바는 남는 세로를 먹습니다** (2026-08-31 지적: "하얀 줄").
- *
- * 영상은 폭이 393 으로 정해져 있어 아무리 자리가 넓어도 **699 를 넘지 않습니다.**
- * 그런데 탭바만 있을 때 쓸 수 있는 세로는 715, 앱바만 있을 때는 720 이라
- * 8~21pt 가 남습니다. 그 남는 자리가 영상과 바 사이에 **흰 틈**으로 보입니다
- * (바탕이 흰색이라 검은 줄은 아니지만, 탭바 위 실선 때문에 줄처럼 읽힙니다).
- *
- * 그래서 **혼자 있는 바가 그만큼 더 자랍니다.** 자라는 자리는 바의 바깥쪽입니다 —
- * 탭바는 아래로(홈 인디케이터 쪽), 앱바는 위로(상태바 쪽). 둘 다 흰색이라
- * 티가 안 나고, **바의 안쪽 모서리가 영상에 딱 닿습니다.**
- *
- *   탭바만 : 49 + 16 = 65   →  영상 699 + 바 65 = 764  틈 0
- *   앱바만 : 44 + 21 = 65   →  영상 699 + 바 65 = 764  틈 0
- *   선반만 : 56 +  9 = 65   →  (선반은 예전부터 이렇게 먹고 있었습니다)
- *
- * 셋이 같이 나올 때(튜토리얼)는 이미 예산을 넘겨 남는 게 없으므로 0 입니다.
- */
 /**
  * 🔴 **폭을 꽉 채웠을 때의 영상 높이. 한 곳에서만 계산합니다** (2026-08-31).
  *
  * `GuidePlayer` 는 `Math.round(width * 16 / 9)` 로 자기 높이를 정합니다. 무대를
  * `Math.ceil` 로 잡았더니 **기기 폭이 정수가 아닐 때 1pt 가 어긋났고**, 그 틈이
- * 영상을 감싸는 **흰 줄**로 보였습니다(사장님 지적). 393 처럼 딱 떨어지는 폭에서는
- * 두 식이 같은 값이라 웹 캡처로는 안 잡혔습니다 — 실제 안드로이드 폭은
- * 392.72 · 411.43 같은 소수입니다.
+ * 영상을 감싸는 **흰 줄**로 보였습니다. 393 처럼 딱 떨어지는 폭에서는 두 식이 같은
+ * 값이라 웹 캡처로는 안 잡혔습니다 — 실제 안드로이드 폭은 392.72 · 411.43 같은 소수입니다.
  *
- * 그래서 **플레이어와 똑같은 식**을 여기 하나만 두고 무대·바가 전부 이걸 씁니다.
+ * 그래서 **플레이어와 똑같은 식**을 여기 하나만 두고 무대가 이걸 씁니다.
  */
 export const videoHeightFor = (winW: number) => Math.round((winW * 16) / 9);
 
 /**
- * 🔴 **아래 안전영역은 이 값 하나로 통일합니다** (2026-08-31, "하단에서 영상이 깨진다").
+ * 🔴 **아래 안전영역은 이 값 하나로 통일합니다** (2026-08-31).
  *
  * 탭바는 `Math.max(insets.bottom, 8)` 을 쓰는데 홈은 `insets.bottom` 을 그대로
  * 빼고 있었습니다. 폰의 `insets.bottom` 이 8 보다 작으면(버튼 내비 기기에서 0 인
  * 경우가 있습니다) **그 차이만큼 한 장이 화면보다 커져서**, 아래쪽에 다음 영상이
- * 삐져나오고 선반이 밀려 잘립니다. 페이징 간격도 같이 어긋납니다.
+ * 삐져나오고 선반이 밀려 잘립니다.
  *
  * 393×852(안전영역 34)에서는 두 값이 같아 **웹 캡처로는 절대 안 잡힙니다.**
  */
 export const bottomInsetFor = (insetBottom: number) => Math.max(insetBottom, space[2]);
 
-export function barSlack(
+/**
+ * 🔴 **탭바가 남는 세로를 먹습니다** (2026-08-31, "검은 줄 안 생기게").
+ *
+ * 영상은 폭이 정해져 있어 자리가 넓어도 **699 를 넘지 않습니다.** 탭바만 있을 때
+ * 쓸 수 있는 세로는 715 라 **16pt 가 남고**, 그 남는 자리가 영상과 탭바 사이에
+ * 줄로 보입니다. 그래서 탭바가 그만큼 더 자랍니다 — 자라는 자리는 **아래쪽**
+ * (홈 인디케이터 쪽)이라 티가 안 나고, **탭바 윗면이 영상에 딱 닿습니다.**
+ *
+ *   탭바 49 + 16 = 65   ·   선반 56 + 9 = 65   ← 둘 다 예산과 같아집니다
+ */
+export function tabSlackFor(
   mode: ChromeMode,
-  which: 'appbar' | 'tabs',
   winW: number,
   winH: number,
   insetTop: number,
   insetBottom: number
 ): number {
-  if (mode !== which) return 0; // 혼자 있을 때만 먹습니다
+  if (mode !== 'tabs') return 0;
   const room = winH - insetTop - bottomInsetFor(insetBottom) - videoHeightFor(winW);
-  const own = which === 'appbar' ? sizing.appBarHeight : sizing.tabRowHeight;
-  return Math.max(0, room - own);
+  return Math.max(0, room - sizing.tabRowHeight);
 }
 
 /** 이 모드에서 탭바를 그리나 */
-export const showsTabs = (m: ChromeMode) => m === 'tabs' || m === 'all';
-/** 이 모드에서 앱바를 그리나 */
-export const showsAppBar = (m: ChromeMode) => m === 'appbar' || m === 'all';
-/** 이 모드에서 선반을 그리나 */
-export const showsShelf = (m: ChromeMode) => m === 'shelf' || m === 'all';
+export const showsTabs = (m: ChromeMode) => m === 'tabs';
+/** 이 모드에서 선반을 그리나 — 둘 중 하나만 뜹니다 */
+export const showsShelf = (m: ChromeMode) => m === 'shelf';
