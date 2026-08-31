@@ -548,16 +548,6 @@ export default function AiChatScreen() {
 
           {pending && <Thinking />}
 
-          {hasError && (
-            /* 2026-08-30 지시 ⑬ — 아이콘 없이, 문구는 "중단되었습니다" 로. */
-            <Banner
-              tone="warn"
-              showIcon={false}
-              title="AI 숏폼 추천 대화가 중단되었습니다"
-              description="잠시 후 다시 시도하거나 오른쪽 위에서 새 대화를 시작해 주세요."
-            />
-          )}
-
           {/*
             선택지와 "직접 입력" 을 **한 줄 묶음**에 넣습니다 (2026-08-30 지시 ⑫:
             "윗줄에 충분한 여백이 있으면 굳이 아랫줄 말고 윗줄에 나란히").
@@ -639,6 +629,28 @@ export default function AiChatScreen() {
           )}
         </ScrollView>
 
+        {hasError && (
+          /*
+            🔴 **오류 알림은 대화 **아래**에 답니다** (2026-08-31 지시: "하단으로 내려").
+
+            예전에는 스크롤 안, 말풍선 뒤에 뒀습니다. 그런데 `begin()` 이 새 대화를
+            시작하며 **말풍선을 먼저 비우기** 때문에, 세션 만들기가 실패하면 빈 목록의
+            맨 위 — 곧 **화면 상단** — 에 떴습니다. 그게 지적하신 자리입니다.
+
+            스크롤 **밖**, 입력줄 바로 위에 두면 말풍선이 몇 개든 언제나 아래에 있고
+            내용에 밀려 올라가지도 않습니다. 문구·색·아이콘은 그대로입니다
+            (2026-08-30 지시 ⑬ — 아이콘 없이 "중단되었습니다").
+          */
+          <View style={styles.errorDock}>
+            <Banner
+              tone="warn"
+              showIcon={false}
+              title="AI 숏폼 추천 대화가 중단되었습니다"
+              description="잠시 후 다시 시도하거나 오른쪽 위에서 새 대화를 시작해 주세요."
+            />
+          </View>
+        )}
+
         {/* 입력줄이 시스템 바에 덮이지 않게 안전영역만큼 더 띄웁니다 */}
         {showInput && (
           /*
@@ -685,6 +697,8 @@ export default function AiChatScreen() {
 
 const styles = StyleSheet.create({
   chat: { paddingHorizontal: space[5], paddingTop: space[3], gap: space[3], paddingBottom: space[6] },
+  /* 대화 아래, 입력줄 위. 좌우 여백은 말풍선과 같은 줄에 맞춥니다. */
+  errorDock: { paddingHorizontal: space[5], paddingBottom: space[3] },
   bubbleRow: { flexDirection: 'row', gap: space[2], alignItems: 'flex-start' },
   meRow: { justifyContent: 'flex-end' },
   avatar: {
