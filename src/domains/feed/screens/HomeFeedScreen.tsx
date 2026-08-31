@@ -47,11 +47,12 @@ import { AppBar } from '../../../ui/AppBar';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
+import { FeedShelf } from '../FeedShelf';
 import {
   bottomInsetFor,
   showsShelf,
-  showsTabs,
-  tabSlackFor,
+  homeBarHeightFor,
+  homePageHeightFor,
   useChrome,
 } from '../../../ui/ChromeContext';
 import { useCoach } from '../../../ui/coach/CoachContext';
@@ -233,24 +234,24 @@ export default function HomeFeedScreen() {
    * 걸친 상태로 서고, 그러면 자동재생 플레이어가 화면에 둘 보이게 됩니다.
    */
   /*
-    두 모드 다 영상이 **393×699** 가 되도록 맞춥니다.
-      선반만  852 − 54 −      0 − 34 = 764   ← 영상 699 + 선반 65
-      탭바만  852 − 54 − (49+16) − 34 = 699   ← 영상 699 + 선반 0
+    🔴 **한 장의 높이는 모드와 무관합니다** (2026-08-31 지적: "탭바랑 선반 전환
+       시에 영상이 깜빡인다 … 걍 진짜 탭바 바꾸는 형식으로").
+
+    예전엔 선반이 장 **안**에 있어서, 선반이 뜨고 지는 것이 곧 장 높이가
+    764 ↔ 699 로 바뀌는 일이었습니다. 그러면 `getItemLayout`·`snapToInterval`
+    이 통째로 바뀌고 어긋난 스크롤을 되밀어야 했는데, 되미는 사이 보고 있는 장
+    번호가 잠깐 튀어 **플레이어가 내려갔다 올라왔습니다.** 그게 깜빡임이었습니다.
+
+    이제 선반도 탭바처럼 목록 **밖** 한 줄입니다(`FeedShelf`). 두 바의 높이가
+    같으므로(`homeBarHeightFor`) 장은 언제나 **393×699** 그대로고, 바뀌는 것은
+    아래 한 줄이 선반이냐 탭바냐 뿐입니다. 되밀 일이 없으니 깜빡일 일도 없습니다.
+
+      선반만  852 − 54 − 34 = 764   ← 영상 699 + 선반 65
+      탭바만  852 − 54 − 99 = 699   ← 영상 699 (탭바가 65+34 를 가져감)
   */
-  const pageHeight = Math.max(
-    320,
-    height -
-      insets.top -
-      (showsTabs(chrome.mode)
-        ? sizing.tabRowHeight + tabSlackFor(chrome.mode, width, height, insets.top, insets.bottom)
-        : 0) -
-      /*
-        🔴 **탭바가 쓰는 값과 같아야 합니다.** 탭바는 접혀 있어도 아래 안전영역만큼은
-           자리를 차지합니다(`bottomInsetFor`). 여기서 `insets.bottom` 을 그대로 빼면
-           그 차이만큼 한 장이 화면보다 커져 **아래에 다음 영상이 삐져나옵니다.**
-      */
-      bottomInsetFor(insets.bottom)
-  );
+  const current = (formats.data ?? [])[index];
+  const pageHeight = homePageHeightFor(width, height, insets.top, insets.bottom);
+  const barHeight = homeBarHeightFor(width, height, insets.top, insets.bottom);
 
   /*
     🔴 **한 장의 높이가 바뀌면 스크롤 위치를 같이 옮겨야 합니다.**
@@ -408,7 +409,6 @@ export default function HomeFeedScreen() {
             renderItem={({ item, index: i }) => (
               <FeedPage
                 format={item}
-                showShelf={showsShelf(chrome.mode)}
                 height={pageHeight}
                 width={width}
                 active={i === index}
@@ -419,6 +419,20 @@ export default function HomeFeedScreen() {
           />
         )}
       </LoadGate>
+
+      {/*
+        🔴 **선반은 여기 — 목록 밖입니다.** 탭바와 같은 자리, 같은 높이입니다.
+           보고 있는 장의 정보를 그립니다. 넘기는 중에는 어차피 탭바로 바뀌므로
+           (2초 머물러야 선반) 장을 따라다닐 필요가 없습니다.
+      */}
+      {showsShelf(chrome.mode) && current ? (
+        <FeedShelf
+          format={current}
+          height={barHeight}
+          onToggleFavorite={onToggleFavorite}
+          onCreate={onCreate}
+        />
+      ) : null}
     </Screen>
   );
 }

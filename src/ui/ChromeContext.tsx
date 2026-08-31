@@ -152,6 +152,52 @@ export const bottomInsetFor = (insetBottom: number) => Math.max(insetBottom, spa
  *
  *   탭바 49 + 16 = 65   ·   선반 56 + 9 = 65   ← 둘 다 예산과 같아집니다
  */
+/**
+ * 🔴 **홈의 바 한 줄이 차지하는 높이 — 선반이든 탭바든 같은 값입니다.**
+ *
+ * 2026-08-31 지적: "탭바랑 선반 전환 시에 영상이 깜빡인다".
+ *
+ * 원인은 **한 장의 높이가 모드마다 달랐던 것**입니다. 선반은 장 **안**에,
+ * 탭바는 장 **밖**에 있어서 장이 764 ↔ 699 로 오갔습니다. 그러면
+ * `getItemLayout` · `snapToInterval` 이 통째로 바뀌고, 어긋난 스크롤을
+ * `scrollToIndex` 로 되밀게 됩니다. 되미는 사이 보고 있는 장 번호가 잠깐
+ * 튀어 **플레이어가 내려갔다 다시 올라옵니다** — 그게 깜빡임이었습니다.
+ *
+ * 이제 선반도 탭바처럼 목록 **밖**에 그립니다. 두 바의 높이를 이 함수 하나로
+ * 맞추면 장 높이는 **모드와 무관하게 늘 같고**, 바뀌는 건 아래 바 한 줄뿐입니다.
+ * 되밀 일이 없으니 깜빡일 일도 없습니다.
+ *
+ * 값(393×852 기준): 남는 자리 764 − 영상 699 = **65**.
+ */
+export function homeBarHeightFor(
+  winW: number,
+  winH: number,
+  insetTop: number,
+  insetBottom: number
+): number {
+  const room = winH - insetTop - bottomInsetFor(insetBottom) - videoHeightFor(winW);
+  // 자리가 모자라면 바를 줄이지 않고 **영상 폭을 줄입니다**(FeedPage). 바는 최소 56.
+  return Math.max(SHELF_MIN, room);
+}
+
+/** 홈 한 장의 높이. **모드가 바뀌어도 이 값은 그대로입니다.** */
+export function homePageHeightFor(
+  winW: number,
+  winH: number,
+  insetTop: number,
+  insetBottom: number
+): number {
+  const avail = winH - insetTop - bottomInsetFor(insetBottom);
+  return Math.max(320, avail - homeBarHeightFor(winW, winH, insetTop, insetBottom));
+}
+
+/** 선반 최소 높이 — 아바타 36 에 위아래 여백 8+8+안전분. 시안 값입니다. */
+export const SHELF_MIN = 56;
+
+/**
+ * 탭바가 탭 줄(49) 말고 **더 먹어야 하는 높이**. 위 `homeBarHeightFor` 와
+ * 같은 값이 되도록 계산합니다 — 선반과 탭바가 서로 다른 높이면 다시 장이 흔들립니다.
+ */
 export function tabSlackFor(
   mode: ChromeMode,
   winW: number,
@@ -159,9 +205,8 @@ export function tabSlackFor(
   insetTop: number,
   insetBottom: number
 ): number {
-  if (mode !== 'tabs') return 0;   // 선반과 같이 뜰 때(all)는 남는 게 없습니다
-  const room = winH - insetTop - bottomInsetFor(insetBottom) - videoHeightFor(winW);
-  return Math.max(0, room - sizing.tabRowHeight);
+  if (mode !== 'tabs') return 0;
+  return Math.max(0, homeBarHeightFor(winW, winH, insetTop, insetBottom) - sizing.tabRowHeight);
 }
 
 /** 이 모드에서 탭바를 그리나 */

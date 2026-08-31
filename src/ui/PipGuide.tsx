@@ -277,10 +277,20 @@ export function PipGuide({
             🔴 **접기 띠** — 아래 확대 띠와 **똑같이 생긴 알약**입니다 (2026-08-31 지시).
                영상 **위**에 두되 영상을 덮지 않습니다(바깥 띠).
           */}
-          <View style={styles.barTop}>
+          {/*
+            🔴 **위 띠도 손잡이입니다** (2026-08-31 지적: "하단으로만 움직이게 하면
+               이동이 불편해서 — 특히 태스크 바 1 2 3 에 겹치면 작동 불가").
+
+            아래 띠만 손잡이면, 창을 화면 아래로 내렸을 때 그 띠가 컷 번호줄과
+            겹쳐 **잡을 데가 없어집니다.** 위 띠에도 같은 제스처를 달아 두면
+            위아래 어느 쪽으로 몰아도 반대쪽으로 잡아 끌 수 있습니다.
+              탭  → 접기
+              끌기 → 창 이동
+          */}
+          <View style={styles.barTop} {...responder.panHandlers}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="참고 영상 접기"
+              accessibilityLabel="참고 영상 접기 (끌면 창이 움직입니다)"
               hitSlop={{ top: 6, left: 6, right: 6, bottom: 4 }}
               onPress={() => runFold(true)}
               style={styles.barPress}
