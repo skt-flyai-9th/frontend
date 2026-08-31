@@ -14,7 +14,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createSwipeTabNavigator } from './SwipeTabs';
 import { navRef, exposeQaNav } from './navRef';
 
-import { useAppState } from '../lib/appState';
+import { TUTORIAL_VERSION, useAppState } from '../lib/appState';
 import type {
   AuthStackParamList,
   CreateStackParamList,
@@ -173,11 +173,15 @@ export default function RootNavigator() {
    *    `App.tsx` 가 `useHydrated()` 로 붙잡고 있습니다.
    *
    * 튜토리얼 조건에 `!signedIn` 이 함께 붙는 이유: 이미 로그인한 기기에서
-   * 앱을 업데이트하면 tutorialSeen 이 없어 false 로 읽힙니다. 그때 튜토리얼을
+   * 앱을 업데이트하면 tutorialSeen 이 없어 안 본 것으로 읽힙니다. 그때 튜토리얼을
    * 띄우면 마지막 버튼이 **이미 가입한 사람을 회원가입으로** 보냅니다.
+   *
+   * 🔴 **판 번호로 봅니다** (2026-08-31). 예전에는 불린이라 안내를 통째로 바꿔도
+   *    이미 본 사람에게는 다시 안 떴습니다. `TUTORIAL_VERSION` 만 올리면
+   *    (아직 로그인 안 한 기기에서) 모두에게 한 번 더 보입니다 — `lib/appState.ts`.
    */
   const initial: keyof RootStackParamList =
-    !tutorialSeen && !signedIn
+    tutorialSeen !== TUTORIAL_VERSION && !signedIn
       ? 'Tutorial'
       : !signedIn
         ? 'Onboarding'

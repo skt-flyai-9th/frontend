@@ -225,7 +225,7 @@ export default function TutorialScreen() {
 
   /** 마지막 화면의 "무료로 시작하기". 다시 보이지 않게 표시하고 회원가입으로 갑니다. */
   const start = useCallback(() => {
-    setTutorialSeen(true);
+    setTutorialSeen();
     nav.replace('Auth', { screen: 'SignUp' });
   }, [nav, setTutorialSeen]);
 
