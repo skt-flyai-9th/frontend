@@ -306,6 +306,18 @@ export default function CameraScreen({ navigation, route }: Props) {
   const [elapsed, setElapsed] = useState(0);
   /** 녹화를 시작한 시각. 길이는 이 값으로 잽니다(아래 `recordAsync` 주석). */
   const startedAt = useRef(0);
+
+  /*
+    🔴 **컷마다 2 · 1 을 세고 시작합니다** (2026-08-31 지시).
+
+    ⚠️ 이건 **2026-08-27 에 지시로 뺐던 기능을 되살린 것**입니다. 그때는 3·2·1
+       이었고 "세 박자 기다리는 동안 순간을 놓친다" 는 이유로 뺐습니다. 이번에는
+       **두 박자**라 그만큼 짧습니다. 아래 녹화 버튼 주석도 같이 고쳤습니다.
+
+    화면 **정중앙**에 숫자만 크게 띄웁니다. 세는 동안 다시 누르면 취소됩니다.
+  */
+  const COUNT_FROM = 2;
+  const [count, setCount] = useState<number | null>(null);
   /**
    * 컷을 고릅니다. 스트립의 칸을 누르는 것이 유일한 경로입니다.
    * 녹화 중이거나 검수 시트가 떠 있으면 바꾸지 않습니다(옛 칩 줄의 조건 그대로).
@@ -374,6 +386,19 @@ export default function CameraScreen({ navigation, route }: Props) {
     const t = setTimeout(() => setLeft((s) => (s == null ? null : s - 1)), 1000);
     return () => clearTimeout(t);
   }, [recording, left]);
+
+  /* 2 → 1 → 시작. 화면을 벗어나거나 다시 누르면 멈춥니다. */
+  useEffect(() => {
+    if (count == null) return;
+    if (count === 0) {
+      setCount(null);
+      void beginRecording();
+      return;
+    }
+    const t = setTimeout(() => setCount((n) => (n == null ? null : n - 1)), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count]);
 
   const beginRecording = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -522,6 +547,13 @@ export default function CameraScreen({ navigation, route }: Props) {
       */}
       <PipGuide url={pipUrl} loopStart={loopStart} loopEnd={loopEnd} />
 
+      {/* 화면 정중앙 카운트다운. 최종 파일에는 안 들어갑니다 — CameraView 형제입니다. */}
+      {count != null ? (
+        <View style={styles.countWrap} pointerEvents="none">
+          <Text style={styles.countText}>{count}</Text>
+        </View>
+      ) : null}
+
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         {/*
           🔴 **뒤로가기가 오른쪽 유리질 알약 안으로 갔습니다** (2026-08-29 시안).
@@ -600,9 +632,9 @@ export default function CameraScreen({ navigation, route }: Props) {
             recording={recording}
             disabled={!ready}
             /*
-              🔴 2026-08-27: 누르면 **바로 찍습니다.** 예전에는 3·2·1 을 세고 시작했습니다.
-                 사장님 지시로 뺐습니다 — 준비는 이미 화면 보면서 하시고, 세 박자를
-                 기다리는 동안 놓치는 순간이 생깁니다.
+              누르면 **2 · 1 을 세고** 찍습니다 (2026-08-31 지시로 되살렸습니다).
+              2026-08-27 에 3·2·1 을 뺐던 이유가 "세 박자가 길다" 였어서, 이번에는
+              두 박자입니다. 세는 중에 다시 누르면 취소됩니다.
             */
             onPress={
               recording
@@ -610,7 +642,9 @@ export default function CameraScreen({ navigation, route }: Props) {
                     cameraRef.current?.stopRecording();
                     setRecording(false);
                   }
-                : () => void beginRecording()
+                : count != null
+                  ? () => setCount(null)
+                  : () => setCount(COUNT_FROM)
             }
           />
 
@@ -908,6 +942,26 @@ const styles = StyleSheet.create({
   permWrap: { flex: 1, backgroundColor: color.paper, padding: space[5], justifyContent: 'space-between' },
   permBody: { flex: 1, justifyContent: 'center', gap: space[3] },
 
+  /* 시안 옛 판의 카운트다운 — 120 크기, 화면 한가운데 */
+  countWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 30,
+  },
+  countText: {
+    fontSize: 120,
+    lineHeight: 132,
+    fontWeight: '700',
+    color: color.paper,
+    textShadowColor: 'rgba(15,23,42,0.45)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 18,
+  },
   topLayer: { position: 'absolute', top: 0, left: 0, right: 0 },
   /* 시안: h-11 · px-4 · **오른쪽 정렬** */
   topBar: {

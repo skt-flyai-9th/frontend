@@ -135,24 +135,32 @@ function useCycle(active: boolean, ms: number): Animated.Value {
  * ──────────────────────────────────────────────────────────── */
 
 /**
- * 카드 뒤로 번지는 파란 빛.
+ * 카드 뒤로 번지는 **파란 네온**.
  *
  * 시안: `344×344` 원 + `radial-gradient(#cfe3fd 0%, #dbeafe 42%,
  *       rgba(239,246,255,.75) 66%, rgba(239,246,255,0) 78%)` + `blur(16px)`.
- * RN 에는 CSS 필터가 없어 **그라디언트 자체를 더 부드럽게** 잡아 흉내 냅니다.
+ * RN 에는 CSS 필터가 없어 그라디언트로 흉내 냅니다.
+ *
+ * ⚠️ 처음에는 시안 색을 그대로 옮겼는데 **흰 바탕에서 거의 안 보였습니다**
+ *    (2026-08-31 지적: "은은한 파란 동그란 네온효과가 필요해").
+ *    시안은 `blur(16px)` 이 색을 뭉개면서 가운데가 진해지는데, 흐림이 없으면
+ *    같은 값이 그냥 옅은 원이 됩니다. 그래서 **가운데를 한 단계 진하게** 잡고
+ *    (`#9ec5fd`) 카드보다 크게 깔아 테두리 밖으로 번지게 했습니다.
  */
 function Halo() {
   return (
-    <Svg width={344} height={344} style={styles.halo} pointerEvents="none">
+    <Svg width={408} height={408} style={styles.halo} pointerEvents="none">
       <Defs>
         <RadialGradient id="halo" cx="50%" cy="50%" r="50%">
-          <Stop offset="0" stopColor="#cfe3fd" stopOpacity="1" />
-          <Stop offset="0.42" stopColor={C.brand100} stopOpacity="1" />
-          <Stop offset="0.66" stopColor="#eff6ff" stopOpacity="0.75" />
-          <Stop offset="0.82" stopColor="#eff6ff" stopOpacity="0" />
+          <Stop offset="0" stopColor="#6aa6fb" stopOpacity="1" />
+          <Stop offset="0.30" stopColor="#8fbcfc" stopOpacity="0.92" />
+          <Stop offset="0.50" stopColor="#a9cdfd" stopOpacity="0.72" />
+          <Stop offset="0.68" stopColor="#c8dffe" stopOpacity="0.44" />
+          <Stop offset="0.84" stopColor="#e2eefe" stopOpacity="0.18" />
+          <Stop offset="1" stopColor="#eff6ff" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      <Circle cx={172} cy={172} r={172} fill="url(#halo)" />
+      <Circle cx={204} cy={204} r={204} fill="url(#halo)" />
     </Svg>
   );
 }
@@ -671,7 +679,23 @@ export function Art02({ active }: ArtProps) {
               >
               <View style={s2.pickRow}>
                 {c.options.map((o, oi) => (
-                  <Text key={o} style={[s2.chip, oi === 0 ? s2.chipOn : s2.chipOff]}>
+                  /*
+                    🔴 **고른 알약이 파랗게 채워집니다** (2026-08-31 지시).
+                       답이 뜨기 전에 `step` 이 `until` 을 넘는 순간 첫 알약이
+                       **채워진 파랑**으로 바뀌고, 그 뒤에 답 말풍선이 올라옵니다.
+                       (예전에는 테두리만 파란 채로 그냥 사라졌습니다)
+                  */
+                  <Text
+                    key={o}
+                    style={[
+                      s2.chip,
+                      oi === 0
+                        ? step > c.until
+                          ? s2.chipPicked
+                          : s2.chipOn
+                        : s2.chipOff,
+                    ]}
+                  >
                     {o}
                   </Text>
                 ))}
@@ -828,7 +852,7 @@ const S4 = 7000;
 
 const S4_TASKS = [
   ['컷 편집', [0, 3, 7, 100], [0, 2, 5, 17, 20, 100], [0, 18, 23, 100]],
-  ['컷 사이 흔들림 효과 삽입', [0, 19, 23, 100], [0, 18, 21, 33, 36, 100], [0, 34, 39, 100]],
+  ['컷 사이 효과 삽입', [0, 19, 23, 100], [0, 18, 21, 33, 36, 100], [0, 34, 39, 100]],
   ['자막 입히기', [0, 35, 39, 100], [0, 34, 37, 49, 52, 100], [0, 50, 55, 100]],
   ['위치 태그 · 매장 브랜딩 삽입', [0, 51, 55, 100], [0, 50, 53, 65, 68, 100], [0, 66, 71, 100]],
   ['최종 렌더링', [0, 67, 71, 100], [0, 66, 69, 83, 86, 100], [0, 84, 89, 100]],
@@ -1120,7 +1144,11 @@ export function Art05({ active }: ArtProps) {
           ))}
         </View>
 
-        {/* ⑤ 다음 숏폼 추천 */}
+        {/*
+          ⑤ 다음 숏폼 추천 — 🔴 **글은 다 빼고 영상만** (2026-08-31 지시).
+             "추천 1" 딱지 · 제목 · 설명을 지우고, 영상 한 장이 카드 폭을
+             가로로 꽉 채웁니다.
+        */}
         <Text style={[s5.h, s5.h2]}>다음 숏폼 추천</Text>
         <Animated.View
           style={[
@@ -1131,27 +1159,20 @@ export function Art05({ active }: ArtProps) {
             },
           ]}
         >
-          <View style={s5.recThumb}>
-            <Svg width={76} height={135} style={StyleSheet.absoluteFill}>
-              <Defs>
-                <LinearGradient id="s6rec" x1="0" y1="0" x2="0.6" y2="1">
-                  <Stop offset="0" stopColor={C.slate300} />
-                  <Stop offset="0.55" stopColor={C.ink400} />
-                  <Stop offset="1" stopColor={C.ink500} />
-                </LinearGradient>
-              </Defs>
-              <Rect width={76} height={135} rx={12} fill="url(#s6rec)" />
+          <Svg width={240} height={135} style={StyleSheet.absoluteFill}>
+            <Defs>
+              <LinearGradient id="s6rec" x1="0" y1="0" x2="0.6" y2="1">
+                <Stop offset="0" stopColor={C.slate300} />
+                <Stop offset="0.55" stopColor={C.ink400} />
+                <Stop offset="1" stopColor={C.ink500} />
+              </LinearGradient>
+            </Defs>
+            <Rect width={240} height={135} rx={12} fill="url(#s6rec)" />
+          </Svg>
+          <View style={s5.recPlay}>
+            <Svg width={13} height={15} viewBox="0 0 12 14">
+              <Path d="M0 0l12 7-12 7z" fill={C.paper} />
             </Svg>
-            <View style={s5.recPlay}>
-              <Svg width={11} height={13} viewBox="0 0 12 14">
-                <Path d="M0 0l12 7-12 7z" fill={C.paper} />
-              </Svg>
-            </View>
-          </View>
-          <View style={s5.recText}>
-            <Text style={s5.recBadge}>추천 1</Text>
-            <Text style={s5.recName}>참치마요 오니기리</Text>
-            <Text style={s5.recSub}>20대 초중반 · 15초 · 가성비 강조</Text>
           </View>
         </Animated.View>
       </Animated.View>
@@ -1338,6 +1359,8 @@ const s2 = StyleSheet.create({
     overflow: 'hidden',
   },
   chipOn: { borderColor: C.brand200, backgroundColor: C.paper, color: C.brand },
+  /* 고른 순간 — 채워진 파랑 */
+  chipPicked: { borderColor: C.brand, backgroundColor: C.brand, color: C.paper },
   chipOff: { borderColor: C.line, backgroundColor: C.paper, color: C.ink600 },
   dotsBubble: {
     flexDirection: 'row',
@@ -1568,42 +1591,23 @@ const s5 = StyleSheet.create({
   kpiValue: { fontSize: 16, fontWeight: '700', color: C.ink },
   kpiDelta: { marginBottom: 2, fontSize: 10.5, fontWeight: '700', color: C.green },
 
-  rec: { flexDirection: 'row', gap: 10, paddingBottom: 14 },
-  recThumb: { width: 76, height: 135, borderRadius: 12, overflow: 'hidden' },
+  /* 카드 안쪽 폭(268 − 14×2) 을 가로로 꽉 채웁니다 */
+  rec: {
+    width: 240,
+    height: 135,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   recPlay: {
-    position: 'absolute',
-    left: 22,
-    top: 51,
-    width: 32,
-    height: 32,
+    width: 38,
+    height: 38,
     borderRadius: 999,
     backgroundColor: 'rgba(15,23,42,0.42)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingLeft: 2,
   },
-  recText: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(226,232,240,0.8)',
-    borderRadius: 14,
-    backgroundColor: C.paper,
-  },
-  recBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: C.brand50,
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: C.brand,
-    overflow: 'hidden',
-  },
-  recName: { fontSize: 12.5, fontWeight: '700', color: C.ink },
-  recSub: { fontSize: 11, lineHeight: 16.5, fontWeight: '500', color: C.ink500 },
 });

@@ -47,16 +47,23 @@ import React, {
   useState,
 } from 'react';
 
-export type ChromeMode = 'shelf' | 'tabs';
+export type ChromeMode = 'shelf' | 'tabs' | 'all';
 
 type ChromeApi = {
   mode: ChromeMode;
   /** 홈이 바꿉니다. 잠겨 있으면 기억만 하고 화면은 그대로 둡니다. */
   setMode: (m: ChromeMode) => void;
   /**
-   * 튜토리얼처럼 **탭바가 보여야 하는** 동안 `tabs` 로 잠급니다.
-   * 코치마크가 탭바 아이콘 넷과 선반의 촬영 버튼을 짚기 때문에, 둘 중 하나라도
-   * 없으면 화살표가 허공을 가리킵니다. 풀면 원래 모드로 돌아갑니다.
+   * 튜토리얼이 도는 동안 `all` 로 잠급니다 — **선반과 탭바가 같이** 보입니다.
+   *
+   * ⚠️ 홈은 평소 둘 중 하나만 띄우는데, 코치마크는 **탭바 아이콘 넷과 선반의
+   *    촬영 버튼을 같이 짚습니다.** 하나라도 없으면 짚을 것이 화면에 없어
+   *    구멍이 엉뚱한 자리에 뚫리거나 찌그러집니다(2026-08-31 지적: "3단계에서
+   *    이상한 타원으로 포커싱").
+   *
+   *    이때 영상이 370 으로 줄지만, 튜토리얼 중에는 **플레이어가 아니라 썸네일**
+   *    이라 폭을 꽉 채웁니다(우리 그림이라 잘라도 됩니다). 그래서 눈에는
+   *    평소와 같은 화면으로 보입니다.
    */
   setLocked: (v: boolean) => void;
 };
@@ -76,11 +83,11 @@ export function ChromeProvider({ children }: { children: React.ReactNode }) {
 
   const setLocked = useCallback((v: boolean) => {
     setLockedRaw(v);
-    setModeRaw(v ? 'tabs' : wanted.current);
+    setModeRaw(v ? 'all' : wanted.current);
   }, []);
 
   const api = useMemo<ChromeApi>(
-    () => ({ mode: locked ? 'tabs' : mode, setMode, setLocked }),
+    () => ({ mode: locked ? 'all' : mode, setMode, setLocked }),
     [mode, locked, setMode, setLocked]
   );
 
@@ -103,14 +110,14 @@ export function ChromeProvider({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Provider 밖에서도 죽지 않습니다 — 그때는 `tabs` 로 굳어집니다.
+ * Provider 밖에서도 죽지 않습니다 — 그때는 `all` 로 굳어집니다.
  * (설정·촬영처럼 탭 밖에 있는 화면들이 이 훅을 몰라도 되게 하려는 것입니다)
  */
 export function useChrome(): ChromeApi {
   return useContext(Ctx) ?? FALLBACK;
 }
 
-const FALLBACK: ChromeApi = { mode: 'tabs', setMode: () => {}, setLocked: () => {} };
+const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLocked: () => {} };
 
 /**
  * 🔴 **폭을 꽉 채웠을 때의 영상 높이. 한 곳에서만 계산합니다** (2026-08-31).
@@ -153,12 +160,12 @@ export function tabSlackFor(
   insetTop: number,
   insetBottom: number
 ): number {
-  if (mode !== 'tabs') return 0;
+  if (mode !== 'tabs') return 0;   // 선반과 같이 뜰 때(all)는 남는 게 없습니다
   const room = winH - insetTop - bottomInsetFor(insetBottom) - videoHeightFor(winW);
   return Math.max(0, room - sizing.tabRowHeight);
 }
 
 /** 이 모드에서 탭바를 그리나 */
-export const showsTabs = (m: ChromeMode) => m === 'tabs';
+export const showsTabs = (m: ChromeMode) => m === 'tabs' || m === 'all';
 /** 이 모드에서 선반을 그리나 — 둘 중 하나만 뜹니다 */
-export const showsShelf = (m: ChromeMode) => m === 'shelf';
+export const showsShelf = (m: ChromeMode) => m === 'shelf' || m === 'all';
