@@ -48,11 +48,10 @@ import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState, Skeleton } from '../../../ui/Feedback';
 import { FeedPage } from '../FeedPage';
 import {
-  barSlack,
   bottomInsetFor,
-  showsAppBar,
   showsShelf,
   showsTabs,
+  tabSlackFor,
   useChrome,
 } from '../../../ui/ChromeContext';
 import { useCoach } from '../../../ui/coach/CoachContext';
@@ -118,30 +117,30 @@ export default function HomeFeedScreen() {
     무엇으로 바꾸나 — **새 손짓을 만들지 않았습니다.** 이미 있는 손짓에 얹습니다.
     영상 위에는 터치 판을 못 놓기 때문입니다(약관: 쇼츠 자체 조작을 막게 됩니다).
 
-    규칙은 한 줄입니다 — **손짓 방향 = 바가 있는 쪽.**
+    ⚠️ **홈 앱바(리얼스 로고 · 햄버거)를 뺐습니다** (2026-08-31 사장님 지시).
+       그래서 위에 띄울 것이 없고, 모드가 **둘**로 줄었습니다.
 
-      멈춰서 보고 있으면          선반    촬영 버튼이 늘 손에 있습니다
-      위로 밀면 (다음 영상)       앱바    앱바는 **위**에 있습니다
-      아래로 당기면 (이전 영상)   탭바    탭바는 **아래**에 있습니다
-      다른 탭에서 홈으로 오면     탭바    방금 탭을 쓰던 참이니까요 (사장님 지시)
+    🔴 **선반과 탭바는 둘 중 하나만 뜹니다** (사장님 지시: "검은 줄 안 생기게").
+       같이 띄우면 56 + 49 = 105 로 예산 65 를 넘겨 영상이 370 으로 줄고 옆에
+       여백이 생깁니다. 하나만 띄우면 **두 상태 다 393×699** 로 꽉 찹니다.
+
+      2초간 가만히 보고 있으면   선반만   촬영 버튼이 손에 옵니다
+      끌면 · 다른 탭에서 오면    탭바만   탭으로 옮기려는 참일 테니까요
+
+    설정은 **마이페이지**로 들어갑니다 — 햄버거가 없어졌어도 길은 막히지 않습니다.
 
     🔴 **방향은 스크롤 변화량이 아니라 "몇 번째 영상인가" 로 봅니다** (2026-08-31).
-
-       처음에는 마지막 스크롤의 부호(`dy > 0`)로 판정했는데 **실제 폰에서 위아래가
-       정확히 반대로 돌았습니다.** 페이징은 손을 뗀 뒤 스냅 지점으로 되돌아가며
-       멈추는데, 그 **마지막 되돌아오는 움직임의 부호가 손짓과 반대**입니다.
-       위로 밀어 다음 장으로 갔는데 마지막 몇 프레임이 아래로 움직여 탭바가 떴습니다.
-
-       영상 번호는 그런 흔들림이 없습니다. 번호가 오르면 다음 장(위로 민 것),
-       내리면 이전 장(아래로 당긴 것)입니다. 뒤집힐 여지가 없습니다.
+       페이징은 손을 뗀 뒤 스냅 지점으로 되돌아가며 멈추는데, 그 **마지막 되돌아오는
+       움직임의 부호가 손짓과 반대**입니다. 장 번호는 그런 흔들림이 없습니다.
 
     ⚠️ **모드는 번호가 확정된 뒤에만 바뀝니다.** 끄는 도중에 바꾸면 한 장의 높이가
-       손가락 밑에서 변해 페이징이 어긋납니다. `onViewableItemsChanged` 는 60% 이상
-       보일 때 한 번만 울리므로 그 조건을 자연히 만족합니다.
+       손가락 밑에서 변해 페이징이 어긋납니다.
   */
   const chrome = useChrome();
   const focused = useIsFocused();
-  const coachRunning = useCoach()?.activeName != null;
+  /** 코치마크가 지금 짚고 있는 곳. 단계마다 필요한 바가 달라 이 값으로 가릅니다. */
+  const coachName = useCoach()?.activeName ?? null;
+  const coachRunning = coachName != null;
   const back = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** 직전에 보고 있던 장. 번호가 오르면 다음 장(위로 밈), 내리면 이전 장(아래로 당김). */
@@ -151,8 +150,9 @@ export default function HomeFeedScreen() {
    * 잠깐 다른 바를 보여 줬다가 선반으로 돌아옵니다.
    * 1.6초로 뒀다가 **3초로 늘렸습니다** (2026-08-31 지적: "좀 짧은 것 같다").
    */
-  const BACK_TO_SHELF_MS = 3000;
-  const flash = (m: 'tabs' | 'appbar') => {
+  /** 영상을 2초간 가만히 보면 선반으로 돌아옵니다 (사장님 지시). */
+  const BACK_TO_SHELF_MS = 2000;
+  const flash = (m: 'tabs') => {
     if (back.current) clearTimeout(back.current);
     chrome.setMode(m);
     back.current = setTimeout(() => chrome.setMode('shelf'), BACK_TO_SHELF_MS);
@@ -184,11 +184,20 @@ export default function HomeFeedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused]);
 
-  // 튜토리얼이 도는 동안은 셋 다 보입니다 — 코치마크가 탭바와 선반을 같이 짚습니다.
+  /*
+    🔴 **튜토리얼은 단계가 원하는 바 하나만 띄웁니다** (2026-08-31 지시:
+       "실제 화면과 가장 닮도록", "3/7 화면은 탭바가 아닌 선반만").
+
+    홈은 평소 선반과 탭바 중 하나만 띄웁니다. 튜토리얼에서 둘을 같이 띄우면
+    **실제로는 없는 화면**을 가르치는 셈이 됩니다. 그래서 짚는 곳에 맞춰 하나만.
+
+      촬영 버튼(`make`) 을 짚을 때  →  선반만
+      그 밖(탭 아이콘 · 영상)       →  탭바만
+  */
   useEffect(() => {
-    chrome.setLocked(coachRunning);
+    chrome.setLock(coachName == null ? null : coachName === 'make' ? 'shelf' : 'tabs');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coachRunning]);
+  }, [coachName]);
 
   /*
    * ⚠️ 이 둘은 **ref 로 고정해야 합니다.** FlatList 는 `viewabilityConfig` 와
@@ -208,51 +217,33 @@ export default function HomeFeedScreen() {
     nav.navigate('Create', { screen: 'PurposeSelect', params: { formatId: f.id } });
 
   /*
-    🔴 **접을 때 자리까지 비웁니다.** `height: 0` 이라 아래가 그만큼 올라옵니다.
-       `position: absolute` 로 영상 **위에 띄우면 약관 위반**입니다 —
-       근거는 `ui/ChromeContext.tsx` 머리말과 CLAUDE.md §8-1.
+    🔴 **홈 앱바를 통째로 뺐습니다** (2026-08-31 사장님 지시:
+       "위에 리얼스 로고랑 햄버거바 빼고").
+
+    로고와 햄버거뿐이던 줄이라 빼도 잃는 게 없습니다. **설정은 마이페이지**로
+    들어갑니다(`MyPageScreen`) — 길이 막히지 않습니다. 되살리려면 여기에
+    `<AppBar home={{ onMenu: () => nav.navigate('Settings') }} />` 를 돌려주고
+    아래 `pageHeight` 에서 `sizing.appBarHeight` 를 다시 빼면 됩니다.
+
+    덤 — 앱바가 사라진 44pt 가 그대로 영상 몫이 됩니다.
   */
-  /* 혼자 있는 바가 남는 세로를 먹습니다 — 근거는 ChromeContext 의 `barSlack` 주석 */
-  const appSlack = barSlack(chrome.mode, 'appbar', width, height, insets.top, insets.bottom);
-  const tabSlack = barSlack(chrome.mode, 'tabs', width, height, insets.top, insets.bottom);
-
-  const header = !showsAppBar(chrome.mode) ? (
-    <View style={{ height: 0, overflow: 'hidden' }} />
-  ) : (
-    /* 남는 21pt 를 앱바 **위쪽**(상태바 쪽)에 둡니다. 둘 다 흰색이라 티가 안 나고,
-       앱바 아랫면이 영상에 딱 닿아 흰 틈이 안 생깁니다. */
-    <View style={{ paddingTop: appSlack, backgroundColor: color.paper }}>
-    <AppBar
-      home={{
-        /*
-         * 벨(알림)은 **길을 닫아 뒀습니다** (2026-08-26, 사장님 지시).
-         * 시안 6차에서 `notifications` 화면이 라우터·DEPTH·PUSH_SCREENS 에서 전부
-         * 빠졌습니다. 화면 코드와 라우트는 **지우지 않고 남겨** 두고 들어가는 버튼만
-         * 감춥니다. 되살리려면 여기에 `onBell` 을 돌려주고 설정 목록의 '알림' 을 풉니다.
-         */
-        // 설정은 시안에 탭바가 없어 탭 밖(Root)에 있습니다.
-        onMenu: () => nav.navigate('Settings'),
-      }}
-    />
-    </View>
-  );
-
   /*
    * 한 장의 높이 = 화면에서 상태바·앱바·탭바를 뺀 나머지.
    * 이 값이 정확해야 `pagingEnabled` 가 딱 한 장씩 멈춥니다 — 어긋나면 두 장이
    * 걸친 상태로 서고, 그러면 자동재생 플레이어가 화면에 둘 보이게 됩니다.
    */
   /*
-    치워진 바는 빼지 않습니다 — 그만큼 한 장이 커집니다.
-      바 있음 852 − 54 − 44 − 49 − 34 = 671
-      바 없음 852 − 54 −  0 −  0 − 34 = 764   ← 영상 699 + 띠 65
+    두 모드 다 영상이 **393×699** 가 되도록 맞춥니다.
+      선반만  852 − 54 −      0 − 34 = 764   ← 영상 699 + 선반 65
+      탭바만  852 − 54 − (49+16) − 34 = 699   ← 영상 699 + 선반 0
   */
   const pageHeight = Math.max(
     320,
     height -
       insets.top -
-      (showsAppBar(chrome.mode) ? sizing.appBarHeight + appSlack : 0) -
-      (showsTabs(chrome.mode) ? sizing.tabRowHeight + tabSlack : 0) -
+      (showsTabs(chrome.mode)
+        ? sizing.tabRowHeight + tabSlackFor(chrome.mode, width, height, insets.top, insets.bottom)
+        : 0) -
       /*
         🔴 **탭바가 쓰는 값과 같아야 합니다.** 탭바는 접혀 있어도 아래 안전영역만큼은
            자리를 차지합니다(`bottomInsetFor`). 여기서 `insets.bottom` 을 그대로 빼면
@@ -320,7 +311,7 @@ export default function HomeFeedScreen() {
     const step = index - prevIndex.current;
     prevIndex.current = index;
     if (step === 0 || correcting.current) return;
-    flash(step > 0 ? 'appbar' : 'tabs');
+    flash('tabs');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
@@ -328,7 +319,6 @@ export default function HomeFeedScreen() {
   if (formats.isLoading && !formats.data) {
     return (
       <Screen padded={false} scroll={false} edges={['top']}>
-        {header}
         <FeedSkeleton />
       </Screen>
     );
@@ -336,7 +326,6 @@ export default function HomeFeedScreen() {
 
   return (
     <Screen padded={false} scroll={false} edges={['top']}>
-      {header}
 
       <LoadGate
         loading={false}

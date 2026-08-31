@@ -22,18 +22,37 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 export const COACH_VERSION = 'v9';
 
+/**
+ * 최초 실행 온보딩의 판(版).
+ *
+ * ⚠️ **예전에는 불린이었습니다.** 그래서 안내 내용을 통째로 바꿔도 이미 본 사람에게는
+ *    다시 뜨지 않았고, 확인하려면 앱 데이터를 지우는 수밖에 없었습니다.
+ *    `COACH_VERSION` 과 같은 방식(판 번호)으로 바꿨습니다 — 이 상수만 올리면
+ *    모두에게 한 번 더 보입니다.
+ *
+ * 예전 기기에는 `true` 가 저장돼 있습니다. `'v2' !== true` 라 **한 번 더 뜹니다** —
+ * 시안이 바뀐 판이라 그게 맞는 동작입니다. 지우거나 옮길 필요가 없습니다.
+ *
+ *   v2  2026-08-31  시안 `온보딩최종.html` — 화면 넷 → 다섯, 애니메이션 전면 교체
+ */
+export const TUTORIAL_VERSION = 'v2';
+
 interface AppState {
   /** 로그인 후 등록·선택한 가게 */
   storeId: number | null;
   signedIn: boolean;
 
   /**
-   * 최초 실행 튜토리얼을 본 적이 있는지 (`domains/onboarding`).
+   * 최초 실행 온보딩을 본 판(版). 안 봤으면 `null` 입니다.
+   *
+   * ⚠️ **불린이 아니라 판 번호입니다** (2026-08-31 변경 — 그 전에는 불린이었습니다).
+   *    `TUTORIAL_VERSION` 과 다르면 다시 뜹니다. 예전 기기에 남아 있는 `true` 도
+   *    다른 값이라 한 번 더 뜹니다.
    *
    * **계정이 아니라 기기 기준**입니다. 그래서 `reset()`(로그아웃)이 건드리지
-   * 않습니다 — 로그아웃할 때마다 튜토리얼이 다시 뜨면 안내가 아니라 방해입니다.
+   * 않습니다 — 로그아웃할 때마다 온보딩이 다시 뜨면 안내가 아니라 방해입니다.
    */
-  tutorialSeen: boolean;
+  tutorialSeen: string | boolean | null;
 
   /**
    * 스팟라이트 코치마크(`ui/coach`)를 본 판(版). 안 봤으면 `null` 입니다.
@@ -74,7 +93,10 @@ interface AppState {
 
   setStoreId: (id: number | null) => void;
   setSignedIn: (v: boolean) => void;
-  setTutorialSeen: (v: boolean) => void;
+  /** 온보딩을 끝까지(또는 건너뛰기로) 본 표시 — 지금 판 번호를 적습니다. */
+  setTutorialSeen: () => void;
+  /** 다시 보게 합니다 (판 번호를 지웁니다). */
+  replayTutorial: () => void;
   /** 지금 판을 봤다고 표시합니다(코치마크). */
   setCoachSeen: () => void;
   /**
@@ -97,7 +119,7 @@ export const useAppState = create<AppState>()(
     (set) => ({
       storeId: null,
       signedIn: false,
-      tutorialSeen: false,
+      tutorialSeen: null,
       coachSeen: null,
       marketingAgreed: false,
       guideVisible: true,
@@ -106,7 +128,8 @@ export const useAppState = create<AppState>()(
 
       setStoreId: (storeId) => set({ storeId }),
       setSignedIn: (signedIn) => set({ signedIn }),
-      setTutorialSeen: (tutorialSeen) => set({ tutorialSeen }),
+      setTutorialSeen: () => set({ tutorialSeen: TUTORIAL_VERSION }),
+      replayTutorial: () => set({ tutorialSeen: null }),
       setCoachSeen: () => set({ coachSeen: COACH_VERSION }),
       replayCoach: () => set({ coachSeen: null }),
       setMarketingAgreed: (marketingAgreed) => set({ marketingAgreed }),

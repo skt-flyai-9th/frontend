@@ -121,7 +121,7 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
   if (isError || (!isLoading && !format)) {
     return (
       <Screen>
-        <AppBar onBack={() => navigation.goBack()} title="촬영 준비" />
+        <AppBar onBack={() => navigation.goBack()} title="촬영 가이드" />
         <Banner
           tone="danger"
           title="이 방식을 불러오지 못했습니다"
@@ -135,8 +135,8 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
   if (isLoading || !format) {
     return (
       <Screen>
-        <AppBar onBack={() => navigation.goBack()} title="촬영 준비" />
-        <Loading label="촬영 준비 중" />
+        <AppBar onBack={() => navigation.goBack()} title="촬영 가이드" />
+        <Loading label="촬영 가이드 준비 중" />
       </Screen>
     );
   }
@@ -183,7 +183,8 @@ export default function FormatDetailScreen({ navigation, route }: Props) {
         </View>
       }
     >
-      <AppBar onBack={() => navigation.goBack()} title={isDance ? '안무 가이드' : '촬영 준비'} />
+      {/* 2026-08-31 지시 ④ — "촬영 준비" 를 "촬영 가이드" 로 바꿉니다 */}
+      <AppBar onBack={() => navigation.goBack()} title={isDance ? '안무 가이드' : '촬영 가이드'} />
 
       {/*
         🔴 **컷을 한 장씩 옆으로 넘겨 봅니다** (2026-08-29, 시안 `테스크가로변경점.png`).

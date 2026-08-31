@@ -25,10 +25,13 @@ import {
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { ActivityIndicator } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Download, Upload } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { Button } from '../../../ui/Button';
+import { useSaveToGallery } from '../../../lib/useSaveToGallery';
+import { useShareVideo } from '../../../lib/useShareVideo';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState } from '../../../ui/Feedback';
 import { useAppState } from '../../../lib/appState';
@@ -137,6 +140,16 @@ function Reel({
   logoUrl?: string;
   bottomInset: number;
 }) {
+  /*
+    🔴 **다 찍은 영상에도 저장 · 내보내기를 답니다** (2026-08-31 지시).
+
+    내보내기 화면(`domains/edit/EditResultScreen`)에 있는 그 두 버튼과 **같은 것**
+    입니다 — 같은 훅(`useSaveToGallery` · `useShareVideo`)을 씁니다. 여기서는
+    올릴 문구(caption)가 없어서 저장 + 안내로만 떨어집니다.
+  */
+  const { saving, saved, save } = useSaveToGallery();
+  const { sharing, share } = useShareVideo();
+
   const player = useVideoPlayer(short.videoUrl, (p) => {
     p.loop = true;
   });
@@ -219,6 +232,33 @@ function Reel({
         <Text style={[text.subheading, { color: color.paper }]} numberOfLines={2}>
           {projectLabel(short)}
         </Text>
+
+        {/* 내보내기 화면과 같은 두 개 — 저장이 먼저, 내보내기가 뒤 */}
+        <View style={styles.actionRow}>
+          <Button
+            label={saved ? '저장됨' : '기기에 다운로드'}
+            variant="secondary"
+            icon={Download}
+            loading={saving}
+            disabled={!short.videoUrl}
+            style={styles.actionBtn}
+            onPress={() => short.videoUrl && save(short.videoUrl, short.videoOutputId)}
+          />
+          <Button
+            label={sharing ? '준비 중…' : '내보내기'}
+            icon={Upload}
+            disabled={!short.videoUrl || sharing}
+            style={styles.actionBtn}
+            onPress={() =>
+              short.videoUrl &&
+              share({
+                videoUrl: short.videoUrl,
+                fileKey: short.videoOutputId,
+                fallback: () => save(short.videoUrl, short.videoOutputId),
+              })
+            }
+          />
+        </View>
       </View>
     </View>
   );
@@ -254,6 +294,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* 시안 내보내기와 같은 줄 — h-12 두 개, 사이 12 */
+  actionRow: { flexDirection: 'row', gap: space[3], marginTop: space[4] },
+  actionBtn: { flex: 1 },
   info: {
     position: 'absolute',
     left: 0,

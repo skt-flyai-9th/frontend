@@ -43,7 +43,7 @@ import { pressTap } from '../../../ui/press';
 import { color, motion, radius, space, text } from '../../../design/theme';
 import { useAppState } from '../../../lib/appState';
 import type { RootStackParamList } from '../../../navigation/types';
-import { Art01, Art02, Art03, Art04 } from '../components/TutorialArt';
+import { Art01, Art02, Art03, Art04, Art05 } from '../components/TutorialArt';
 
 /* ────────────────────────────────────────────────────────────
  * 내용 — 시안 A안 원문 그대로
@@ -57,11 +57,12 @@ interface Slide {
   label: string;
   Art: (p: { active: boolean }) => React.JSX.Element;
   title: Piece[];
-  /**
-   * 시안 A안은 1~3번 설명이 `<p><br></p>` — **빈 줄**입니다.
-   * 지우면 안 됩니다. 아래 렌더링 주석을 보세요.
-   */
   caption: string;
+  /**
+   * 03 만 시안이 **글을 위, 그림을 아래**로 뒤집어 놨습니다
+   * (`온보딩최종.html` 의 `03 영상 가이드` 섹션 — `padding-top:6` 인 글 블록이 먼저).
+   */
+  copyFirst?: boolean;
 }
 
 const SLIDES: Slide[] = [
@@ -69,32 +70,39 @@ const SLIDES: Slide[] = [
     label: '01 매장 등록',
     Art: Art01,
     title: [{ t: '한 번', brand: true }, { t: ' 입력하면\n준비 끝' }],
-    caption: '',
+    caption: '매장 이름만 검색하면 업종·메뉴 정보가 자동으로 입력돼요.',
   },
   {
-    label: '02 AI 추천·가이드',
+    label: '02 AI 대화',
     Art: Art02,
     // 시안 원문의 `AI&nbsp;와` — 줄바꿈으로 갈라지지 않게 붙임공백입니다.
     title: [{ t: 'AI', brand: true }, { t: ' 와 대화하고\n숏폼을 추천 받아요' }],
-    caption: '',
+    caption: '몇 가지 질문에 답하면 사장님 맞춤으로 숏폼을 추천해줘요.',
   },
   {
-    label: '03 AI 자동 편집',
+    label: '03 영상 가이드',
     Art: Art03,
-    title: [{ t: '사장님은 ' }, { t: '찍기만,', brand: true }, { t: '\n편집은 자동으로 ' }],
-    caption: '',
+    title: [{ t: '컷마다', brand: true }, { t: ' 어떻게 찍을지\n미리 알려줘요' }],
+    caption: '컷마다 가이드 영상을 넘겨보며 촬영 포인트를 쉽게 연습할 수 있어요.',
+    // 🔴 이 장만 시안이 **글을 위, 그림을 아래**로 뒤집어 놨습니다.
+    copyFirst: true,
   },
   {
-    label: '04 성과 대시보드',
+    label: '04 자동 편집',
     Art: Art04,
+    title: [{ t: '사장님은 ' }, { t: '찍기만,', brand: true }, { t: '\n편집은 자동으로' }],
+    caption: '가이드 영상을 보면서 컷마다 촬영하면, AI가 편집해줘요.',
+  },
+  {
+    label: '05 인사이트',
+    Art: Art05,
     title: [
-      { t: 'AI ' },
-      { t: '인사이트 ', brand: true },
-      { t: '분석으로\n' },
-      { t: '다음 ', brand: true },
-      { t: '숏폼 추천까지 ' },
+      { t: '매장 인사이트', brand: true },
+      { t: ' 분석,\n' },
+      { t: '다음', brand: true },
+      { t: ' 숏폼 추천까지' },
     ],
-    caption: '조회수 추이, 주 타깃, 주변 상권 분석 제공',
+    caption: '좋아요·조회수·소비층 분석 지표를 제공해줘요.',
   },
 ];
 
@@ -215,11 +223,24 @@ export default function TutorialScreen() {
     [go, trackX]
   );
 
-  /** 마지막 화면의 "무료로 시작하기". 다시 보이지 않게 표시하고 회원가입으로 갑니다. */
+  /*
+    마지막 화면의 버튼.
+
+    처음 켠 분은 **회원가입**으로 갑니다. 그런데 설정에서 "온보딩 다시 보기" 로 들어온
+    분은 **이미 가입한 분**이라 거기로 보내면 안 됩니다 — 그때는 그냥 닫습니다.
+    가르는 기준은 `signedIn` 입니다(2026-08-31).
+  */
+  const signedIn = useAppState((s) => s.signedIn);
   const start = useCallback(() => {
-    setTutorialSeen(true);
+    setTutorialSeen();
+    if (signedIn) {
+      // 다시 보기로 들어온 길. 온 곳(설정)으로 돌아갑니다.
+      if (nav.canGoBack()) nav.goBack();
+      else nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+      return;
+    }
     nav.replace('Auth', { screen: 'SignUp' });
-  }, [nav, setTutorialSeen]);
+  }, [nav, setTutorialSeen, signedIn]);
 
   const last = index === LAST;
 
@@ -268,7 +289,9 @@ export default function TutorialScreen() {
           // 시안 CTA 는 active:scale-[0.97] — 토큰의 card 와 같은 값입니다.
           style={({ pressed }) => [styles.cta, pressTap(pressed, 'card')]}
         >
-          <Text style={styles.ctaText}>{last ? '무료로 시작하기' : '다음'}</Text>
+          <Text style={styles.ctaText}>
+            {last ? (signedIn ? '닫기' : '무료로 시작하기') : '다음'}
+          </Text>
         </Pressable>
       </View>
     </Screen>
@@ -281,28 +304,34 @@ export default function TutorialScreen() {
 
 function Page({ slide, width, active }: { slide: Slide; width: number; active: boolean }) {
   const { Art } = slide;
+
+  const copy = (
+    <View style={slide.copyFirst ? styles.copyTop : styles.copy}>
+      <Text style={styles.title}>
+        {slide.title.map((p, i) => (
+          <Text key={i} style={p.brand ? styles.titleBrand : undefined}>
+            {p.t}
+          </Text>
+        ))}
+      </Text>
+      <Text style={styles.caption}>{slide.caption || ' '}</Text>
+    </View>
+  );
+
+  const art = (
+    <View style={[styles.artArea, slide.copyFirst && styles.artAreaLow]}>
+      <Art active={active} />
+    </View>
+  );
+
+  /*
+    시안은 장마다 순서가 다릅니다 — 01·02·04·05 는 그림이 위, **03 만 글이 위**
+    입니다. 그림 영역이 `flex:1` 이라 순서만 바꾸면 그대로 따라옵니다.
+  */
   return (
     <View style={[styles.page, { width }]}>
-      <View style={styles.artArea}>
-        <Art active={active} />
-      </View>
-
-      <View style={styles.copy}>
-        <Text style={styles.title}>
-          {slide.title.map((p, i) => (
-            <Text key={i} style={p.brand ? styles.titleBrand : undefined}>
-              {p.t}
-            </Text>
-          ))}
-        </Text>
-
-        {/*
-         * ⚠️ 설명이 비어도 **빈 줄을 그립니다.**
-         * 시안 A안 1~3번은 `<p><br></p>` 라 글자는 없어도 한 줄 높이(18.85)를
-         * 차지합니다. 빼면 제목 블록이 통째로 30pt 내려앉아 시안과 어긋납니다.
-         */}
-        <Text style={styles.caption}>{slide.caption || ' '}</Text>
-      </View>
+      {slide.copyFirst ? copy : art}
+      {slide.copyFirst ? art : copy}
     </View>
   );
 }
@@ -390,8 +419,14 @@ const styles = StyleSheet.create({
   },
   // 시안: h-32 · px-10
   skip: { height: 32, paddingHorizontal: 10, justifyContent: 'center' },
-  // 시안: 14 · 600 · -.01em · #94A3B8
-  skipText: { ...text.subheading, fontSize: 14, lineHeight: 20, letterSpacing: -0.14, color: color.ink[400] },
+  // 시안: 14 · 600 · -.01em · #64748B
+  skipText: {
+    ...text.subheading,
+    fontSize: 14,
+    lineHeight: 20,
+    letterSpacing: -0.14,
+    color: color.ink[500],
+  },
 
   pager: { flex: 1, overflow: 'hidden' },
   track: { flexDirection: 'row', height: '100%' },
@@ -400,38 +435,51 @@ const styles = StyleSheet.create({
   page: { height: '100%', paddingHorizontal: 34 },
   // 시안: flex-1 · 가운데 정렬 · min-h-0
   artArea: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 0 },
+  // 시안 03: 그림이 아래라 버튼 자리만큼(130) 띄웁니다
+  artAreaLow: { paddingBottom: 130 },
   /*
    * 시안: pb-150.
    * 아래 버튼 영역이 138(점 36 + 12 + 버튼 56 + 하단 34)이라 그 위로 12 를 띄웁니다.
    */
   copy: { paddingBottom: 150 },
+  // 시안 03: 글이 위 — pt-6
+  copyTop: { paddingTop: 6 },
   // 시안: 32 · 700 · line-height 1.24 · -.028em
   // (CLAUDE.md §5-① 의 ×1.5 규칙은 시안에 line-height 가 **없을 때**입니다. 여기는 명시돼 있습니다.)
   title: { ...text.display, fontSize: 32, lineHeight: 39.68, letterSpacing: -0.9 },
   titleBrand: { color: color.brand[600] },
-  // 시안: 13 · 500 · line-height 1.45 · #94A3B8 · margin-top 12
-  caption: { ...text.caption, lineHeight: 18.85, color: color.ink[400], marginTop: space[3] },
+  // 시안: 14 · 500 · line-height 1.5 · #64748B · margin-top 12
+  caption: {
+    ...text.caption,
+    fontSize: 14,
+    lineHeight: 21,
+    color: color.ink[500],
+    marginTop: space[3],
+  },
 
   // 시안: absolute inset-x-0 bottom-0 · px-34 · pb-34
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 34 },
   // 시안: h-36 · gap-6
   dots: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], height: 36 },
   dot: { height: 6, borderRadius: radius.pill },
-  // 시안: h-56 · radius 999 · #0F172A · margin-top 12
+  /*
+    시안 `온보딩최종.html`: h-52 · radius 14 · #2563EB · margin-top 12
+    (예전 시안은 h-56 · radius 999 · #0F172A 였습니다 — 새 시안에서 바뀌었습니다)
+  */
   cta: {
-    height: 56,
+    height: 52,
     marginTop: space[3],
-    borderRadius: radius.pill,
-    backgroundColor: color.ink[900],
+    borderRadius: 14,
+    backgroundColor: color.brand[600],
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // 시안: 16.5 · 700 · -.01em
+  // 시안: 16 · 600 · -.01em
   ctaText: {
     ...text.display,
-    fontSize: 16.5,
+    fontSize: 16,
     lineHeight: 22,
-    letterSpacing: -0.165,
-    color: color.canvas,
+    letterSpacing: -0.16,
+    color: color.paper,
   },
 });

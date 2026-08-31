@@ -78,6 +78,14 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
   const [elapsed, setElapsed] = useState(0);
   /** 녹화를 시작한 시각. 길이는 이 값으로 잽니다(아래 `recordAsync` 주석). */
   const startedAt = useRef(0);
+
+  /*
+    🔴 **컷마다 2 · 1 을 세고 시작합니다** (2026-08-31 지시).
+       2026-08-27 에 3·2·1 을 뺐던 것을 **두 박자로 줄여** 되살린 것입니다.
+       자세한 사정은 `CameraScreen` 의 같은 자리 주석에 있습니다.
+  */
+  const COUNT_FROM = 2;
+  const [count, setCount] = useState<number | null>(null);
   /** 방금 찍은 것. 값이 있으면 시안 ReviewSheet 가 뜹니다. */
   const [take, setTake] = useState<{ uri: string; durationSec: number } | null>(null);
   const [uploadPct, setUploadPct] = useState(0);
@@ -102,6 +110,18 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
 
   // 화면을 벗어나면 업로드를 정리합니다. 안 하면 백그라운드에서 계속 돕니다.
   useEffect(() => () => upload.cancel(), []);
+
+  useEffect(() => {
+    if (count == null) return;
+    if (count === 0) {
+      setCount(null);
+      void beginRecording();
+      return;
+    }
+    const t = setTimeout(() => setCount((n) => (n == null ? null : n - 1)), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count]);
 
   const beginRecording = useCallback(async () => {
     if (!cameraRef.current) return;
@@ -201,6 +221,13 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
       <View style={styles.dim} pointerEvents="none" />
 
       {/* 시안: 행 44(h-11) · 좌우 16(px-4) · 뒤로 36(h-9 w-9) · chevron-left 24 흰색 */}
+      {/* 화면 정중앙 카운트다운. 최종 파일에는 안 들어갑니다 — CameraView 형제입니다. */}
+      {count != null ? (
+        <View style={styles.countWrap} pointerEvents="none">
+          <Text style={styles.countText}>{count}</Text>
+        </View>
+      ) : null}
+
       <SafeAreaView style={styles.topLayer} edges={['top']} pointerEvents="box-none">
         <View style={styles.header}>
           <Pressable
@@ -240,7 +267,8 @@ export default function DanceCameraScreen({ route, navigation }: Props) {
             recording={recording}
             onPress={() => {
               if (recording) cameraRef.current?.stopRecording();
-              else void beginRecording();
+              else if (count != null) setCount(null);   // 세는 중에 다시 누르면 취소
+              else setCount(COUNT_FROM);
             }}
           />
 
@@ -348,6 +376,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.10)',
   },
 
+  countWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 30,
+  },
+  countText: {
+    fontSize: 120,
+    lineHeight: 132,
+    fontWeight: '700',
+    color: color.paper,
+    textShadowColor: 'rgba(15,23,42,0.45)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 18,
+  },
   topLayer: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20 },
   // 시안: h-11(44) · px-4 · 뒤로 h-9 w-9(36)
   header: {

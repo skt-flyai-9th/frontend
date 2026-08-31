@@ -1,5 +1,14 @@
-import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import theme, { color, radius, sizing, space, text } from '../design/theme';
 import { pressTap } from './press';
@@ -115,8 +124,39 @@ export function Button({
  */
 export function BottomAction({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
+
+  /*
+    🔴 **키보드가 올라오면 아래 안전영역을 빼야 합니다** (2026-08-31 지시 ③:
+       "촬영 가이드 화면에서 하단 버튼과 키보드 사이 여백 없애기").
+
+    아래 안전영역(홈 인디케이터, 34)은 **화면 맨 아래에 있을 때** 필요한 값입니다.
+    키보드가 올라오면 그 자리를 키보드가 덮으므로 남겨 둘 이유가 없는데, 그대로
+    두고 있어서 **버튼과 키보드 사이에 34pt 흰 띠**가 남았습니다.
+
+    키보드가 올라온 동안에는 8 만 둡니다. 버튼이 키보드에 붙어 보이지 않을
+    만큼만입니다. 이 컴포넌트를 쓰는 화면 전부에 같이 적용됩니다 — 입력이 있는
+    화면이면 어디서나 같은 띠가 생기던 문제입니다.
+  */
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  useEffect(() => {
+    // iOS 는 will* 이 먼저 와서 애니메이션과 같이 움직입니다. 안드로이드는 did* 만 옵니다.
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, () => setKeyboardUp(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardUp(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
   return (
-    <View style={[styles.bottomAction, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
+    <View
+      style={[
+        styles.bottomAction,
+        { paddingBottom: keyboardUp ? space[2] : Math.max(insets.bottom, space[4]) },
+      ]}
+    >
       {children}
     </View>
   );

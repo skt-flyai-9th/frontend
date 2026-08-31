@@ -28,7 +28,6 @@ import React, { useEffect } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
-import theme from '../../../design/theme';
 import type { StoreShort } from '../../../api/schema/types';
 
 export function MyShortCell({
@@ -67,13 +66,24 @@ export function MyShortCell({
     else player.pause();
   }, [autoplay, focused, player]);
 
+  /*
+    🔴 **누르는 판을 영상 위에 형제로 얹습니다** (2026-08-31 지적: "마이페이지에서
+       영상이 터치가 안 된다").
+
+    예전에는 `Pressable` 이 `VideoView` 를 **감싸고** 있었습니다. 안드로이드에서
+    영상은 네이티브 표면이라 **터치를 자기가 먹고 위로 올려보내지 않습니다.**
+    그래서 감싼 `Pressable` 의 `onPress` 가 안 불립니다. 앞줄(자동재생하는 칸)만
+    영상이라 **거기만 안 눌리고** 아랫줄(표지 이미지)은 눌렸습니다.
+
+    ⚠️ 촬영 확인 탭에서 **똑같은 일**이 있었습니다(`domains/shoot/components/TakePreview.tsx`,
+       2026-08-30). 그때와 같은 방법으로 고칩니다 — 부모로 감싸지 말고 **형제**로
+       덮습니다.
+
+    ✅ 이 영상은 우리가 만든 파일이라 위에 판을 얹어도 됩니다. 유튜브 임베드였다면
+       가리는 것 자체가 약관 위반입니다(CLAUDE.md §8-1).
+  */
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [style, pressed && { opacity: theme.opacity.pressed }]}
-    >
+    <View style={style}>
       {autoplay ? (
         <View style={[imageStyle, styles.clip]}>
           {/*
@@ -95,7 +105,18 @@ export function MyShortCell({
       ) : (
         <View style={[imageStyle, emptyStyle]} />
       )}
-    </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        style={({ pressed }) => [
+          StyleSheet.absoluteFill,
+          // 눌린 표시는 여기서 냅니다 — 영상에 `opacity` 를 주면 다시 못 살아납니다
+          pressed && { backgroundColor: 'rgba(15,23,42,0.18)' },
+        ]}
+      />
+    </View>
   );
 }
 
