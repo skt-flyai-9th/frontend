@@ -35,7 +35,27 @@ export function useLogin() {
         refreshToken: res.refreshToken,
         expiresIn: res.expiresIn,
       });
-      return res;
+
+      /*
+        🔴 **이미 등록한 가게가 있는지 여기서 확인합니다** (2026-08-31, 백엔드 PR #133).
+
+        로그아웃하면 기기에 저장된 `storeId` 가 지워집니다. 그래서 다시 로그인하면
+        **가게가 있는 사장님도 매장 등록부터 다시** 하고 있었습니다. "내 가게 목록"
+        API 가 없어 앱이 알 방법이 없었기 때문입니다.
+
+        1.5 응답에 `store_id` 가 생겨(있으면 그 id, 없으면 null) 이제 알 수 있습니다.
+        토큰을 저장한 **직후** 라 이 요청은 인증이 붙습니다.
+
+        ⚠️ 실패해도 로그인은 성공입니다 — 신호가 나빠 이것만 못 읽었다고 로그인을
+           되돌리면 안 됩니다. 그때는 예전처럼 매장 등록으로 갑니다.
+      */
+      let storeId: number | null = null;
+      try {
+        storeId = (await request<Me>(API.me())).storeId ?? null;
+      } catch {
+        // 못 읽어도 그냥 넘어갑니다.
+      }
+      return { ...res, storeId };
     },
   });
 }
@@ -61,10 +81,11 @@ export function useLogout() {
  * 1.5 회원정보 조회 (2026-08-23 신설).
  * 프로필 수정 화면에서 사장님 이름·전화번호를 채우는 데 씁니다.
  */
-export function useMe() {
+export function useMe(enabled = true) {
   return useQuery({
     queryKey: qk.me,
     queryFn: () => request<Me>(API.me()),
+    enabled,
   });
 }
 

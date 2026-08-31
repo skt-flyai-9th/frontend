@@ -8,12 +8,13 @@
  *
  * 맨 앞의 Tutorial 은 **최초 실행 때 한 번만** 지나갑니다.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createSwipeTabNavigator } from './SwipeTabs';
 import { navRef, exposeQaNav } from './navRef';
 
+import { useMe } from '../api/queries/auth';
 import { TUTORIAL_VERSION, useAppState } from '../lib/appState';
 import type {
   AuthStackParamList,
@@ -180,6 +181,29 @@ export default function RootNavigator() {
    *    이미 본 사람에게는 다시 안 떴습니다. `TUTORIAL_VERSION` 만 올리면
    *    (아직 로그인 안 한 기기에서) 모두에게 한 번 더 보입니다 — `lib/appState.ts`.
    */
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **앱을 다시 켰을 때도 가게를 되찾습니다** (2026-08-31, 백엔드 PR #133)
+    ─────────────────────────────────────────────────────────────
+    로그인 순간은 `SignInScreen` 이 처리합니다. 그런데 **토큰만 남고 `storeId` 가
+    비어 있는 채로 앱이 다시 켜지는 경우**가 또 있습니다 — 앱을 지웠다 깔거나,
+    저장소가 비워졌거나, 예전 판에서 넘어온 기기입니다. 그때도 매장 등록 화면이
+    뜨면 안 됩니다.
+
+    로그인돼 있는데 가게를 모를 때만 1.5 를 한 번 물어봅니다(`enabled`).
+    값이 있으면 저장하고 **첫 화면으로 밀어 줍니다** — `initialRouteName` 은 이미
+    정해진 뒤라 다시 계산되지 않으므로, 화면을 옮기려면 `reset` 이 필요합니다.
+  */
+  const setStoreId = useAppState((s) => s.setStoreId);
+  const needsStore = signedIn && !storeId;
+  const me = useMe(needsStore);
+  useEffect(() => {
+    const sid = me.data?.storeId;
+    if (!needsStore || sid == null) return;
+    setStoreId(sid);
+    if (navRef.isReady()) navRef.reset({ index: 0, routes: [{ name: 'Main' }] });
+  }, [needsStore, me.data, setStoreId]);
+
   const initial: keyof RootStackParamList =
     tutorialSeen !== TUTORIAL_VERSION && !signedIn
       ? 'Tutorial'

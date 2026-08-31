@@ -107,8 +107,12 @@ export default function MyVideoScreen({ route, navigation }: Props) {
       </LoadGate>
 
       {/*
-        시안 헤더: 뒤로가기 + 가운데 "내 숏폼" 16·bold.
-        영상 위에 얹히는 요소는 이것뿐입니다(유튜브 임베드가 아니라 우리 파일이라 가능합니다).
+        🔴 **뒤로가기 하나만 남겼습니다** (2026-08-31 지시: '그 위에 뒤로가기
+           아이콘만. "내 숏폼" 삭제').
+
+        어디서 눌러 들어왔는지 사장님이 알고 있는 자리라 제목이 할 일이 없습니다.
+        영상 위에 얹히는 요소는 이제 이 버튼 하나뿐입니다(우리 파일이라 가능 —
+        유튜브 임베드였다면 이것도 안 됩니다, CLAUDE.md §8-1).
       */}
       <View style={[styles.header, { top: insets.top }]} pointerEvents="box-none">
         <Pressable
@@ -120,9 +124,6 @@ export default function MyVideoScreen({ route, navigation }: Props) {
         >
           <ChevronLeft size={24} strokeWidth={2} color={color.paper} />
         </Pressable>
-        <Text style={styles.headerTitle} pointerEvents="none">
-          내 숏폼
-        </Text>
       </View>
     </View>
   );
@@ -152,6 +153,16 @@ function Reel({
     입니다 — 같은 훅(`useSaveToGallery` · `useShareVideo`)을 씁니다. 여기서는
     올릴 문구(caption)가 없어서 저장 + 안내로만 떨어집니다.
   */
+  /*
+    무대 = **9:16 한 장.** 폭을 꽉 채우되, 버튼 칸이 모자라면 폭을 줄여 비율을 지킵니다.
+      393×852 · 조작바 34  →  무대 393×699 · 흰 판 119
+  */
+  const full = Math.round((width * 16) / 9);
+  /** 버튼 한 줄(48)과 위아래 최소 여백(16씩)은 남겨 둡니다. */
+  const barMin = 48 + space[4] * 2;
+  const stageH = Math.max(200, Math.min(full, height - bottomInset - barMin));
+  const stageW = stageH >= full ? width : Math.round((stageH * 9) / 16);
+
   const { saving, saved, save } = useSaveToGallery();
   const { sharing, share } = useShareVideo();
 
@@ -184,61 +195,60 @@ function Reel({
         영상이 뜨기 전(또는 못 뜰 때) 검은 판만 남지 않게 커버 이미지를 깝니다.
         15.2 가 cover_image_url 을 주므로 지어내는 값이 아닙니다.
       */}
-      {short.coverImageUrl ? (
-        <Image
-          source={{ uri: short.coverImageUrl }}
-          style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-        />
-      ) : null}
-
       {/*
-        ⚠️ 주소가 비어 있을 수 있습니다 — 그때는 표지 사진만 남습니다
-           (`StoreShort.videoUrl` 주석). 빈 주소로 플레이어를 만들면 죽습니다.
+        ─────────────────────────────────────────────────────────────
+        🔴 **영상은 9:16 그대로, 화면 맨 위부터** (2026-08-31 지시:
+           "상단 위에까지 세로로 긴 9:16 비율 유지한 채")
+        ─────────────────────────────────────────────────────────────
+        예전에는 영상이 화면 전체를 무대로 쓰고 `contain` 으로 들어가서, 위아래에
+        **검은 띠**가 남았습니다. 이제 무대 자체를 9:16 으로 잘라 두므로 띠가
+        생길 자리가 없습니다. 남는 세로는 전부 아래 흰 판이 가져갑니다.
+
+        상태바 아래가 아니라 **화면 맨 위(y 0)** 에서 시작합니다 — 세로 영상을
+        가장 크게 보여 주는 자리이고, 우리가 만든 파일이라 상태바가 겹쳐도
+        괜찮습니다(유튜브 임베드였다면 안 됩니다 — CLAUDE.md §8-1).
+
+        자리가 모자라면 **폭을 줄여** 비율을 지킵니다. 잘라서 맞추지 않습니다.
       */}
-      {near && short.videoUrl ? <ReelVideo url={short.videoUrl} active={active} /> : null}
+      <View style={[styles.stage, { height: stageH }]}>
+        {/*
+          영상이 뜨기 전(또는 못 뜰 때) 검은 판만 남지 않게 커버 이미지를 깝니다.
+          15.2 가 cover_image_url 을 주므로 지어내는 값이 아닙니다.
+        */}
+        <View style={{ width: stageW, height: stageH }}>
+          {short.coverImageUrl ? (
+            <Image
+              source={{ uri: short.coverImageUrl }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+          ) : null}
+
+          {/*
+            ⚠️ 주소가 비어 있을 수 있습니다 — 그때는 표지 사진만 남습니다
+               (`StoreShort.videoUrl` 주석). 빈 주소로 플레이어를 만들면 죽습니다.
+          */}
+          {near && short.videoUrl ? <ReelVideo url={short.videoUrl} active={active} /> : null}
+        </View>
+      </View>
 
       {/*
         ─────────────────────────────────────────────────────────────
-        🔴 **버튼 둘만 남긴 흰 판입니다** (2026-08-31 지시: "하단에 검은색으로
-           투명하게 되어 있는 바를 흰색 불투명하게 바꿔주고, 그 위에 아이콘이랑
-           메뉴 소개 뭐 그런 거 다 지우고 버튼 두 개만 냅둬줘")
+        🔴 **영상과 기기 조작바 사이의 흰 판. 버튼은 위아래 여백이 같습니다**
+           (2026-08-31 지시)
         ─────────────────────────────────────────────────────────────
-        걷어낸 것 — 가게 로고·가게 이름·프로젝트 제목. 자기가 만든 영상을 자기가
-        보는 자리라 **누구 가게인지 다시 말해 줄 필요가 없습니다.** 할 일은 둘뿐이고
-        그 둘만 남깁니다.
+        `flex: 1` 로 남는 자리를 통째로 받고 `justifyContent: 'center'` 로 가운데에
+        둡니다. 그러면 **위 여백과 아래 여백이 저절로 같습니다** — 숫자를 두 번
+        적어 맞추면 화면 크기가 달라질 때마다 어긋납니다.
 
-        ✅ **이건 우리가 만든 파일이라 위에 판을 얹어도 됩니다.** 영상이 가려지든
-           잘리든 상관없습니다 — 유튜브 임베드였다면 가리는 것 자체가 약관 위반
-           입니다(CLAUDE.md §8-1). 홈 피드가 영상 **아래** 띠를 쓰는 이유가 그것이고,
-           여기는 그 제약을 받지 않습니다.
-      */}
-      {/*
-        🔴 **기기 조작바와 겹치지 않게 띄웁니다** (2026-08-31 지적: "휴대폰에서
-           하단 조작바랑 겹치는 경우 없게 조정 좀 해줘").
-
-        예전 값 `Math.max(bottomInset, space[4])` 은 **딱 안전영역까지**였습니다.
-        그러면 버튼 아랫변이 홈 인디케이터·제스처바가 시작하는 바로 그 선에
-        닿습니다 — 눈으로는 겹쳐 보이고, 손가락으로는 버튼을 누르려다 시스템
-        제스처가 먼저 먹습니다. 이 화면은 `fullScreenModal` 이라 화면 맨 아래까지
-        우리가 그리므로 더 그렇습니다.
-
-        이제 **안전영역 위로 8pt 를 더 띄우고**, 안전영역이 0 으로 오는 기기에서도
-        최소 40pt 는 확보합니다(CLAUDE.md §5-③ 의 `Math.max(insets.bottom, space[10])`
-        관용구와 같은 바닥값).
-
-          제스처 기기 (inset 34)  →  34 + 8 = **42**
-          inset 이 0 으로 오는 경우 →  **40**
+        아래 `paddingBottom` 은 그 "아래 여백" 을 재는 바닥을 **기기 조작바 위**로
+        옮기는 것입니다. 이게 없으면 가운데 정렬의 기준이 화면 맨 아래가 되어
+        버튼이 조작바 쪽으로 내려앉습니다.
 
         시스템 바를 숨기는 길도 있었지만 그러지 않았습니다 — 뒤로가기가 사라져
         사장님이 나갈 길을 잃습니다. 40~60대 사용자에게 제스처만 남기는 건 위험합니다.
       */}
-      <View
-        style={[
-          styles.info,
-          { paddingBottom: Math.max(bottomInset + space[2], space[10]) },
-        ]}
-      >
+      <View style={[styles.info, { paddingBottom: bottomInset }]}>
         {/* 내보내기 화면과 같은 두 개 — 저장이 먼저, 내보내기가 뒤 */}
         <View style={styles.actionRow}>
           <Button
@@ -343,14 +353,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     zIndex: 20,
   },
-  headerTitle: {
-    ...text.subheading,
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    color: color.paper,
-  },
   // 시안: -ml-1.5 · 36 원형
   back: {
     width: 36,
@@ -361,20 +363,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   /* 시안 내보내기와 같은 줄 — h-12 두 개, 사이 12 */
-  actionRow: { flexDirection: 'row', gap: space[3], marginTop: space[4] },
+  actionRow: { flexDirection: 'row', gap: space[3] },
   actionBtn: { flex: 1 },
   /*
     시안의 어두운 스크림 대신 **불투명 흰 판**입니다 (2026-08-31 지시).
     글자가 사라져 버튼만 남았으므로 위쪽 여백도 space[6](24) → space[4](16) 로
     줄입니다 — 안 줄이면 버튼 위에 빈 흰 띠만 남습니다.
   */
+  /* 9:16 무대. 폭이 줄면 양옆은 영상과 같은 검정으로 채워 이음매를 감춥니다. */
+  stage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: color.mediaBlack,
+  },
+  /* 남는 자리를 전부 받아 버튼을 가운데 둡니다 — 위아래 여백이 저절로 같아집니다. */
   info: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
+    justifyContent: 'center',
     paddingHorizontal: space[5],
-    paddingTop: space[4],
     backgroundColor: color.paper,
   },
   stateOverlay: {

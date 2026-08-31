@@ -23,7 +23,7 @@
  * 메뉴 목록(반응 보기·가게 정보 관리 등)은 시안에 없지만 **기능이라 지우지 않습니다.**
  * 그리드 아래로 내려 시안의 상단 구성을 가리지 않게 했습니다.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, Linking, Pressable, StyleSheet } from 'react-native';
 import { ChevronRight, Menu, PencilLine, UserRound } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -35,6 +35,11 @@ import { MyShortCell } from '../components/MyShortCell';
 import { AppBar } from '../../../ui/AppBar';
 import { Button } from '../../../ui/Button';
 import { BrandMark } from '../../../ui/BrandMark';
+import {
+  SnsConnectSheet,
+  findSnsPlatform,
+  type SnsPlatformMeta,
+} from '../components/SnsConnectSheet';
 import { CoachTarget } from '../../../ui/coach/CoachContext';
 import { Skeleton } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
@@ -182,6 +187,16 @@ function openSns(url: string | null, fallback: () => void) {
 
 export default function MyPageScreen() {
   const nav = useNavigation<Nav>();
+  /*
+    🔴 **연동 시트를 이 화면에서 바로 띄웁니다** (2026-08-31 지시: "마이페이지에
+       연동하기 누르면 설정 속으로 들어가게 되어 있는데, 그러지 말고 하단에 뜨는
+       화면을 연동하기 버튼 누르면 그 화면에서 바로 뜨게 해 주고").
+
+    예전에는 매장 정보 수정 화면으로 **넘어간 다음** 거기서 시트가 떴습니다.
+    할 일은 시트 하나인데 사장님을 다른 화면으로 데려간 셈이고, 끝나면 돌아올
+    길도 스스로 찾아야 했습니다. 이제 제자리에서 뜨고, **바깥을 누르면 닫힙니다.**
+  */
+  const [connecting, setConnecting] = useState<SnsPlatformMeta | null>(null);
   const storeId = useAppState((s) => s.storeId);
   const { data: store } = useStore(storeId ?? undefined);
   const { data: drafts } = useProjects(storeId ?? undefined, 'DRAFT');
@@ -322,9 +337,7 @@ export default function MyPageScreen() {
                 instagramLink.url ? '인스타그램 계정 열기' : '인스타그램 연동'
               }
               onPress={() =>
-                openSns(instagramLink.url, () =>
-                  nav.navigate('EditProfile', { connect: 'INSTAGRAM' })
-                )
+                openSns(instagramLink.url, () => setConnecting(findSnsPlatform('INSTAGRAM')))
               }
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
@@ -335,7 +348,7 @@ export default function MyPageScreen() {
               accessibilityRole="button"
               accessibilityLabel={youtubeLink.url ? '유튜브 채널 열기' : '유튜브 연동'}
               onPress={() =>
-                openSns(youtubeLink.url, () => nav.navigate('EditProfile', { connect: 'YOUTUBE' }))
+                openSns(youtubeLink.url, () => setConnecting(findSnsPlatform('YOUTUBE')))
               }
               style={({ pressed }) => [styles.linkRow, pressTap(pressed, 'icon')]}
             >
@@ -456,6 +469,9 @@ export default function MyPageScreen() {
           </Text>
         </View>
       )}
+
+      {/* 연동 시트. 두 화면이 같은 것을 씁니다 (`SnsConnectSheet` 머리말) */}
+      <SnsConnectSheet open={connecting} onClose={() => setConnecting(null)} />
 
     </Screen>
   );

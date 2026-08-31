@@ -45,6 +45,7 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const login = useLogin();
   const setSignedIn = useAppState((s) => s.setSignedIn);
+  const setStoreId = useAppState((s) => s.setStoreId);
   const storeId = useAppState((s) => s.storeId);
 
   /** 시안: 입력을 고치면 빨간 표시가 바로 풀립니다. */
@@ -68,11 +69,25 @@ export default function SignInScreen() {
     login.mutate(
       { email: email.trim(), password },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
           setSignedIn(true);
-          // 이미 가게를 등록한 사람은 검색을 다시 시키지 않습니다.
-          if (storeId) nav.replace('Main', { screen: 'HomeFeed' });
-          else nav.replace('StoreSetup', { screen: 'StoreSearch' });
+          /*
+            🔴 **서버가 알려 준 가게가 먼저입니다** (2026-08-31, 백엔드 PR #133).
+
+            예전에는 기기에 남은 `storeId` 만 봤습니다. 그런데 로그아웃이 그 값을
+            지우므로, **다시 로그인하면 가게가 있는 사장님도 매장 등록부터** 다시
+            하게 됐습니다. 이제 로그인이 1.5 의 `store_id` 를 함께 들고 옵니다.
+
+            기기에 남은 값을 뒤에 두는 이유 — 1.5 를 못 읽었을 때(신호 불량)
+            예전처럼이라도 동작하게 하려는 것입니다.
+          */
+          const sid = res.storeId ?? storeId;
+          if (sid) {
+            setStoreId(sid);
+            nav.replace('Main', { screen: 'HomeFeed' });
+          } else {
+            nav.replace('StoreSetup', { screen: 'StoreSearch' });
+          }
         },
         onError: (e) => {
           if (!(e instanceof ApiError)) {
