@@ -11,7 +11,8 @@
  * ✅ 하단 제목 (2026-08-26 해결)
  *    문의해 두었던 제목 컬럼이 15.2 응답에 `project_title` 로 추가됐습니다.
  *    AI 가 7.1 기획 때 지어주는 값이라 기획 전에는 null 이고, 그때는
- *    `promotion_purpose` 로 대체합니다 — 그 분기는 lib/format 의 projectLabel 이 담당합니다.
+ *    (2026-08-31 지시로 이 화면에서는 제목·가게 이름을 아예 걷어냈습니다 —
+ *    자기 영상을 자기가 보는 자리라 다시 말해 줄 필요가 없습니다.)
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -35,9 +36,7 @@ import { useShareVideo } from '../../../lib/useShareVideo';
 import { LoadGate } from '../../../ui/LoadGate';
 import { EmptyState } from '../../../ui/Feedback';
 import { useAppState } from '../../../lib/appState';
-import { useStore } from '../../../api/queries/store';
 import { useStoreShorts } from '../../../api/queries/store';
-import { projectLabel } from '../../../lib/format';
 import { color, radius, space, text } from '../../../design/theme';
 import type { RootStackParamList } from '../../../navigation/types';
 import type { StoreShort } from '../../../api/schema/types';
@@ -51,7 +50,6 @@ export default function MyVideoScreen({ route, navigation }: Props) {
   const { width, height } = useWindowDimensions();
 
   const shorts = useStoreShorts(storeId ?? undefined);
-  const { data: store } = useStore(storeId ?? undefined);
   const items = shorts.data?.items ?? [];
 
   const startIndex = Math.max(
@@ -101,8 +99,6 @@ export default function MyVideoScreen({ route, navigation }: Props) {
                 height={height}
                 active={index === current}
                 near={Math.abs(index - current) <= 1}
-                storeName={store?.name ?? '우리 가게'}
-                logoUrl={store?.logoUrl}
                 bottomInset={insets.bottom}
               />
             )}
@@ -138,8 +134,6 @@ function Reel({
   height,
   active,
   near,
-  storeName,
-  logoUrl,
   bottomInset,
 }: {
   short: StoreShort;
@@ -149,8 +143,6 @@ function Reel({
   active: boolean;
   /** 보고 있는 칸에서 한 장 안쪽인지. **여기까지만 플레이어를 만듭니다.** */
   near: boolean;
-  storeName: string;
-  logoUrl?: string;
   bottomInset: number;
 }) {
   /*
@@ -206,23 +198,22 @@ function Reel({
       */}
       {near && short.videoUrl ? <ReelVideo url={short.videoUrl} active={active} /> : null}
 
-      {/* 하단 정보. 글자가 영상에 묻히지 않도록 어두운 판 위에 올립니다. */}
-      <View style={[styles.info, { paddingBottom: Math.max(bottomInset, space[4]) }]}>
-        <View style={styles.storeRow}>
-          {logoUrl ? (
-            <Image source={{ uri: logoUrl }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, styles.avatarEmpty]} />
-          )}
-          <Text style={[text.bodySmall, { color: color.paper }]} numberOfLines={1}>
-            {storeName}
-          </Text>
-        </View>
-        {/* 명세 15.2 project_title (2026-08-26). 7.1 전이면 null 이라 목적으로 대체됩니다. */}
-        <Text style={[text.subheading, { color: color.paper }]} numberOfLines={2}>
-          {projectLabel(short)}
-        </Text>
+      {/*
+        ─────────────────────────────────────────────────────────────
+        🔴 **버튼 둘만 남긴 흰 판입니다** (2026-08-31 지시: "하단에 검은색으로
+           투명하게 되어 있는 바를 흰색 불투명하게 바꿔주고, 그 위에 아이콘이랑
+           메뉴 소개 뭐 그런 거 다 지우고 버튼 두 개만 냅둬줘")
+        ─────────────────────────────────────────────────────────────
+        걷어낸 것 — 가게 로고·가게 이름·프로젝트 제목. 자기가 만든 영상을 자기가
+        보는 자리라 **누구 가게인지 다시 말해 줄 필요가 없습니다.** 할 일은 둘뿐이고
+        그 둘만 남깁니다.
 
+        ✅ **이건 우리가 만든 파일이라 위에 판을 얹어도 됩니다.** 영상이 가려지든
+           잘리든 상관없습니다 — 유튜브 임베드였다면 가리는 것 자체가 약관 위반
+           입니다(CLAUDE.md §8-1). 홈 피드가 영상 **아래** 띠를 쓰는 이유가 그것이고,
+           여기는 그 제약을 받지 않습니다.
+      */}
+      <View style={[styles.info, { paddingBottom: Math.max(bottomInset, space[4]) }]}>
         {/* 내보내기 화면과 같은 두 개 — 저장이 먼저, 내보내기가 뒤 */}
         <View style={styles.actionRow}>
           <Button
@@ -347,17 +338,20 @@ const styles = StyleSheet.create({
   /* 시안 내보내기와 같은 줄 — h-12 두 개, 사이 12 */
   actionRow: { flexDirection: 'row', gap: space[3], marginTop: space[4] },
   actionBtn: { flex: 1 },
+  /*
+    시안의 어두운 스크림 대신 **불투명 흰 판**입니다 (2026-08-31 지시).
+    글자가 사라져 버튼만 남았으므로 위쪽 여백도 space[6](24) → space[4](16) 로
+    줄입니다 — 안 줄이면 버튼 위에 빈 흰 띠만 남습니다.
+  */
   info: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    gap: space[2],
     paddingHorizontal: space[5],
-    paddingTop: space[6],
-    backgroundColor: color.overlay.scrim,
+    paddingTop: space[4],
+    backgroundColor: color.paper,
   },
-  storeRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   stateOverlay: {
     position: 'absolute',
     top: 0,
@@ -368,6 +362,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space[3],
   },
-  avatar: { width: 32, height: 32, borderRadius: radius.pill, backgroundColor: color.ink[300] },
-  avatarEmpty: { opacity: 0.5 },
 });
