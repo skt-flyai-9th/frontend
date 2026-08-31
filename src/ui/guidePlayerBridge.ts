@@ -55,6 +55,16 @@ export function extractVideoId(url?: string | null): string | null {
 }
 
 /**
+ * 도마 BAD는 0~11초를 끊지 않고 한 번에 촬영하는 원테이크입니다.
+ * 서버가 첫 편집 구간(0~4초)을 촬영 가이드 범위로 내려주는 동안에는 프론트에서
+ * 이 영상의 단일 촬영 컷만 전체 재생합니다. 다른 단일 컷 포맷의 의도적인 구간
+ * 반복까지 풀지 않도록 영상 id와 컷 수를 함께 확인합니다.
+ */
+export function isDomaBadOneTakeGuide(url: string | null | undefined, taskCount: number): boolean {
+  return taskCount === 1 && extractVideoId(url) === 'rUIEHnyoPrU';
+}
+
+/**
  * embed URL. **iframe 의 src 로만** 씁니다 (최상위 문서로 열면 153).
  *
  * controls=1        하단 진행바 · 재생/일시정지 · 설정(⚙)의 배속 메뉴
