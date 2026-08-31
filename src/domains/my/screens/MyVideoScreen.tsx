@@ -213,7 +213,32 @@ function Reel({
            입니다(CLAUDE.md §8-1). 홈 피드가 영상 **아래** 띠를 쓰는 이유가 그것이고,
            여기는 그 제약을 받지 않습니다.
       */}
-      <View style={[styles.info, { paddingBottom: Math.max(bottomInset, space[4]) }]}>
+      {/*
+        🔴 **기기 조작바와 겹치지 않게 띄웁니다** (2026-08-31 지적: "휴대폰에서
+           하단 조작바랑 겹치는 경우 없게 조정 좀 해줘").
+
+        예전 값 `Math.max(bottomInset, space[4])` 은 **딱 안전영역까지**였습니다.
+        그러면 버튼 아랫변이 홈 인디케이터·제스처바가 시작하는 바로 그 선에
+        닿습니다 — 눈으로는 겹쳐 보이고, 손가락으로는 버튼을 누르려다 시스템
+        제스처가 먼저 먹습니다. 이 화면은 `fullScreenModal` 이라 화면 맨 아래까지
+        우리가 그리므로 더 그렇습니다.
+
+        이제 **안전영역 위로 8pt 를 더 띄우고**, 안전영역이 0 으로 오는 기기에서도
+        최소 40pt 는 확보합니다(CLAUDE.md §5-③ 의 `Math.max(insets.bottom, space[10])`
+        관용구와 같은 바닥값).
+
+          제스처 기기 (inset 34)  →  34 + 8 = **42**
+          inset 이 0 으로 오는 경우 →  **40**
+
+        시스템 바를 숨기는 길도 있었지만 그러지 않았습니다 — 뒤로가기가 사라져
+        사장님이 나갈 길을 잃습니다. 40~60대 사용자에게 제스처만 남기는 건 위험합니다.
+      */}
+      <View
+        style={[
+          styles.info,
+          { paddingBottom: Math.max(bottomInset + space[2], space[10]) },
+        ]}
+      >
         {/* 내보내기 화면과 같은 두 개 — 저장이 먼저, 내보내기가 뒤 */}
         <View style={styles.actionRow}>
           <Button
