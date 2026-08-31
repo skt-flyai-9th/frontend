@@ -203,35 +203,49 @@ function StoreGlyph({ size = 16, tint = C.brand }: { size?: number; tint?: strin
 }
 
 /**
- * 새 줄이 **아래에서 위로 떠오릅니다** (2026-08-31 지시: "알약 모양 답변이
- * 선택지 하단에서 위로 올라오게").
+ * 새 줄이 **아래에서 위로 올라옵니다** (2026-08-31 지시: "너무 바로 올라와서
+ * 밑에서 올라온다는 느낌이 안 든다").
  *
- * 시안 원문: `opacity .28s cubic-bezier(.33,1,.68,1)` + `transform .32s
- * cubic-bezier(.2,.9,.25,1)`, `translateY(10px) → 0`.
+ * ⚠️ 처음에는 `opacity` + `translateY(10→0)` 만 줬는데 **느낌이 안 났습니다.**
+ *    시안이 같이 움직이는 것을 빠뜨렸기 때문입니다 — 원문은 `max-height` 를
+ *    **0 에서** 키웁니다. 그래야 위에 쌓인 말풍선이 **서서히** 밀려 올라갑니다.
+ *    높이를 안 키우면 자리가 한 번에 생겨 위가 **툭** 뛰고, 그 위에서 10px 만
+ *    움직이니 눈에 안 띕니다.
  *
- * 붙는 순간 딱 한 번 도는 애니메이션이라 **네이티브 드라이버를 그대로 씁니다** —
- * 웹에서 한 바퀴만 도는 함정은 `Animated.loop` 에만 있습니다(CLAUDE.md §5-④).
+ * 그래서 셋을 같이 움직입니다.
+ *   ① 높이  0 → 잰 높이   (자리가 서서히 생깁니다)
+ *   ② 자리  22 아래 → 0   (상자 안에서 올라옵니다. `overflow: hidden` 이라 잘립니다)
+ *   ③ 투명도 0 → 1
+ *
+ * 높이는 **레이아웃 값**이라 네이티브 드라이버를 못 씁니다. 한 번짜리라
+ * `Animated.loop` 함정(CLAUDE.md §5-④)과는 무관합니다.
  */
+const RISE_MS = 380;
 function Rise({ children }: { children: React.ReactNode }) {
+  const [h, setH] = useState(0);
   const t = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(t, {
-        toValue: 1,
-        duration: 320,
-        easing: Easing.bezier(0.2, 0.9, 0.25, 1),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [t]);
+    if (!h) return;
+    Animated.timing(t, {
+      toValue: 1,
+      duration: RISE_MS,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [h, t]);
+
   return (
     <Animated.View
       style={{
+        // 아직 안 쟀으면 높이를 열어 둡니다 — 그래야 onLayout 이 잽니다(투명해서 안 보입니다).
+        height: h ? t.interpolate({ inputRange: [0, 1], outputRange: [0, h] }) : undefined,
         opacity: t,
-        transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+        transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }],
+        overflow: 'hidden',
       }}
     >
-      {children}
+      <View onLayout={(e) => !h && setH(e.nativeEvent.layout.height)}>{children}</View>
     </Animated.View>
   );
 }
