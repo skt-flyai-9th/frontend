@@ -152,7 +152,7 @@ export default function EditResultScreen({ navigation, route }: Props) {
    */
   const { sharing, share } = useShareVideo();
   const exportToApps = async (videoUrl?: string | null, fileKey?: string | number) => {
-    const caption = [postTitle, postBody].filter(Boolean).join('\n\n');
+    const caption = postBody.trim();
     await share({
       videoUrl,
       fileKey,
@@ -181,15 +181,13 @@ export default function EditResultScreen({ navigation, route }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, outputs?.outputs?.length]);
 
-  /** 제목과 본문은 서버 계약에서 분리해 받으며, 수정값은 기기에만 남습니다. */
-  const [postTitle, setPostTitle] = useState('');
+  /** 올릴 문구. 서버가 준 것을 채워 두고, 고친 값은 기기에만 남습니다. */
   const [postBody, setPostBody] = useState('');
   const seeded = useRef(false);
   useEffect(() => {
     if (seeded.current || !kit) return;
     seeded.current = true;
     const tags = (kit.hashtags ?? []).map((t) => (t.startsWith('#') ? t : `#${t}`)).join(' ');
-    setPostTitle(kit.title ?? '');
     setPostBody([kit.caption?.trim(), tags].filter(Boolean).join('\n\n'));
   }, [kit]);
 
@@ -367,21 +365,17 @@ export default function EditResultScreen({ navigation, route }: Props) {
             </Card>
           ) : null}
 
-          <Card style={styles.card}>
-            <View style={styles.labelBetween}>
-              <Text style={styles.label}>AI 게시글 제목</Text>
-              <CopyBtn value={postTitle} label="AI 게시글 제목" />
-            </View>
-            {/* 시안: textarea rows=2 — 14px · leading-relaxed(21) · p-3 */}
-            <TextInput
-              value={postTitle}
-              onChangeText={setPostTitle}
-              multiline
-              style={[styles.textArea, styles.textAreaTitle]}
-              accessibilityLabel="AI 게시글 제목"
-            />
-          </Card>
+          {/*
+            🔴 **"AI 게시글 제목" 카드는 뺐습니다** (2026-08-31 지시).
 
+            카드 사이 간격은 감싸는 `cards` 의 `gap` 이 잡습니다 — 카드마다
+            아래 여백을 달아 둔 구조가 아니라, 하나를 빼도 **빈 자리가 남지
+            않습니다.** (음원 카드를 뺐을 때와 같습니다)
+
+            제목은 **올릴 문구에서도 뺐습니다.** 화면에서 못 보고 못 고치는 글이
+            공유 문구 맨 앞에 몰래 붙으면, 사장님이 확인하지 않은 문장이 그대로
+            올라갑니다. 지금 나가는 문구는 아래 "AI 게시글 내용" 에 보이는 그대로입니다.
+          */}
           <Card style={styles.card}>
             <View style={styles.labelBetween}>
               <Text style={styles.label}>AI 게시글 내용</Text>
@@ -496,7 +490,6 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   // rows=2 · rows=9 → 줄높이 21 × 줄수 + 상하 패딩 24
-  textAreaTitle: { minHeight: 21 * 2 + space[3] * 2 },
   textAreaBody: { minHeight: 21 * 9 + space[3] * 2 },
 
   homeBtn: { marginTop: space[6], paddingVertical: space[2] },

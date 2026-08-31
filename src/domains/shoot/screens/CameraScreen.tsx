@@ -554,7 +554,6 @@ export default function CameraScreen({ navigation, route }: Props) {
         구도 오버레이(9.1 overlay 지시문)는 시안에 없어 걷어냈습니다 —
         지시문은 촬영 준비 화면의 컷 목록이 대신 말해 줍니다.
       */}
-      <PipGuide url={pipUrl} loopStart={loopStart} loopEnd={loopEnd} />
 
       {/* 화면 정중앙 카운트다운. 최종 파일에는 안 들어갑니다 — CameraView 형제입니다. */}
       {count != null ? (
@@ -669,6 +668,24 @@ export default function CameraScreen({ navigation, route }: Props) {
         </View>
 
       </SafeAreaView>
+
+      {/*
+        ─────────────────────────────────────────────────────────────
+        🔴 **참고 영상 창은 여기 — 화면에서 맨 마지막에 그립니다** (2026-08-31
+           지적: "촬영 버튼 위에 테스크 목록들 위에 걸쳐지면 닫기 버튼이 작동
+           안 하는 거 같으니")
+        ─────────────────────────────────────────────────────────────
+        예전에는 카메라 바로 다음, 그러니까 **아래쪽 것들보다 먼저** 그렸습니다.
+        RN 에서 나중에 그린 형제가 위에 오므로, 창을 화면 아래로 내려 컷 목록
+        (`ClipStrip`)이나 셔터 줄에 걸치면 **그것들이 창을 덮었습니다.**
+        덮인 자리에서는 손가락이 창까지 닿지 못해 접기가 눌리지 않았습니다.
+        (`zIndex: 30` 을 줬지만 안드로이드에서는 `elevation` 을 쓰는 형제가
+         그것을 넘어섭니다 — 순서로 잡는 편이 확실합니다.)
+
+        촬영본 확인 시트(`take`)보다는 **먼저**입니다. 그건 화면 전체를 덮는
+        결정 창이라 그 위에 작은 창이 떠 있으면 안 됩니다.
+      */}
+      <PipGuide url={pipUrl} loopStart={loopStart} loopEnd={loopEnd} />
 
       {/*
         시안 V4 ReviewSheet — 찍자마자 이 자리에서 결정합니다.

@@ -127,10 +127,22 @@ export function RealsTabBar({ state, navigation, progressX, progressJS, pageWidt
   useEffect(() => {
     const a = Animated.timing(swap, {
       toValue: hidden ? 1 : 0,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-      // 한 번짜리 timing 이라 네이티브 드라이버가 안전합니다 (CLAUDE.md §5-④ 는 loop 이야기).
-      useNativeDriver: true,
+      /*
+        🔴 **320ms · JS 드라이버** (2026-08-31 지적: "투명도 조절 안 되고 그냥
+           내려오는 걸로 처리되어 있어 … 지금 너무 빠르기도 하고").
+
+        ① 느리게. 220 은 눈이 "흐려졌다" 고 읽기 전에 끝나서 그냥 툭 바뀌는
+           것처럼 보입니다. 320 이면 바뀌는 게 보입니다.
+        ② **드라이버를 JS 로 내렸습니다.** 이 파일 머리말대로 탭바 애니메이션은
+           원래 전부 JS 드라이버입니다(캡슐이 색을 보간해야 해서). 그 안에
+           네이티브로 도는 값을 하나 섞어 두면, 같은 순간에 `pointerEvents` 같은
+           props 가 바뀌며 다시 그려질 때 안드로이드에서 **네이티브 값이 튀어**
+           흐려지는 과정이 통째로 날아갈 수 있습니다. 여기서 움직이는 건
+           투명도 하나뿐이라 JS 로도 충분합니다.
+      */
+      duration: 320,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
     });
     a.start();
     return () => a.stop();

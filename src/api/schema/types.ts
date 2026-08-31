@@ -178,7 +178,14 @@ export interface StoreShort {
   /** 명세 15.2 (2026-08-26). 렌더까지 끝난 항목이라 보통 값이 있습니다. */
   projectTitle?: string | null;
   promotionPurpose: string;
-  videoUrl: string;
+  /*
+    🔴 **비어 있을 수 있습니다** (2026-08-31 백엔드 확인).
+       완성 목록 조회가 `render_status == COMPLETED` 만 보고 `video_url IS NOT NULL`
+       은 확인하지 않습니다. 렌더가 끝났다고 표시됐는데 주소가 없는 줄이 섞여 올 수
+       있어, 여기서 `string` 이라고 못 박으면 화면이 그걸 믿고 플레이어를 만들다
+       죽습니다. 실제 계약대로 적고, 쓰는 쪽에서 막습니다.
+  */
+  videoUrl: string | null;
   coverImageUrl?: string;
   /** 포맷을 아직 안 골랐으면 null 입니다. */
   durationSec?: number | null;
@@ -826,7 +833,14 @@ export interface VideoOutput {
   resolution: string;
   hasLicensedAudio: boolean;
   renderStatus: RenderStatus;
-  videoUrl: string;
+  /*
+    🔴 **비어 있을 수 있습니다** (2026-08-31 백엔드 확인).
+       완성 목록 조회가 `render_status == COMPLETED` 만 보고 `video_url IS NOT NULL`
+       은 확인하지 않습니다. 렌더가 끝났다고 표시됐는데 주소가 없는 줄이 섞여
+       올 수 있어, 여기서 `string` 이라고 못 박으면 화면이 그걸 믿고 플레이어를
+       만들다 죽습니다. 실제 계약대로 적고, 쓰는 쪽에서 막습니다.
+  */
+  videoUrl: string | null;
   coverImageUrl?: string;
 }
 

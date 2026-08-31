@@ -52,19 +52,25 @@ export function MyShortCell({
   emptyStyle?: object;
 }) {
   /*
-   * 재생하지 않을 칸에는 **주소를 아예 주지 않습니다.** null 이면 플레이어가
-   * 파일을 받지 않아, 표지만 쓰는 칸이 조용히 데이터를 먹는 일이 없습니다.
-   */
-  const player = useVideoPlayer(autoplay ? short.videoUrl : null, (p) => {
-    p.loop = true;
-    p.muted = true;
-  });
+    ─────────────────────────────────────────────────────────────
+    🔴 **화면을 벗어나면 플레이어를 세우는 게 아니라 걷어냅니다** (2026-08-31,
+       백엔드 분석: "포커스를 잃었을 때 pause() 만 호출하므로 디코더와 버퍼는
+       해제되지 않습니다")
+    ─────────────────────────────────────────────────────────────
+    영상을 누르면 전체화면이 **위에 덮여** 열립니다. 마이페이지는 그대로 살아
+    있으므로, 세워 두기만 하면 여기 여섯 개와 저기 것들이 **동시에** 안드로이드
+    디코더를 잡습니다. 한도를 넘으면 안드로이드는 오류 없이 앱을 죽입니다 —
+    사장님이 보시는 "홈으로 튕김" 이 그것입니다.
 
-  useEffect(() => {
-    if (!autoplay) return;
-    if (focused) player.play();
-    else player.pause();
-  }, [autoplay, focused, player]);
+    이제 영상을 **자식으로 내려**, 볼 때만 붙입니다. 포커스를 잃으면 그 자식이
+    사라지면서 `useVideoPlayer` 가 정리되고 디코더도 같이 풀립니다. 표지 사진은
+    그대로 남으므로 화면은 달라지지 않습니다.
+
+    ⚠️ `videoUrl` 은 **비어 있을 수 있습니다** (백엔드 확인: 완성 조회가
+       `render_status == COMPLETED` 만 보고 `video_url IS NOT NULL` 은 안 봄).
+       빈 주소로 플레이어를 만들면 그 자체가 죽는 원인이 되므로 여기서 막습니다.
+  */
+  const playable = autoplay && focused && !!short.videoUrl;
 
   /*
     🔴 **누르는 판을 영상 위에 형제로 얹습니다** (2026-08-31 지적: "마이페이지에서
@@ -93,12 +99,7 @@ export function MyShortCell({
           {short.coverImageUrl ? (
             <Image source={{ uri: short.coverImageUrl }} style={StyleSheet.absoluteFill} />
           ) : null}
-          <VideoView
-            style={StyleSheet.absoluteFill}
-            player={player}
-            contentFit="cover"
-            nativeControls={false}
-          />
+          {playable ? <CellVideo url={short.videoUrl as string} /> : null}
         </View>
       ) : short.coverImageUrl ? (
         <Image source={{ uri: short.coverImageUrl }} style={imageStyle} />
@@ -117,6 +118,28 @@ export function MyShortCell({
         ]}
       />
     </View>
+  );
+}
+
+/**
+ * 칸 하나의 영상. **볼 때만 붙습니다** (위 머리말 참고).
+ * 사라지면 `useVideoPlayer` 가 정리되면서 네이티브 디코더도 같이 풀립니다.
+ */
+function CellVideo({ url }: { url: string }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+  useEffect(() => {
+    player.play();
+  }, [player]);
+  return (
+    <VideoView
+      style={StyleSheet.absoluteFill}
+      player={player}
+      contentFit="cover"
+      nativeControls={false}
+    />
   );
 }
 

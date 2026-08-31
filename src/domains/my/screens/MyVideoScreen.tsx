@@ -200,7 +200,11 @@ function Reel({
         />
       ) : null}
 
-      {near ? <ReelVideo url={short.videoUrl} active={active} /> : null}
+      {/*
+        ⚠️ 주소가 비어 있을 수 있습니다 — 그때는 표지 사진만 남습니다
+           (`StoreShort.videoUrl` 주석). 빈 주소로 플레이어를 만들면 죽습니다.
+      */}
+      {near && short.videoUrl ? <ReelVideo url={short.videoUrl} active={active} /> : null}
 
       {/* 하단 정보. 글자가 영상에 묻히지 않도록 어두운 판 위에 올립니다. */}
       <View style={[styles.info, { paddingBottom: Math.max(bottomInset, space[4]) }]}>

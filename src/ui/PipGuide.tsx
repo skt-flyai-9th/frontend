@@ -78,7 +78,22 @@ const BAR_GAP = 6;
 const HOME_LEFT = space[4];
 const HOME_TOP = 110;
 /** 이만큼 움직이면 탭이 아니라 끌기로 봅니다. */
-const DRAG_SLOP = 6;
+const DRAG_SLOP = 8;
+/*
+  🔴 **탭으로 쳐 주는 최대 흔들림** (2026-08-31 지적: "접기 버튼 안 먹히는 건
+     간헐적으로 계속 그래").
+
+  6pt 는 **손가락한테 너무 빡빡했습니다.** 사람이 26pt 짜리 띠를 누르면 그 정도는
+  예사로 밀립니다 — 특히 창이 화면 아래에 있어 엄지를 뻗어 누를 때 그렇습니다.
+  그만큼만 밀려도 "끌기" 로 쳐서 접기가 안 먹혔고, 밀리냐 마냐는 그때그때라
+  **간헐적**으로 보였습니다.
+
+  RN 이 누름을 취소하는 기준도 대략 이 언저리입니다. 시간까지 함께 봐서,
+  **짧고 조금 밀린 것**은 탭으로 봅니다. 끌기는 8pt 부터 창이 따라오기 시작하되,
+  그 정도만 밀리고 끝났으면 창을 **제자리로 되돌리고** 탭으로 처리합니다.
+*/
+const TAP_SLOP = 16;
+const TAP_MS = 500;
 
 export function PipGuide({
   url,
@@ -152,8 +167,10 @@ export function PipGuide({
   /** 놓은 자리(누적 이동량). 다음 끌기의 기준이 됩니다. */
   const offset = useRef({ x: 0, y: 0 });
   const dragging = useRef(false);
-  /** 이번 손짓이 이동이었나 — 손을 뗄 때 탭과 가릅니다. */
+  /** 이번 손짓이 이동이었나 — 창이 따라 움직이기 시작했는지. */
   const moved = useRef(false);
+  /** 손이 닿은 시각. 탭인지 가릴 때 씁니다. */
+  const touchedAt = useRef(0);
 
   /* 영상 + **위아래 띠 둘** (접기 · 확대). 끌기 범위를 재는 데 씁니다. */
   const pipHeight = Math.round((pipWidth * 16) / 9) + (BAR_GAP + BAR) * 2;
@@ -210,6 +227,7 @@ export function PipGuide({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
           moved.current = false;
+          touchedAt.current = Date.now();
           setPressedBar(kind);
         },
         onPanResponderMove: (_e, g) => {
@@ -220,7 +238,15 @@ export function PipGuide({
         },
         onPanResponderRelease: (_e, g) => {
           setPressedBar(null);
-          if (!moved.current) {
+          /*
+            **탭이냐 이동이냐는 지나온 거리와 걸린 시간으로 가릅니다.**
+            조금 밀렸어도 짧게 끝났으면 탭입니다 — 그동안 창이 몇 pt 따라왔더라도
+            제자리로 돌려놓고 버튼을 누른 것으로 칩니다.
+          */
+          const travel = Math.hypot(g.dx, g.dy);
+          if (travel <= TAP_SLOP && Date.now() - touchedAt.current <= TAP_MS) {
+            pan.setValue(offset.current);
+            dragging.current = false;
             tap.current?.();
             return;
           }
