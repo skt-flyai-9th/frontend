@@ -223,11 +223,24 @@ export default function TutorialScreen() {
     [go, trackX]
   );
 
-  /** 마지막 화면의 "무료로 시작하기". 다시 보이지 않게 표시하고 회원가입으로 갑니다. */
+  /*
+    마지막 화면의 버튼.
+
+    처음 켠 분은 **회원가입**으로 갑니다. 그런데 설정에서 "온보딩 다시 보기" 로 들어온
+    분은 **이미 가입한 분**이라 거기로 보내면 안 됩니다 — 그때는 그냥 닫습니다.
+    가르는 기준은 `signedIn` 입니다(2026-08-31).
+  */
+  const signedIn = useAppState((s) => s.signedIn);
   const start = useCallback(() => {
     setTutorialSeen();
+    if (signedIn) {
+      // 다시 보기로 들어온 길. 온 곳(설정)으로 돌아갑니다.
+      if (nav.canGoBack()) nav.goBack();
+      else nav.reset({ index: 0, routes: [{ name: 'Main' }] });
+      return;
+    }
     nav.replace('Auth', { screen: 'SignUp' });
-  }, [nav, setTutorialSeen]);
+  }, [nav, setTutorialSeen, signedIn]);
 
   const last = index === LAST;
 
@@ -276,7 +289,9 @@ export default function TutorialScreen() {
           // 시안 CTA 는 active:scale-[0.97] — 토큰의 card 와 같은 값입니다.
           style={({ pressed }) => [styles.cta, pressTap(pressed, 'card')]}
         >
-          <Text style={styles.ctaText}>{last ? '무료로 시작하기' : '다음'}</Text>
+          <Text style={styles.ctaText}>
+            {last ? (signedIn ? '닫기' : '무료로 시작하기') : '다음'}
+          </Text>
         </Pressable>
       </View>
     </Screen>

@@ -67,6 +67,8 @@ export default function SettingsScreen() {
   const withdraw = useWithdraw();
   const reset = useAppState((s) => s.reset);
   const replayCoach = useAppState((s) => s.replayCoach);
+  /* ⏳ 임시 — 아래 '온보딩 다시 보기' 를 뺄 때 같이 지웁니다 */
+  const replayTutorial = useAppState((s) => s.replayTutorial);
 
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -107,6 +109,27 @@ export default function SettingsScreen() {
       go: () => {
         replayCoach();
         nav.reset({ index: 0, routes: [{ name: 'Main', params: { screen: 'HomeFeed' } }] });
+      },
+    },
+    /*
+     * ⏳ **임시 항목 — 확인이 끝나면 뺍니다** (2026-08-31 사장님 지시:
+     *    "일단 넣었다가 확인 후 빼는 쪽으로").
+     *
+     * 온보딩(최초 실행 다섯 장)은 **로그인한 기기에서는 안 뜹니다** — 마지막 버튼이
+     * 회원가입으로 가기 때문입니다(`navigation/RootNavigator.tsx`). 그래서 판 번호를
+     * 올려도 사장님 폰에서는 확인이 안 됩니다. 그걸 열어 주는 줄입니다.
+     *
+     * 뺄 때는 이 블록만 지우면 됩니다. `replayTutorial()` 은 남겨 두세요 —
+     * 판 번호 장치의 일부입니다(`lib/appState.ts`).
+     *
+     * 다시 보기로 들어가면 마지막 버튼이 "닫기" 로 바뀝니다(가입한 분이니까요).
+     */
+    {
+      icon: Compass,
+      label: '온보딩 다시 보기',
+      go: () => {
+        replayTutorial();
+        nav.navigate('Tutorial');
       },
     },
     /*
