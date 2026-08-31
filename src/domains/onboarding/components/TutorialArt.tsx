@@ -203,47 +203,86 @@ function StoreGlyph({ size = 16, tint = C.brand }: { size?: number; tint?: strin
 }
 
 /**
- * 새 줄이 **아래에서 위로 올라옵니다** (2026-08-31 지시: "너무 바로 올라와서
- * 밑에서 올라온다는 느낌이 안 든다").
+ * 대화 한 줄. **들어올 때 자라고, 나갈 때 접힙니다.**
  *
- * ⚠️ 처음에는 `opacity` + `translateY(10→0)` 만 줬는데 **느낌이 안 났습니다.**
- *    시안이 같이 움직이는 것을 빠뜨렸기 때문입니다 — 원문은 `max-height` 를
- *    **0 에서** 키웁니다. 그래야 위에 쌓인 말풍선이 **서서히** 밀려 올라갑니다.
- *    높이를 안 키우면 자리가 한 번에 생겨 위가 **툭** 뛰고, 그 위에서 10px 만
- *    움직이니 눈에 안 띕니다.
+ * ─────────────────────────────────────────────────────────────
+ * 두 번 틀렸습니다 (2026-08-31)
+ * ─────────────────────────────────────────────────────────────
+ * ① 처음에는 `opacity` + `translateY(10→0)` 만 줬습니다. 시안은 `max-height` 를
+ *    **0 에서** 키우는데 그걸 빠뜨려서, 자리가 한 번에 생기고 10px 만 움직이니
+ *    눈에 안 띄었습니다.
  *
- * 그래서 셋을 같이 움직입니다.
- *   ① 높이  0 → 잰 높이   (자리가 서서히 생깁니다)
- *   ② 자리  22 아래 → 0   (상자 안에서 올라옵니다. `overflow: hidden` 이라 잘립니다)
- *   ③ 투명도 0 → 1
+ * ② 높이를 키운 뒤에도 **여전히 티가 안 났습니다.** 진짜 원인은 다른 데 있었습니다 —
+ *    답이 나오는 순간 **선택지 알약을 즉시 지우고** 있었습니다. 대화는 아래에
+ *    붙여 쌓기 때문에, 알약이 사라지면 그 높이만큼 **위 채팅이 툭 내려앉고**
+ *    답이 올라올 공간이 그 자리에서 없어집니다. 그래서 "올라온다" 가 안 보입니다.
+ *    (사장님 지적: "AI 채팅이 내려가면서 올라갈 공간을 없애버림")
+ *
+ * 시안은 나가는 줄도 **같은 시간에 접습니다**(`data-until`). 알약이 접히는 만큼
+ * 답이 자라므로 **전체 높이가 그대로**라, 위 채팅은 제자리에 있고 답만 아래에서
+ * 밀고 올라옵니다.
+ *
+ * 그래서 이 컴포넌트가 **둘 다** 합니다.
+ *   들어올 때  높이 0 → 잰 높이 · 자리 22 아래 → 0 · 투명도 0 → 1
+ *   나갈 때    그 반대로. 다 접히면 `onClosed` 로 알려 목록에서 빠집니다
  *
  * 높이는 **레이아웃 값**이라 네이티브 드라이버를 못 씁니다. 한 번짜리라
  * `Animated.loop` 함정(CLAUDE.md §5-④)과는 무관합니다.
  */
 const RISE_MS = 380;
-function Rise({ children }: { children: React.ReactNode }) {
+function Row({
+  open = true,
+  onClosed,
+  children,
+}: {
+  open?: boolean;
+  onClosed?: () => void;
+  children: React.ReactNode;
+}) {
   const [h, setH] = useState(0);
   const t = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!h) return;
-    Animated.timing(t, {
-      toValue: 1,
+    const a = Animated.timing(t, {
+      toValue: open ? 1 : 0,
       duration: RISE_MS,
       easing: Easing.bezier(0.16, 1, 0.3, 1),
       useNativeDriver: false,
-    }).start();
-  }, [h, t]);
+    });
+    a.start(({ finished }) => {
+      if (finished && !open) onClosed?.();
+    });
+    return () => a.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [h, open]);
 
+  /*
+    🔴 **재는 동안에는 흐름에서 빼야 합니다** (2026-08-31).
+
+    처음에는 높이를 열어 둔 채(`height: undefined`) 쟀습니다. 그러면 **재는 그 한
+    프레임 동안 줄이 제 높이를 그대로 차지해서**, 위 채팅이 40pt 씩 튀었다가 다시
+    돌아옵니다(실측에서 −80 · +40 같은 점프로 나왔습니다). 투명해서 안 보일 뿐
+    자리는 먹습니다.
+
+    그래서 잴 때는 `position: absolute` 로 띄워 **자리를 안 먹게** 하고,
+    다 재고 나서 흐름에 넣어 0 에서 키웁니다.
+  */
   return (
     <Animated.View
-      style={{
-        // 아직 안 쟀으면 높이를 열어 둡니다 — 그래야 onLayout 이 잽니다(투명해서 안 보입니다).
-        height: h ? t.interpolate({ inputRange: [0, 1], outputRange: [0, h] }) : undefined,
-        opacity: t,
-        transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }],
-        overflow: 'hidden',
-      }}
+      style={
+        h
+          ? {
+              height: t.interpolate({ inputRange: [0, 1], outputRange: [0, h] }),
+              opacity: t,
+              transform: [
+                { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) },
+              ],
+              overflow: 'hidden',
+            }
+          : { position: 'absolute', left: 0, right: 0, opacity: 0 }
+      }
+      pointerEvents="none"
     >
       <View onLayout={(e) => !h && setH(e.nativeEvent.layout.height)}>{children}</View>
     </Animated.View>
@@ -514,10 +553,16 @@ export function Art02({ active }: ArtProps) {
    * 그대로 씁니다 — 한 바퀴가 끝나면 처음으로 돌아갑니다.
    */
   const [step, setStep] = useState(0);
+  /**
+   * 다 접혀서 목록에서 빠진 선택지 줄. **즉시 지우면 안 됩니다** — 그러면 위 채팅이
+   * 툭 내려앉아 답이 올라올 공간이 사라집니다(위 `Row` 주석).
+   */
+  const [gone, setGone] = useState<number[]>([]);
 
   useEffect(() => {
     if (!active) {
       setStep(0);
+      setGone([]);
       return;
     }
     let t: ReturnType<typeof setTimeout>;
@@ -525,6 +570,7 @@ export function Art02({ active }: ArtProps) {
     const tick = () => {
       t = setTimeout(() => {
         i = i + 1 >= CHAT.length ? 0 : i + 1;
+        if (i === 0) setGone([]);   // 한 바퀴 돌면 처음부터
         setStep(i);
         tick();
       }, CHAT_D[i] ?? 600);
@@ -537,42 +583,92 @@ export function Art02({ active }: ArtProps) {
   const dots = useCycle(active, 950);
 
   /*
-    시안은 새 말풍선이 나올 때마다 대화창을 아래로 굴립니다. 여기서는 목록을
-    **아래에 붙여** 같은 결과를 냅니다 — 새 줄이 생기면 위가 밀려 올라갑니다.
-    (높이를 재서 굴리면 시계가 둘이 되고 웹에서 어긋납니다)
+    ─────────────────────────────────────────────────────────────
+    🔴 **위에서 쌓고, 넘칠 때만 밀어 올립니다** (2026-08-31, 세 번째 고침)
+    ─────────────────────────────────────────────────────────────
+    처음에는 목록을 **아래에 붙여**(`justifyContent: 'flex-end'`) 쌓았습니다.
+    시안의 "새 말풍선이 나오면 아래로 굴린다" 를 간단히 흉내 낸 것인데, **결과가
+    반대로 나왔습니다.**
+
+    아래에 붙이면 화면 위치가 **전체 높이**로 정해집니다. 그래서 선택지가 접히는
+    순간 전체가 줄어 위 채팅이 **아래로 내려앉고**, 답이 올라올 공간이 그 자리에서
+    사라집니다(사장님 지적: "AI 채팅이 내려가면서 올라갈 공간을 없애버림").
+
+    시안은 그냥 **위에서부터 쌓고**, 내용이 카드보다 길어지면 그만큼 **굴립니다.**
+    그러면 —
+      · 짧을 때는 위 채팅이 **아예 안 움직입니다** (아래로 자리만 생깁니다)
+      · 길어지면 넘치는 만큼만 위로 밀리고 **거기서 멈춥니다**
+    사장님이 말씀하신 "올라가되 올라간 지점 고정" 이 이것입니다.
+
+    굴리는 양은 `내용 높이 − 카드 높이` 입니다. 내용 높이는 줄이 자라는 동안
+    **계속 다시 재지므로**(onLayout), 따로 시계를 두지 않아도 줄이 자라는 속도
+    그대로 따라 올라갑니다. 시계가 하나로 유지됩니다.
   */
+  const CARD_H = 352;
+  const [contentH, setContentH] = useState(0);
+  const lift = Math.max(0, contentH - CARD_H);
+
+  /*
+    올라가는 것 자체도 한 번 더 다듬습니다. 줄이 자라는 동안 `onLayout` 이 매
+    프레임 오지는 않아서(웹은 ResizeObserver 로 묶입니다) 그냥 따라가면 30pt 씩
+    툭툭 끊깁니다. 목표값으로 240ms 짜리 한 번짜리를 걸어 메웁니다.
+    한 번짜리라 네이티브 드라이버를 그대로 씁니다.
+  */
+  const liftV = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.timing(liftV, {
+      toValue: -lift,
+      duration: 240,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
+    a.start();
+    return () => a.stop();
+  }, [lift, liftV]);
   const visible = CHAT.map((c, i) => ({ c, i })).filter(
-    ({ c, i }) => i <= step && !(c.kind === 'pick' && step >= c.until)
+    ({ c, i }) => i <= step && !(c.kind === 'pick' && gone.includes(i))
   );
 
   return (
     <Card background={C.surface}>
-      <View style={s2.pad}>
+      <Animated.View
+        style={[s2.pad, { transform: [{ translateY: liftV }] }]}
+        onLayout={(e) => setContentH(e.nativeEvent.layout.height)}
+      >
         {visible.map(({ c, i }) => {
           if (c.kind === 'ai') {
             return (
-              <Rise key={i}>
+              <Row key={i}>
               <View style={s2.aiRow}>
                 <View style={s2.avatar}>
                   <Spark />
                 </View>
                 <Text style={s2.aiBubble}>{c.text}</Text>
               </View>
-              </Rise>
+              </Row>
             );
           }
           if (c.kind === 'me') {
             return (
-              <Rise key={i}>
+              <Row key={i}>
                 <View style={s2.meRow}>
                   <Text style={s2.meBubble}>{c.text}</Text>
                 </View>
-              </Rise>
+              </Row>
             );
           }
           if (c.kind === 'pick') {
             return (
-              <Rise key={i}>
+              /*
+                답이 나오면(`step > until`) **접히기 시작**합니다. 다 접히면 그때
+                목록에서 빠집니다 — 접히는 만큼 답이 자라 전체 높이가 그대로라,
+                위 채팅이 제자리에 있고 답만 밀고 올라옵니다.
+              */
+              <Row
+                key={i}
+                open={step <= c.until}
+                onClosed={() => setGone((g) => (g.includes(i) ? g : [...g, i]))}
+              >
               <View style={s2.pickRow}>
                 {c.options.map((o, oi) => (
                   <Text key={o} style={[s2.chip, oi === 0 ? s2.chipOn : s2.chipOff]}>
@@ -580,12 +676,12 @@ export function Art02({ active }: ArtProps) {
                   </Text>
                 ))}
               </View>
-              </Rise>
+              </Row>
             );
           }
           if (c.kind === 'dots') {
             return (
-              <Rise key={i}>
+              <Row key={i}>
               <View style={s2.aiRow}>
                 <View style={s2.avatar}>
                   <Spark />
@@ -610,11 +706,11 @@ export function Art02({ active }: ArtProps) {
                   ))}
                 </View>
               </View>
-              </Rise>
+              </Row>
             );
           }
           return (
-            <Rise key={i}>
+            <Row key={i}>
             <View style={s2.cardsRow}>
               {[0, 1, 2].map((k) => (
                 <View key={k} style={s2.recCard}>
@@ -636,10 +732,10 @@ export function Art02({ active }: ArtProps) {
                 </View>
               ))}
             </View>
-            </Rise>
+            </Row>
           );
         })}
-      </View>
+      </Animated.View>
     </Card>
   );
 }
@@ -1193,8 +1289,8 @@ const s1 = StyleSheet.create({
 });
 
 const s2 = StyleSheet.create({
-  // 시안: padding 16 14, gap 8. 아래에 붙여 새 줄이 위를 밀어 올리게 합니다.
-  pad: { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 14, paddingVertical: 16, gap: 8 },
+  /* 시안: padding 16 14, gap 8. **위에서부터** 쌓습니다 — 굴리는 건 위 주석. */
+  pad: { paddingHorizontal: 14, paddingVertical: 16, gap: 8 },
   aiRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   avatar: {
     width: 28,
