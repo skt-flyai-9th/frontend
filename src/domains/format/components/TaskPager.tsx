@@ -33,6 +33,7 @@ import {
 
 
 import { GuidePlayer } from '../../../ui/GuidePlayer';
+import { isDomaBadOneTakeGuide } from '../../../ui/guidePlayerBridge';
 import { Loading } from '../../../ui/Feedback';
 import { useTaskGuide } from '../../../api/queries/shoot';
 import theme, { color, radius, space, text } from '../../../design/theme';
@@ -149,6 +150,13 @@ export function TaskPager({
     ? { start: ref.startMs / 1000, end: ref.endMs / 1000 }
     : held.current;
 
+  /*
+    도마 BAD는 촬영 컷 하나가 11초 전체를 담당하지만, 현재 서버가 첫 편집 구간인
+    0~4초를 가이드 범위로 내려줍니다. 이 원테이크만 루프를 풀어 이후 안무까지
+    보이게 합니다. 영상 id도 함께 확인해 다른 단일 컷 포맷에는 영향을 주지 않습니다.
+  */
+  const effectiveLoop = isDomaBadOneTakeGuide(videoUrl, tasks.length) ? null : loop;
+
   const from = clock(ref?.startMs);
   const to = clock(ref?.endMs);
 
@@ -197,8 +205,8 @@ export function TaskPager({
             fullBleed
             width={width}
             autoPlay
-            loopStart={loop?.start ?? null}
-            loopEnd={loop?.end ?? null}
+            loopStart={effectiveLoop?.start ?? null}
+            loopEnd={effectiveLoop?.end ?? null}
           />
         ) : (
           <View style={styles.stageEmpty}>

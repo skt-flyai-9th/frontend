@@ -31,6 +31,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Button } from '../../../ui/Button';
 import { PipGuide } from '../../../ui/PipGuide';
+import { isDomaBadOneTakeGuide } from '../../../ui/guidePlayerBridge';
 import { guideVideoUrl } from '../../../api/formatVideo';
 import { Shutter } from '../../../ui/Shutter';
 import { TakePreview } from '../components/TakePreview';
@@ -278,8 +279,16 @@ export default function CameraScreen({ navigation, route }: Props) {
    * 전체가 그냥 재생됩니다.
    */
   const refVideo = guide?.referenceVideo;
-  const loopStart = refVideo?.startMs != null ? refVideo.startMs / 1000 : null;
-  const loopEnd = refVideo?.endMs != null ? refVideo.endMs / 1000 : null;
+  /*
+   * 도마 BAD는 단일 촬영 컷으로 11초 전체를 찍습니다. 서버가 첫 편집 구간인
+   * 0~4초를 내려주는 동안에는 이 원테이크의 PiP만 루프를 풀어 반전 안무까지
+   * 볼 수 있게 합니다. 영상 id도 확인하므로 다른 단일 컷 포맷은 그대로입니다.
+   */
+  const playFullReference = isDomaBadOneTakeGuide(pipUrl, tasks.length);
+  const loopStart =
+    !playFullReference && refVideo?.startMs != null ? refVideo.startMs / 1000 : null;
+  const loopEnd =
+    !playFullReference && refVideo?.endMs != null ? refVideo.endMs / 1000 : null;
 
   /*
    * 🔴 **안무 컷도 이 카메라에서 찍습니다** (2026-08-28).
