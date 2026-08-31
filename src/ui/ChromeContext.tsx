@@ -65,6 +65,16 @@ type ChromeApi = {
    *    (2026-08-31 지시: "실제 화면과 가장 닮도록").
    */
   setLock: (m: ChromeMode | null) => void;
+  /**
+   * 홈 선반. **탭바와 같은 칸에 겹쳐 그립니다** (2026-08-31 지시:
+   * "그냥 그 위에 얹어두고 투명도 차이로 조작을 조절하던지").
+   *
+   * 선반은 홈이 만들고(`FeedShelf`), 그리는 건 탭바입니다. 둘이 한 칸을 나눠
+   * 쓰려면 같은 부모 안에 있어야 하는데, 탭바는 화면 밖(내비게이터)이라
+   * 홈에서 직접 그 자리에 놓을 수가 없습니다. 그래서 만든 것만 여기 맡깁니다.
+   */
+  shelf: React.ReactNode | null;
+  setShelf: (node: React.ReactNode | null) => void;
 };
 
 const Ctx = createContext<ChromeApi | null>(null);
@@ -72,6 +82,7 @@ const Ctx = createContext<ChromeApi | null>(null);
 export function ChromeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeRaw] = useState<ChromeMode>('shelf');
   const [locked, setLockedRaw] = useState<ChromeMode | null>(null);
+  const [shelf, setShelf] = useState<React.ReactNode | null>(null);
   /** 잠금이 풀렸을 때 돌아갈 자리 */
   const wanted = useRef<ChromeMode>('shelf');
 
@@ -86,8 +97,8 @@ export function ChromeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const api = useMemo<ChromeApi>(
-    () => ({ mode: locked ?? mode, setMode, setLock }),
-    [mode, locked, setMode, setLock]
+    () => ({ mode: locked ?? mode, setMode, setLock, shelf, setShelf }),
+    [mode, locked, setMode, setLock, shelf]
   );
 
   /*
@@ -116,7 +127,13 @@ export function useChrome(): ChromeApi {
   return useContext(Ctx) ?? FALLBACK;
 }
 
-const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLock: () => {} };
+const FALLBACK: ChromeApi = {
+  mode: 'all',
+  setMode: () => {},
+  setLock: () => {},
+  shelf: null,
+  setShelf: () => {},
+};
 
 /**
  * 🔴 **폭을 꽉 채웠을 때의 영상 높이. 한 곳에서만 계산합니다** (2026-08-31).

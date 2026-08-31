@@ -28,7 +28,7 @@
  *   구분    카드 사이는 여백이 아니라 surface 색 8px 띠입니다.
  *   당겨서 새로고침 · 로딩은 스피너가 아니라 스켈레톤
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -50,7 +50,6 @@ import { FeedPage } from '../FeedPage';
 import { FeedShelf } from '../FeedShelf';
 import {
   bottomInsetFor,
-  showsShelf,
   homeBarHeightFor,
   homePageHeightFor,
   useChrome,
@@ -211,11 +210,29 @@ export default function HomeFeedScreen() {
     if (first?.index != null) setIndex(first.index);
   });
 
-  const onToggleFavorite = (f: VideoFormat) =>
-    toggle.mutate({ formatId: f.id, next: !f.isFavorite });
+  /*
+    🔴 **두 콜백은 반드시 고정입니다** (`useCallback`).
 
-  const onCreate = (f: VideoFormat) =>
+    아래에서 선반을 만들어 `ChromeContext` 에 맡기는데, 그 effect 가 이 둘을
+    지켜봅니다. 매번 새로 만들어지면 → effect 가 매 렌더 돌고 → 컨텍스트가 바뀌고
+    → 다시 렌더되어 **끝없이 돕니다.** 지금은 둘 다 바뀔 일이 없습니다.
+  */
+  /*
+    ⚠️ `useCallback([toggle])` 로는 부족합니다 — react-query 의 `useMutation` 은
+       **매 렌더 새 객체**를 돌려주므로 그 자체가 의존값이면 아무것도 고정되지
+       않습니다. 실제로 하는 일만 ref 에 갈아 끼우고, 밖으로 나가는 함수는
+       **한 번 만들고 끝냅니다.**
+  */
+  const act = useRef({
+    toggle: (_f: VideoFormat) => {},
+    create: (_f: VideoFormat) => {},
+  });
+  act.current.toggle = (f) => toggle.mutate({ formatId: f.id, next: !f.isFavorite });
+  act.current.create = (f) =>
     nav.navigate('Create', { screen: 'PurposeSelect', params: { formatId: f.id } });
+
+  const onToggleFavorite = useCallback((f: VideoFormat) => act.current.toggle(f), []);
+  const onCreate = useCallback((f: VideoFormat) => act.current.create(f), []);
 
   /*
     🔴 **홈 앱바를 통째로 뺐습니다** (2026-08-31 사장님 지시:
@@ -249,9 +266,43 @@ export default function HomeFeedScreen() {
       선반만  852 − 54 − 34 = 764   ← 영상 699 + 선반 65
       탭바만  852 − 54 − 99 = 699   ← 영상 699 (탭바가 65+34 를 가져감)
   */
-  const current = (formats.data ?? [])[index];
+  /*
+    보고 있는 장. 목록이 잠깐 어긋난 순간에도 **선반이 비지 않도록** 범위 안으로
+    잡아 둡니다 — 없는 번호를 집으면 선반이 통째로 사라집니다.
+  */
+  const items = formats.data ?? [];
+  const current = items.length ? items[Math.min(Math.max(index, 0), items.length - 1)] : undefined;
   const pageHeight = homePageHeightFor(width, height, insets.top, insets.bottom);
   const barHeight = homeBarHeightFor(width, height, insets.top, insets.bottom);
+
+  /*
+    🔴 **선반은 탭바에 맡깁니다** (2026-08-31 지시: "그냥 그 위에 얹어두고
+       투명도 차이로 조작을 조절하던지 하셈").
+
+    선반과 탭바가 **한 칸을 같이 써야** 서로 겹쳐 흐려지며 바뀔 수 있는데,
+    탭바는 화면 밖(내비게이터)이라 여기서 그 자리에 놓을 수가 없습니다.
+    그래서 **만드는 건 여기, 그리는 건 탭바**입니다.
+
+    한동안 화면 맨 아래에 직접 그렸었는데, 그러면 선반이 뜰 때 탭바가 접히면서
+    화면이 65 만큼 늘었다 줄었다 했습니다 — 그게 "위에서 아래로 내려오는" 것으로
+    보였습니다. 이제 움직이는 것은 없고 투명도만 오갑니다.
+
+    화면을 벗어나면 반드시 치웁니다 — 안 그러면 다른 탭에서 남은 선반이 비칩니다.
+  */
+  const setShelf = chrome.setShelf;
+  useEffect(() => {
+    setShelf(
+      current ? (
+        <FeedShelf
+          format={current}
+          height={barHeight}
+          onToggleFavorite={onToggleFavorite}
+          onCreate={onCreate}
+        />
+      ) : null
+    );
+  }, [current, barHeight, onToggleFavorite, onCreate, setShelf]);
+  useEffect(() => () => setShelf(null), [setShelf]);
 
   /*
     🔴 **한 장의 높이가 바뀌면 스크롤 위치를 같이 옮겨야 합니다.**
@@ -420,19 +471,6 @@ export default function HomeFeedScreen() {
         )}
       </LoadGate>
 
-      {/*
-        🔴 **선반은 여기 — 목록 밖입니다.** 탭바와 같은 자리, 같은 높이입니다.
-           보고 있는 장의 정보를 그립니다. 넘기는 중에는 어차피 탭바로 바뀌므로
-           (2초 머물러야 선반) 장을 따라다닐 필요가 없습니다.
-      */}
-      {showsShelf(chrome.mode) && current ? (
-        <FeedShelf
-          format={current}
-          height={barHeight}
-          onToggleFavorite={onToggleFavorite}
-          onCreate={onCreate}
-        />
-      ) : null}
     </Screen>
   );
 }
