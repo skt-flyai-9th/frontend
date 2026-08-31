@@ -54,25 +54,24 @@ type ChromeApi = {
   /** 홈이 바꿉니다. 잠겨 있으면 기억만 하고 화면은 그대로 둡니다. */
   setMode: (m: ChromeMode) => void;
   /**
-   * 튜토리얼이 도는 동안 `all` 로 잠급니다 — **선반과 탭바가 같이** 보입니다.
+   * 튜토리얼이 **단계마다 필요한 모드로** 잠급니다 (`null` 이면 잠금 해제).
    *
-   * ⚠️ 홈은 평소 둘 중 하나만 띄우는데, 코치마크는 **탭바 아이콘 넷과 선반의
-   *    촬영 버튼을 같이 짚습니다.** 하나라도 없으면 짚을 것이 화면에 없어
-   *    구멍이 엉뚱한 자리에 뚫리거나 찌그러집니다(2026-08-31 지적: "3단계에서
-   *    이상한 타원으로 포커싱").
+   * ⚠️ 코치마크는 단계마다 **짚는 곳이 다릅니다** — 탭 아이콘을 짚는 단계는 탭바가,
+   *    촬영 버튼을 짚는 단계는 선반이 화면에 있어야 합니다. 하나라도 없으면 구멍이
+   *    엉뚱한 자리에 뚫립니다(2026-08-31: "이상한 타원으로 포커싱").
    *
-   *    이때 영상이 370 으로 줄지만, 튜토리얼 중에는 **플레이어가 아니라 썸네일**
-   *    이라 폭을 꽉 채웁니다(우리 그림이라 잘라도 됩니다). 그래서 눈에는
-   *    평소와 같은 화면으로 보입니다.
+   *    한때 둘을 **같이** 띄웠는데, 그러면 실제 화면과 달라집니다 — 홈은 늘 둘 중
+   *    하나만 뜹니다. 그래서 **단계가 원하는 쪽 하나만** 띄웁니다
+   *    (2026-08-31 지시: "실제 화면과 가장 닮도록").
    */
-  setLocked: (v: boolean) => void;
+  setLock: (m: ChromeMode | null) => void;
 };
 
 const Ctx = createContext<ChromeApi | null>(null);
 
 export function ChromeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeRaw] = useState<ChromeMode>('shelf');
-  const [locked, setLockedRaw] = useState(false);
+  const [locked, setLockedRaw] = useState<ChromeMode | null>(null);
   /** 잠금이 풀렸을 때 돌아갈 자리 */
   const wanted = useRef<ChromeMode>('shelf');
 
@@ -81,14 +80,14 @@ export function ChromeProvider({ children }: { children: React.ReactNode }) {
     setModeRaw(m);
   }, []);
 
-  const setLocked = useCallback((v: boolean) => {
-    setLockedRaw(v);
-    setModeRaw(v ? 'all' : wanted.current);
+  const setLock = useCallback((m: ChromeMode | null) => {
+    setLockedRaw(m);
+    setModeRaw(m ?? wanted.current);
   }, []);
 
   const api = useMemo<ChromeApi>(
-    () => ({ mode: locked ? 'all' : mode, setMode, setLocked }),
-    [mode, locked, setMode, setLocked]
+    () => ({ mode: locked ?? mode, setMode, setLock }),
+    [mode, locked, setMode, setLock]
   );
 
   /*
@@ -117,7 +116,7 @@ export function useChrome(): ChromeApi {
   return useContext(Ctx) ?? FALLBACK;
 }
 
-const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLocked: () => {} };
+const FALLBACK: ChromeApi = { mode: 'all', setMode: () => {}, setLock: () => {} };
 
 /**
  * 🔴 **폭을 꽉 채웠을 때의 영상 높이. 한 곳에서만 계산합니다** (2026-08-31).

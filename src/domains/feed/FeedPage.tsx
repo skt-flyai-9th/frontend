@@ -57,6 +57,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { GuidePlayer } from '../../ui/GuidePlayer';
 import { VideoThumbnail } from '../../ui/VideoThumbnail';
@@ -248,13 +249,29 @@ export function FeedPage({
             이웃 장과 튜토리얼 중에 보이는 그림. **플레이어와 같은 폭**을 씁니다 —
             썸네일만 화면 폭(393)을 쓰면 넘기는 동안 이웃 장만 잘려서
             지금 장과 크기가 어긋나 보입니다.
+
+            🔴 **튜토리얼 중에는 목업으로 바꿉니다** (2026-08-31 지시: "실제 영상이
+               안 나오되 그 공간을 검은색으로 채우고 영상이라는 표시를 재생 버튼
+               흰색으로"). 안내를 보는 자리에 남의 가게 영상이 도는 것보다,
+               **여기가 영상 자리** 라는 것만 보여 주는 편이 낫습니다.
+               네트워크·썸네일 상태에 따라 화면이 달라지지도 않습니다.
           */
+          coachRunning ? (
+            <View style={[styles.mock, { width: playerWidth, height: stageHeight }]}>
+              <View style={styles.mockPlay}>
+                <Svg width={22} height={26} viewBox="0 0 12 14">
+                  <Path d="M0 0l12 7-12 7z" fill={color.paper} />
+                </Svg>
+              </View>
+            </View>
+          ) : (
           <VideoThumbnail
             url={representativeVideoUrl(format)}
             platform={format.sourcePlatform}
             aspectRatio={9 / 16}
             style={{ width: playerWidth }}
           />
+          )
         )}
       </CoachTarget>
 
@@ -379,6 +396,19 @@ const styles = StyleSheet.create({
     다 빼도 된다"). 한동안 흰색→옅은 회색 기울기를 줬는데, 영상이 폭을 꽉 채우면서
     옆 띠가 사라져 이어 붙일 대상도 없어졌습니다.
   */
+  /* 튜토리얼 목업 — 검은 판에 흰 재생 표시 하나 */
+  mock: { backgroundColor: color.mediaBlack, alignItems: 'center', justifyContent: 'center' },
+  mockPlay: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 4,
+  },
   shelf: { justifyContent: 'flex-end', backgroundColor: color.paper },
   infoRow: {
     flexDirection: 'row',

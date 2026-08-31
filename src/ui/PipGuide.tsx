@@ -29,9 +29,10 @@
  *    그래서 되감기·배속은 **확대해서** 유튜브 컨트롤로 하는 것이 맞습니다.
  *    우리가 재생 버튼을 따로 만들지 않는 이유입니다(예전에 만들었다가 계속 안 먹어서 걷어냈습니다).
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Modal,
   PanResponder,
   Pressable,
@@ -41,7 +42,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Maximize2, Minimize2 } from 'lucide-react-native';
+import { Maximize2, Minimize2, X } from 'lucide-react-native';
 import { GuidePlayer } from './GuidePlayer';
 import { pressTap } from './press';
 import theme, { color, elevation, radius, space, text } from '../design/theme';
@@ -99,6 +100,41 @@ export function PipGuide({
   width?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  /*
+    ─────────────────────────────────────────────────────────────
+    🔴 **참고 영상을 접었다 펼 수 있습니다** (2026-08-31 지시)
+    ─────────────────────────────────────────────────────────────
+    영상 **위**에 아래 확대 띠와 **똑같이 생긴 알약**을 하나 더 두고, 거기 닫기(×)를
+    답니다. 누르면 창이 **왼쪽 위 알약 자리로 날아가며 작아지고** 사라집니다.
+    그 자리에 다시 펴는 버튼이 생깁니다 — 카메라 오른쪽 위 뒤로가기 알약과
+    **같은 크기·같은 여백**이라 좌우가 짝을 이룹니다. 아이콘은 확대(Maximize2).
+
+    ⚠️ 접는 버튼은 **영상 위에 얹지 않습니다.** 영상 바깥 띠입니다 — 확대 띠를
+       아래에 둔 것과 같은 이유입니다(머리말의 유튜브 약관).
+  */
+  const [folded, setFolded] = useState(false);
+  /** 접히고 펴지는 동안의 진행도. 1 = 펼침, 0 = 접힘(왼쪽 위로 빨려 들어간 상태). */
+  const fold = useRef(new Animated.Value(1)).current;
+  const [flying, setFlying] = useState(false);
+
+  const runFold = useCallback(
+    (next: boolean) => {
+      setFlying(true);
+      if (!next) setFolded(false);   // 펼 때는 먼저 그려 놓고 날아옵니다
+      Animated.timing(fold, {
+        toValue: next ? 0 : 1,
+        duration: 260,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        setFlying(false);
+        setFolded(next);
+      });
+    },
+    [fold]
+  );
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -117,7 +153,8 @@ export function PipGuide({
   const offset = useRef({ x: 0, y: 0 });
   const dragging = useRef(false);
 
-  const pipHeight = Math.round((pipWidth * 16) / 9) + BAR_GAP + BAR;
+  /* 영상 + **위아래 띠 둘** (접기 · 확대). 끌기 범위를 재는 데 씁니다. */
+  const pipHeight = Math.round((pipWidth * 16) / 9) + (BAR_GAP + BAR) * 2;
 
   /** 화면 밖으로 나가지 않게 잡아 둡니다. 기준은 시안 자리(HOME)에서의 이동량입니다. */
   const clamp = (x: number, y: number) => {
@@ -183,13 +220,80 @@ export function PipGuide({
         확대 중에는 작은 창을 **아예 내립니다.** 남겨 두면 같은 영상이 두 곳에서
         동시에 재생돼 소리가 겹칩니다.
       */}
-      {!expanded && (
+      {/*
+        접혔을 때 다시 펴는 알약. 카메라 **오른쪽 위 뒤로가기와 같은 규격**입니다 —
+        높이 42 · 안쪽 버튼 36 · 좌우 여백 space[4] · 위에서 44 높이 줄 안 가운데.
+        창이 열려 있으면 **그리지 않습니다**(지시).
+      */}
+      {folded && !expanded && !flying && (
+        <View style={[styles.restoreRow, { top: insets.top }]} pointerEvents="box-none">
+          <View style={styles.restorePill}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="참고 영상 다시 보기"
+              hitSlop={12}
+              onPress={() => runFold(false)}
+              style={({ pressed }) => [styles.restoreBtn, pressTap(pressed, 'icon')]}
+            >
+              <Maximize2 size={20} strokeWidth={2} color={color.paper} />
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {!expanded && (!folded || flying) && (
         <Animated.View
           style={[
             styles.pip,
-            { width: pipWidth, transform: pan.getTranslateTransform() },
+            {
+              width: pipWidth,
+              transform: [
+                ...pan.getTranslateTransform(),
+                /*
+                  접힐 때 **왼쪽 위 알약 자리로 날아가며 작아집니다.**
+                  창의 왼쪽 위(HOME_LEFT, HOME_TOP + pan)에서 알약 가운데까지가
+                  이동량입니다. `scale` 은 왼쪽 위를 기준으로 줄어들도록
+                  이동과 함께 계산하지 않고, 작아진 뒤 남는 만큼만 더 밀어 줍니다.
+                */
+                {
+                  translateX: fold.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [space[4] + 21 - HOME_LEFT - pipWidth / 2, 0],
+                  }),
+                },
+                {
+                  translateY: fold.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [insets.top + 22 - HOME_TOP - pipHeight / 2, 0],
+                  }),
+                },
+                { scale: fold.interpolate({ inputRange: [0, 1], outputRange: [0.12, 1] }) },
+              ],
+              opacity: fold.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0.6, 1] }),
+            },
           ]}
         >
+          {/*
+            🔴 **접기 띠** — 아래 확대 띠와 **똑같이 생긴 알약**입니다 (2026-08-31 지시).
+               영상 **위**에 두되 영상을 덮지 않습니다(바깥 띠).
+          */}
+          <View style={styles.barTop}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="참고 영상 접기"
+              hitSlop={{ top: 6, left: 6, right: 6, bottom: 4 }}
+              onPress={() => runFold(true)}
+              style={styles.barPress}
+            >
+              {({ pressed }) => (
+                <View style={[styles.barInner, pressTap(pressed, 'icon')]}>
+                  <X size={12} strokeWidth={2.5} color={color.paper} />
+                  <Text style={styles.barLabel}>접기</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
           {/* 영상 상자 — 시안: radius 14 · 테두리 1 white/20 · 그림자 */}
           <View style={styles.frame}>
             <GuidePlayer
@@ -283,6 +387,29 @@ const styles = StyleSheet.create({
   },
   // 영상 **아래** 확대 버튼 겸 손잡이. 영상 위에는 아무것도 올리지 않습니다.
   bar: { height: BAR, marginTop: BAR_GAP },
+  // 영상 **위** 접기 버튼. 아래 띠와 같은 규격입니다.
+  barTop: { height: BAR, marginBottom: BAR_GAP },
+  /* 카메라 오른쪽 위 뒤로가기 알약과 같은 규격 — 높이 44 줄 · px space[4] · 알약 42 */
+  restoreRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: space[4],
+    zIndex: 31,
+  },
+  restorePill: {
+    height: 42,
+    paddingHorizontal: 6,
+    borderRadius: radius.pill,
+    borderWidth: theme.border.hairline,
+    borderColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+  },
+  restoreBtn: { width: 36, height: 36, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   barPress: { flex: 1 },
   // 시안: h26 전체폭 pill · 테두리 white/15 · bg rgba(20,20,30,.65) · gap-1
   barInner: {

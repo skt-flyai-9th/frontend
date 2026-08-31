@@ -138,7 +138,9 @@ export default function HomeFeedScreen() {
   */
   const chrome = useChrome();
   const focused = useIsFocused();
-  const coachRunning = useCoach()?.activeName != null;
+  /** 코치마크가 지금 짚고 있는 곳. 단계마다 필요한 바가 달라 이 값으로 가릅니다. */
+  const coachName = useCoach()?.activeName ?? null;
+  const coachRunning = coachName != null;
   const back = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** 직전에 보고 있던 장. 번호가 오르면 다음 장(위로 밈), 내리면 이전 장(아래로 당김). */
@@ -182,11 +184,20 @@ export default function HomeFeedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused]);
 
-  // 튜토리얼이 도는 동안은 셋 다 보입니다 — 코치마크가 탭바와 선반을 같이 짚습니다.
+  /*
+    🔴 **튜토리얼은 단계가 원하는 바 하나만 띄웁니다** (2026-08-31 지시:
+       "실제 화면과 가장 닮도록", "3/7 화면은 탭바가 아닌 선반만").
+
+    홈은 평소 선반과 탭바 중 하나만 띄웁니다. 튜토리얼에서 둘을 같이 띄우면
+    **실제로는 없는 화면**을 가르치는 셈이 됩니다. 그래서 짚는 곳에 맞춰 하나만.
+
+      촬영 버튼(`make`) 을 짚을 때  →  선반만
+      그 밖(탭 아이콘 · 영상)       →  탭바만
+  */
   useEffect(() => {
-    chrome.setLocked(coachRunning);
+    chrome.setLock(coachName == null ? null : coachName === 'make' ? 'shelf' : 'tabs');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coachRunning]);
+  }, [coachName]);
 
   /*
    * ⚠️ 이 둘은 **ref 로 고정해야 합니다.** FlatList 는 `viewabilityConfig` 와

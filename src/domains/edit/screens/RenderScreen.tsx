@@ -55,8 +55,22 @@ import type { CreateStackParamList, RootStackParamList } from '../../../navigati
 
 type Props = NativeStackScreenProps<CreateStackParamList, 'Render'>;
 
-/** 시안 STEPS 원문. 자막이 없는 안무 촬영도 자막 단계는 그대로 지나갑니다. */
-const STEPS = ['컷 편집', '자막 입히기', '위치 태그 · 매장 브랜딩 삽입', '최종 렌더링'];
+/**
+ * 시안 STEPS 원문. 자막이 없는 안무 촬영도 자막 단계는 그대로 지나갑니다.
+ *
+ * 2026-08-31 지시로 **"컷 사이 효과 삽입"** 을 컷 편집 바로 아래에 넣었습니다 —
+ * 온보딩 04 화면이 알려 주는 다섯 단계와 이제 같은 목록입니다.
+ * 줄 모양(체크·스피너·빈 원)과 진행 애니메이션은 아래 `STEPS.map` 이 **한 벌로**
+ * 그리므로, 목록에 넣기만 하면 위아래 줄과 똑같이 움직입니다.
+ * (진행도도 `percent * STEPS.length` 라 개수에 자동으로 맞습니다)
+ */
+const STEPS = [
+  '컷 편집',
+  '컷 사이 효과 삽입',
+  '자막 입히기',
+  '위치 태그 · 매장 브랜딩 삽입',
+  '최종 렌더링',
+];
 
 /**
  * 자막을 화면 가운데로 올리는 규격. 어느 쪽에 올려도 UI 에 안 가립니다.
