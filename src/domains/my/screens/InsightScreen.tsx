@@ -40,7 +40,12 @@ import { LoadGate } from '../../../ui/LoadGate';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
-import { DEMO_HIDE_KPI_DELTA, DEMO_REC_VIDEO_URL, DEMO_RECORDING } from '../../../lib/demo'; // ⏳ 녹화용
+import {
+  DEMO_HIDE_DELTA,
+  DEMO_INSTAGRAM_WEEK,
+  DEMO_REC_VIDEO_URL,
+  useDemoAccount,
+} from '../../../lib/demo'; // ⏳ 녹화용
 import { useInsights, useStore } from '../../../api/queries/store';
 import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import theme, { color, radius, space, text } from '../../../design/theme';
@@ -228,7 +233,15 @@ export default function InsightScreen() {
   /** 17.3 — 플랫폼별 주간 조회수·좋아요·7일 추이 */
   const metrics = useInsightMetrics(storeId ?? undefined);
 
-  const platforms = metrics.data ?? [];
+  /* ⏳ 녹화 계정으로 로그인했을 때만 갈아 끼웁니다 (`lib/demo.ts`) */
+  const demo = useDemoAccount();
+  const platforms = demo
+    ? // 인스타 줄을 통째로 갈아 끼웁니다 — 그 계정에 연동이 없어도 뜨게 뒤에 붙입니다
+      [
+        ...(metrics.data ?? []).filter((p) => p.platform !== 'INSTAGRAM'),
+        DEMO_INSTAGRAM_WEEK,
+      ]
+    : (metrics.data ?? []);
   /** 고른 플랫폼. 처음에는 시안 순서대로 유튜브가 잡힙니다. */
   const [plat, setPlat] = useState<SnsPlatform | null>(null);
   const cur = platforms.find((p) => p.platform === plat) ?? platforms[0];
@@ -434,7 +447,7 @@ export default function InsightScreen() {
           <View style={styles.cardHead}>
             <Text style={styles.cardTitle}>주간 조회수 추이</Text>
             {/* ⏳ 녹화 중에는 감춥니다 (`lib/demo.ts`) */}
-            {cur?.viewsDelta && !DEMO_HIDE_KPI_DELTA ? (
+            {cur?.viewsDelta && !(demo && DEMO_HIDE_DELTA) ? (
               <Text style={[styles.delta, { color: deltaTone(cur.viewsDelta) }]}>
                 {cur.viewsDelta}
               </Text>
@@ -478,7 +491,7 @@ export default function InsightScreen() {
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.views ?? '—'}</Text>
                 {/* ⏳ 녹화 중에는 배지를 감춥니다 (`lib/demo.ts`) */}
-                {cur?.viewsDelta && !DEMO_HIDE_KPI_DELTA ? (
+                {cur?.viewsDelta && !(demo && DEMO_HIDE_DELTA) ? (
                   <Text style={[styles.kpiDelta, { color: deltaTone(cur.viewsDelta) }]}>
                     {cur.viewsDelta}
                   </Text>
@@ -495,7 +508,7 @@ export default function InsightScreen() {
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
                 {/* 서버가 줄 때만 뜹니다 — 없으면 숫자만 남습니다(지어내지 않음) */}
-                {cur?.likesDelta && !DEMO_HIDE_KPI_DELTA ? (
+                {cur?.likesDelta && !(demo && DEMO_HIDE_DELTA) ? (
                   <Text style={[styles.kpiDelta, { color: deltaTone(cur.likesDelta) }]}>
                     {cur.likesDelta}
                   </Text>
@@ -519,7 +532,7 @@ export default function InsightScreen() {
             ⏳ 녹화 중에만 실제 쇼츠를 깝니다 (`lib/demo.ts` — 끝나면 지웁니다).
                3.5 는 제목·본문만 주고 영상은 주지 않아 평소에는 회색 판입니다.
           */}
-          {DEMO_RECORDING ? (
+          {demo ? (
             <VideoThumbnail
               url={DEMO_REC_VIDEO_URL}
               platform="YOUTUBE"

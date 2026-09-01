@@ -44,7 +44,11 @@ import { CoachTarget } from '../../../ui/coach/CoachContext';
 import { Skeleton } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
-import { DEMO_ACCOUNT_VIEWS, DEMO_RECORDING } from '../../../lib/demo'; // ⏳ 녹화용
+import {
+  DEMO_ACCOUNT_VIEWS,
+  DEMO_INSTAGRAM_NAME,
+  useDemoAccount,
+} from '../../../lib/demo'; // ⏳ 녹화용
 import { useStore, useStoreShorts } from '../../../api/queries/store';
 import { useProjects } from '../../../api/queries/project';
 import { useTasks } from '../../../api/queries/shoot';
@@ -256,7 +260,12 @@ export default function MyPageScreen() {
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
 
-  const instagramLink = snsLink('INSTAGRAM', instagram);
+  /* ⏳ 녹화 계정으로 로그인했을 때만 갈아 끼웁니다 (`lib/demo.ts`) */
+  const demo = useDemoAccount();
+
+  const instagramLink = demo
+    ? { url: null, label: DEMO_INSTAGRAM_NAME }
+    : snsLink('INSTAGRAM', instagram);
   const youtubeLink = snsLink('YOUTUBE', youtube);
 
   /*
@@ -316,9 +325,9 @@ export default function MyPageScreen() {
           <Stat label="Videos" value={String(shorts.data?.total ?? 0)} loading={shorts.isLoading} />
           {/*
             계정 단위 누적 조회수 API 없음 — 평소에는 숫자를 지어내지 않습니다.
-            ⏳ 녹화 중에만 값이 뜹니다 (`lib/demo.ts` — 끝나면 지웁니다).
+            ⏳ **녹화 계정에서만** 값이 뜹니다 (`lib/demo.ts` — 끝나면 지웁니다).
           */}
-          <Stat label="Views" value={DEMO_RECORDING ? DEMO_ACCOUNT_VIEWS : undefined} />
+          <Stat label="Views" value={demo ? DEMO_ACCOUNT_VIEWS : undefined} />
         </View>
       </View>
 
