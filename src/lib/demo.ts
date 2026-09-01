@@ -22,7 +22,7 @@
  *   ② 이 파일과 부르는 자리(아래 목록)를 지우기
  *
  * 부르는 자리
- *   `domains/my/screens/MyPageScreen.tsx`  — 인스타 계정 이름 · Views
+ *   `domains/my/screens/MyPageScreen.tsx`  — 인스타 계정 이름 · Views · 인사이트 카드 조회수
  *   `domains/my/screens/InsightScreen.tsx` — 주간 지표 · 추천 영상 · 증감 배지
  */
 import { useMe } from '../api/queries/auth';
@@ -53,6 +53,15 @@ export const DEMO_INSTAGRAM_NAME = 'oni_onigiri2021';
  * `—` 로 둡니다 — 0 으로 채우면 "실제로 0" 이라는 거짓말이 됩니다.
  */
 export const DEMO_ACCOUNT_VIEWS = '1,726';
+
+/**
+ * 마이페이지 Professional Insight 카드의 **"최근 1주일 동안 N번 조회되었어요"**.
+ *
+ * 평소에는 17.3 이 준 플랫폼별 주간 조회수를 **전부 더한 값**입니다. 녹화 계정은
+ * 아직 게시한 영상이 없어 0 으로 옵니다 — 같은 화면의 Views 1,726 과 어긋나므로
+ * 같은 값으로 맞춥니다 (2026-08-31 지시).
+ */
+export const DEMO_WEEK_TOTAL = 1726;
 
 /**
  * "다음 숏폼 추천" 카드에 깔 영상.

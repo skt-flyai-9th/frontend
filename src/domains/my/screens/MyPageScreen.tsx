@@ -47,6 +47,7 @@ import { useAppState } from '../../../lib/appState';
 import {
   DEMO_ACCOUNT_VIEWS,
   DEMO_INSTAGRAM_NAME,
+  DEMO_WEEK_TOTAL,
   useDemoAccount,
 } from '../../../lib/demo'; // ⏳ 녹화용
 import { useStore, useStoreShorts } from '../../../api/queries/store';
@@ -219,10 +220,19 @@ export default function MyPageScreen() {
    * 궁금한 건 "내 영상이 이번 주에 몇 번 보였나" 지 플랫폼별 분해가 아닙니다.
    * 아직 아무것도 안 올렸으면 합이 0 이라, 0 은 값 없음과 구분해 그대로 씁니다.
    */
-  const weekTotal =
+  /* ⏳ 녹화 계정으로 로그인했을 때만 갈아 끼웁니다 (`lib/demo.ts`) */
+  const demo = useDemoAccount();
+
+  const realWeekTotal =
     metrics.data && metrics.data.length > 0
       ? metrics.data.reduce((sum, p) => sum + p.week.reduce((a, d) => a + d.value, 0), 0)
       : null;
+  /*
+    ⏳ 녹화 계정에서만 갈아 끼웁니다 (`lib/demo.ts`).
+       그 계정은 아직 게시한 영상이 없어 실제로 0 이 옵니다 — 바로 위 Views 1,726 과
+       어긋나 보이므로 같은 값으로 맞춥니다.
+  */
+  const weekTotal = demo ? DEMO_WEEK_TOTAL : realWeekTotal;
 
   const items = shorts.data?.items ?? [];
   /**
@@ -259,9 +269,6 @@ export default function MyPageScreen() {
   const resumeLabel = resumeAllShot ? '이어서 편집하기' : '이어서 촬영하기';
   const instagram = connections?.find((c) => c.snsPlatform === 'INSTAGRAM');
   const youtube = connections?.find((c) => c.snsPlatform === 'YOUTUBE');
-
-  /* ⏳ 녹화 계정으로 로그인했을 때만 갈아 끼웁니다 (`lib/demo.ts`) */
-  const demo = useDemoAccount();
 
   const instagramLink = demo
     ? { url: null, label: DEMO_INSTAGRAM_NAME }
