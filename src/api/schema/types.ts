@@ -947,6 +947,11 @@ export interface PlatformWeeklyTotal {
   weeklyLikes: number;
   /** 지난주 대비 증감. 비교할 지난주가 없으면 `null` 입니다. */
   viewsChangeRate?: number | null;
+  /**
+   * 좋아요 증감률. **실서버 17.3 은 아직 안 줍니다** — 오면 화면이 바로 씁니다.
+   * (2026-08-31, 조회수처럼 좋아요에도 붙여 달라고 BE 에 요청 예정)
+   */
+  likesChangeRate?: number | null;
   dailyViews: DailyViewsPoint[];
 }
 

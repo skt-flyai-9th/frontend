@@ -92,7 +92,7 @@ const CONNECTIONS_SEED = [
   {
     id: 8801,
     sns_platform: 'INSTAGRAM',
-    sns_account_name: 'nangok_kalguksu',
+    sns_account_name: 'oni_onigiri2021',   // ⏳ 녹화용 (2026-08-31)
     token_expires_at: '2026-11-19T00:00:00Z',
   },
   {

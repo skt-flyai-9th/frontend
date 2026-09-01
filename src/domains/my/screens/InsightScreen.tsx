@@ -39,6 +39,8 @@ import { AgeBars } from '../../../ui/AgeBars';
 import { LoadGate } from '../../../ui/LoadGate';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
+import { VideoThumbnail } from '../../../ui/VideoThumbnail';
+import { DEMO_REC_VIDEO_URL, DEMO_RECORDING } from '../../../lib/demo'; // ⏳ 녹화용
 import { useInsights, useStore } from '../../../api/queries/store';
 import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import theme, { color, radius, space, text } from '../../../design/theme';
@@ -436,9 +438,10 @@ export default function InsightScreen() {
           ② 조회수·좋아요 2열 — 시안 rounded-2xl · p-3.5 · 아이콘 16 + 12 라벨,
              값 19 bold tabular · 증감 12 semibold(초록).
 
-          ⚠️ **좋아요에는 증감이 없습니다.** 서버가 주는 증감률은 조회수 것
-             (`views_change_rate`) 하나뿐입니다. 시안에는 `+9%` 가 붙어 있지만
-             지어내지 않습니다 (CLAUDE.md §2).
+          ⚠️ **좋아요 증감은 서버가 줄 때만 뜹니다** (`likes_change_rate`).
+             실서버 17.3 은 아직 조회수 것(`views_change_rate`) 하나만 줍니다.
+             시안에는 `+9%` 가 붙어 있지만 값이 없으면 **그냥 뺍니다** — 지어내지
+             않습니다 (CLAUDE.md §2).
         */}
         <View style={styles.kpiGrid}>
           <View style={styles.kpiWrap}>
@@ -467,6 +470,8 @@ export default function InsightScreen() {
               </View>
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
+                {/* 서버가 줄 때만 뜹니다 — 없으면 숫자만 남습니다(지어내지 않음) */}
+                {cur?.likesDelta ? <Text style={styles.kpiDelta}>{cur.likesDelta}</Text> : null}
               </View>
             </RiseIn>
           </View>
@@ -482,7 +487,20 @@ export default function InsightScreen() {
         {/* ⑤ 다음 숏폼 추천 */}
         <Text style={[styles.cardTitle, styles.sectionTitle]}>다음 숏폼 추천</Text>
         <View style={styles.recCard}>
-          <View style={styles.recMedia} />
+          {/*
+            ⏳ 녹화 중에만 실제 쇼츠를 깝니다 (`lib/demo.ts` — 끝나면 지웁니다).
+               3.5 는 제목·본문만 주고 영상은 주지 않아 평소에는 회색 판입니다.
+          */}
+          {DEMO_RECORDING ? (
+            <VideoThumbnail
+              url={DEMO_REC_VIDEO_URL}
+              platform="YOUTUBE"
+              aspectRatio={4 / 5}
+              style={styles.recMedia}
+            />
+          ) : (
+            <View style={styles.recMedia} />
+          )}
           <View style={{ padding: space[4] }}>
             {/* 시안 8차에서 배지 안 sparkles 아이콘이 빠졌습니다 (gap-1 도 함께) */}
             <View style={styles.recBadge}>

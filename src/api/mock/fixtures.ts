@@ -725,18 +725,25 @@ export const weeklySummary = {
       ],
     },
     {
+      /*
+        ⏳ **녹화용 값입니다** (2026-08-31). 합이 정확히 1,726 이 되도록 나눴습니다.
+           월 112 · 화 198 · 수 141 · 목 236 · 금 205 · 토 402 · 일 432 = 1726
+           조회수 증감  일 432 ÷ 토 402 = +7.46% → +7%
+           좋아요 증감  18 ÷ 17 = +5.88% → +6%
+      */
       platform: 'INSTAGRAM',
-      weekly_views: 1340,
-      weekly_likes: 204,
-      views_change_rate: 8,
+      weekly_views: 1726,
+      weekly_likes: 18,
+      views_change_rate: 7,
+      likes_change_rate: 6,
       daily_views: [
-        { date: '2026-08-24', views: 130 },
-        { date: '2026-08-25', views: 180 },
-        { date: '2026-08-26', views: 150 },
-        { date: '2026-08-27', views: 200 },
-        { date: '2026-08-28', views: 240 },
-        { date: '2026-08-29', views: 260 },
-        { date: '2026-08-30', views: 220 },
+        { date: '2026-08-24', views: 112 },
+        { date: '2026-08-25', views: 198 },
+        { date: '2026-08-26', views: 141 },
+        { date: '2026-08-27', views: 236 },
+        { date: '2026-08-28', views: 205 },
+        { date: '2026-08-29', views: 402 },
+        { date: '2026-08-30', views: 432 },
       ],
     },
   ],

@@ -38,6 +38,12 @@ export interface PlatformWeek {
   likes: string;
   /** `+14%`. 비교할 지난주가 없으면 `undefined` — 그때는 화면에서 뺍니다. */
   viewsDelta?: string;
+  /**
+   * 좋아요 증감. **서버가 줄 때만 있습니다.**
+   * 실서버 17.3 은 아직 `views_change_rate` 하나만 줍니다(BE 문의 중).
+   * 값이 없으면 `undefined` 라 화면에서 빠집니다 — 지어내지 않습니다.
+   */
+  likesDelta?: string;
   /** 꺾은선용. `day` 는 요일 한 글자입니다. */
   week: { day: string; value: number }[];
 }
@@ -85,6 +91,7 @@ export function useInsightMetrics(storeId?: number) {
           views: `${(r.weeklyViews ?? 0).toLocaleString()}회`,
           likes: `${(r.weeklyLikes ?? 0).toLocaleString()}개`,
           viewsDelta: deltaText(r.viewsChangeRate),
+          likesDelta: deltaText(r.likesChangeRate),
           week: (r.dailyViews ?? []).map((pt) => ({
             day: dayLabel(pt.date),
             value: pt.views ?? 0,

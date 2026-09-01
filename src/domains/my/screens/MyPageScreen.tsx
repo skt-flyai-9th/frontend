@@ -44,6 +44,7 @@ import { CoachTarget } from '../../../ui/coach/CoachContext';
 import { Skeleton } from '../../../ui/Feedback';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
+import { DEMO_ACCOUNT_VIEWS, DEMO_RECORDING } from '../../../lib/demo'; // ⏳ 녹화용
 import { useStore, useStoreShorts } from '../../../api/queries/store';
 import { useProjects } from '../../../api/queries/project';
 import { useTasks } from '../../../api/queries/shoot';
@@ -313,8 +314,11 @@ export default function MyPageScreen() {
 
         <View style={styles.stats}>
           <Stat label="Videos" value={String(shorts.data?.total ?? 0)} loading={shorts.isLoading} />
-          {/* 계정 단위 누적 조회수 API 없음 — 숫자를 지어내지 않습니다 */}
-          <Stat label="Views" />
+          {/*
+            계정 단위 누적 조회수 API 없음 — 평소에는 숫자를 지어내지 않습니다.
+            ⏳ 녹화 중에만 값이 뜹니다 (`lib/demo.ts` — 끝나면 지웁니다).
+          */}
+          <Stat label="Views" value={DEMO_RECORDING ? DEMO_ACCOUNT_VIEWS : undefined} />
         </View>
       </View>
 
