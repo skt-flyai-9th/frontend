@@ -38,5 +38,8 @@ export const DEMO_ACCOUNT_VIEWS = '1,726';
  * 3.5 insights 는 제목·본문만 주고 **영상은 주지 않습니다.** 그래서 평소에는
  * 회색 판만 있습니다. 녹화에서는 예시로 보여 줄 게 필요해 실재하는 쇼츠 하나를
  * 깝니다 — 가짜 도메인을 쓰면 실기기에서 빈 칸으로 뜹니다.
+ *
+ * ⚠️ 녹화에서 **직접 찍는 숏폼과 겹치지 않는 것**으로 고릅니다 (2026-08-31 지시).
+ *    주술회전 트랜지션(`Aa-CGr9-c8E`)은 그래서 뺐습니다.
  */
-export const DEMO_REC_VIDEO_URL = 'https://www.youtube.com/shorts/Aa-CGr9-c8E';
+export const DEMO_REC_VIDEO_URL = 'https://www.youtube.com/shorts/rUIEHnyoPrU';

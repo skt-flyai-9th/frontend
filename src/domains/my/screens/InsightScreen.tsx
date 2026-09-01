@@ -204,6 +204,20 @@ function RiseIn({
 }
 
 
+/**
+ * 증감 글자 색. **떨어졌는데 초록이면 거짓말입니다.**
+ *
+ * 시안은 오르는 경우만 그려 놔서 색이 초록 하나였습니다. 그런데 실제 값은
+ * 내려갈 수도 있습니다(2026-08-31 녹화 데이터에서 −27% 가 실제로 나왔습니다).
+ * 부호를 보고 고릅니다 — 0% 는 중립(회색)입니다.
+ */
+function deltaTone(t?: string) {
+  if (!t) return color.ink[500];
+  if (t.startsWith('-') || t.startsWith('−')) return color.danger[500];
+  if (t.startsWith('+')) return color.done[500];
+  return color.ink[500];
+}
+
 export default function InsightScreen() {
   const insets = useSafeAreaInsets();
   const nav = useNavigation<Nav>();
@@ -419,7 +433,11 @@ export default function InsightScreen() {
 
           <View style={styles.cardHead}>
             <Text style={styles.cardTitle}>주간 조회수 추이</Text>
-            {cur?.viewsDelta ? <Text style={styles.delta}>{cur.viewsDelta}</Text> : null}
+            {cur?.viewsDelta ? (
+              <Text style={[styles.delta, { color: deltaTone(cur.viewsDelta) }]}>
+                {cur.viewsDelta}
+              </Text>
+            ) : null}
           </View>
           {(cur?.week.length ?? 0) >= 2 ? (
             <LineChart
@@ -458,7 +476,11 @@ export default function InsightScreen() {
               </View>
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.views ?? '—'}</Text>
-                {cur?.viewsDelta ? <Text style={styles.kpiDelta}>{cur.viewsDelta}</Text> : null}
+                {cur?.viewsDelta ? (
+                  <Text style={[styles.kpiDelta, { color: deltaTone(cur.viewsDelta) }]}>
+                    {cur.viewsDelta}
+                  </Text>
+                ) : null}
               </View>
             </RiseIn>
           </View>
@@ -471,7 +493,11 @@ export default function InsightScreen() {
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
                 {/* 서버가 줄 때만 뜹니다 — 없으면 숫자만 남습니다(지어내지 않음) */}
-                {cur?.likesDelta ? <Text style={styles.kpiDelta}>{cur.likesDelta}</Text> : null}
+                {cur?.likesDelta ? (
+                  <Text style={[styles.kpiDelta, { color: deltaTone(cur.likesDelta) }]}>
+                    {cur.likesDelta}
+                  </Text>
+                ) : null}
               </View>
             </RiseIn>
           </View>
