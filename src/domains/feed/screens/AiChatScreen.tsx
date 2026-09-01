@@ -87,7 +87,7 @@ const CARD_W = 248;
 const EMBED_W = 126;
 const EMBED_H = 224;
 
-/** 추천 API 응답 뒤 결과 카드가 나타나기까지 유지할 생각 중 시간. */
+/** 추천 요청 뒤 결과 카드가 나타나기까지 보장할 최소 생각 중 시간. */
 const RECOMMENDATION_RESULT_DELAY_MS = 5_000;
 
 /**
@@ -285,6 +285,7 @@ export default function AiChatScreen() {
   /** 세션 생성이 진행 중인지. 자동 시작과 새로고침이 겹쳐 세션을 두 개 만드는 것을 막습니다. */
   const starting = useRef(false);
   const recommendationDelayTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const recommendationRequestStartedAt = useRef<number | undefined>(undefined);
 
   const createSession = useCreateShortformSession(storeId ?? undefined);
   const submitTurn = useSubmitShortformTurn(sessionId);
@@ -307,6 +308,8 @@ export default function AiChatScreen() {
   const applyResponse = useCallback(
     (response: ShortformTurnResponse) => {
       const recs = response.recommendations ?? [];
+      const requestStartedAt = recommendationRequestStartedAt.current;
+      recommendationRequestStartedAt.current = undefined;
       setHasMoreRecommendations(response.hasMoreRecommendations ?? true);
       setOptions(response.action === 'CONFIRM' ? CONFIRM_OPTIONS : (response.options ?? []));
       setFreeInput(false);
@@ -320,6 +323,8 @@ export default function AiChatScreen() {
 
       setRecommendations([]);
       setRecommendationDelayPending(true);
+      const elapsedMs = requestStartedAt ? Date.now() - requestStartedAt : 0;
+      const remainingDelayMs = Math.max(0, RECOMMENDATION_RESULT_DELAY_MS - elapsedMs);
       recommendationDelayTimer.current = setTimeout(() => {
         if (!mounted.current) return;
         if (response.assistantMessage) append({ role: 'ai', content: response.assistantMessage });
@@ -330,7 +335,7 @@ export default function AiChatScreen() {
         setRecommendations(recs);
         setRecommendationDelayPending(false);
         recommendationDelayTimer.current = undefined;
-      }, RECOMMENDATION_RESULT_DELAY_MS);
+      }, remainingDelayMs);
     },
     [append, cancelRecommendationDelay]
   );
@@ -352,6 +357,7 @@ export default function AiChatScreen() {
     if (!storeId || createSession.isPending || starting.current) return;
     starting.current = true;
     cancelRecommendationDelay();
+    recommendationRequestStartedAt.current = undefined;
     const oldSessionId = sessionId;
     setSessionId(undefined);
     setRecommendations([]);
@@ -434,6 +440,7 @@ export default function AiChatScreen() {
     setOptions([]);
     setRecommendations([]);
     setFreeInput(false);
+    recommendationRequestStartedAt.current = Date.now();
     submitTurn.mutate(inputValue, { onSuccess: applyResponse });
   };
 
@@ -512,6 +519,7 @@ export default function AiChatScreen() {
   const tryNext = () => {
     cancelRecommendationDelay();
     setRecommendations([]);
+    recommendationRequestStartedAt.current = Date.now();
     nextRecommendation.mutate(undefined, { onSuccess: applyResponse });
   };
 
