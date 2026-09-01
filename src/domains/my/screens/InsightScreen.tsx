@@ -40,7 +40,7 @@ import { LoadGate } from '../../../ui/LoadGate';
 import { pressTap } from '../../../ui/press';
 import { useAppState } from '../../../lib/appState';
 import { VideoThumbnail } from '../../../ui/VideoThumbnail';
-import { DEMO_REC_VIDEO_URL, DEMO_RECORDING } from '../../../lib/demo'; // ⏳ 녹화용
+import { DEMO_HIDE_KPI_DELTA, DEMO_REC_VIDEO_URL, DEMO_RECORDING } from '../../../lib/demo'; // ⏳ 녹화용
 import { useInsights, useStore } from '../../../api/queries/store';
 import { useInsightMetrics } from '../../../api/queries/insightMetrics';
 import theme, { color, radius, space, text } from '../../../design/theme';
@@ -433,7 +433,8 @@ export default function InsightScreen() {
 
           <View style={styles.cardHead}>
             <Text style={styles.cardTitle}>주간 조회수 추이</Text>
-            {cur?.viewsDelta ? (
+            {/* ⏳ 녹화 중에는 감춥니다 (`lib/demo.ts`) */}
+            {cur?.viewsDelta && !DEMO_HIDE_KPI_DELTA ? (
               <Text style={[styles.delta, { color: deltaTone(cur.viewsDelta) }]}>
                 {cur.viewsDelta}
               </Text>
@@ -476,7 +477,8 @@ export default function InsightScreen() {
               </View>
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.views ?? '—'}</Text>
-                {cur?.viewsDelta ? (
+                {/* ⏳ 녹화 중에는 배지를 감춥니다 (`lib/demo.ts`) */}
+                {cur?.viewsDelta && !DEMO_HIDE_KPI_DELTA ? (
                   <Text style={[styles.kpiDelta, { color: deltaTone(cur.viewsDelta) }]}>
                     {cur.viewsDelta}
                   </Text>
@@ -493,7 +495,7 @@ export default function InsightScreen() {
               <View style={styles.kpiValueRow}>
                 <Text style={styles.kpiValue}>{cur?.likes ?? '—'}</Text>
                 {/* 서버가 줄 때만 뜹니다 — 없으면 숫자만 남습니다(지어내지 않음) */}
-                {cur?.likesDelta ? (
+                {cur?.likesDelta && !DEMO_HIDE_KPI_DELTA ? (
                   <Text style={[styles.kpiDelta, { color: deltaTone(cur.likesDelta) }]}>
                     {cur.likesDelta}
                   </Text>

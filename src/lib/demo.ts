@@ -6,6 +6,7 @@
  *
  *   `domains/my/screens/MyPageScreen.tsx` — 프로필 위 `Views` 통계
  *   `domains/my/screens/InsightScreen.tsx`  — "다음 숏폼 추천" 카드의 영상
+ *   `domains/my/screens/InsightScreen.tsx`  — 증감 배지 감추기 (차트 · 카드 둘 다)
  *
  * 왜 여기 모아 두는가 — 이 값들은 **서버가 주지 않는 숫자**입니다. 화면에
  * 직접 박아 두면 나중에 "이건 진짜 데이터인가" 를 가릴 수가 없습니다.
@@ -43,3 +44,14 @@ export const DEMO_ACCOUNT_VIEWS = '1,726';
  *    주술회전 트랜지션(`Aa-CGr9-c8E`)은 그래서 뺐습니다.
  */
 export const DEMO_REC_VIDEO_URL = 'https://www.youtube.com/shorts/rUIEHnyoPrU';
+
+/**
+ * **증감 배지를 전부 감춥니다** (2026-08-31 지시: "그 조회수랑 좋아요 수 증감표
+ * 빼줘" → "조회수 추이 차트에도 안 뜨게").
+ *
+ * 감추는 곳 셋 — 주간 조회수 추이 오른쪽 위 · 총 조회수 카드 · 좋아요 수 카드.
+ * 숫자만 크게 남는 편이 녹화에서 읽기 좋습니다.
+ *
+ * 계속 이렇게 가고 싶으면 이 값을 지우고 화면에서 그 세 줄을 아예 빼면 됩니다.
+ */
+export const DEMO_HIDE_KPI_DELTA = true;
